@@ -1,0 +1,375 @@
+# Ballim - 3D Baskı Yönetim Sistemi
+
+## Sistem Mimarisi
+- Web Uygulaması (Genel Erişim)
+- Masaüstü Uygulaması (Yerel Kullanım)
+- Ortak Veritabanı (Gerçek Zamanlı Senkronizasyon)
+
+## Entegrasyon Senaryosu
+1. Müşteri web sitesinden sipariş verir
+2. Sistem otomatik olarak:
+   - Stok kontrolü yapar
+   - Gramaj hesaplar (örn: 50 adet × 10gr = 500gr)
+   - Fiyat hesaplar (örn: 500gr × 3₺ = 1500₺)
+   - Cari hesaba işler
+3. Üretici masaüstü uygulamasından:
+   - Siparişleri görüntüler
+   - Stok durumunu kontrol eder
+   - Üretim planlaması yapar
+   - Üretim durumunu günceller
+4. Sistem otomatik olarak:
+   - Stok miktarını günceller
+   - Web sitesindeki stok bilgisini günceller
+   - Sipariş durumunu günceller
+
+## Web Uygulaması Gereksinimleri
+
+### Kullanıcı Rolleri
+- Admin (Tam Erişim)
+- Müşteri (Kısıtlı Erişim)
+
+### Admin Sayfaları ve Özellikleri
+
+1. **Ana Sayfa**
+   - Dashboard görünümü
+
+2. **Ürünler**
+   - Ürün bilgileri:
+     - Ürün Kodu
+     - Temsili küçük resim
+     - Ürün türü
+     - Kapasite (1 tabla)
+     - Ürün boyutları
+     - Baskı süresi
+     - Toplam gramaj
+     - Adet gramajı
+     - Filament detayları
+     - Dosya konumu
+     - Satış tipi
+     - Notlar
+
+3. **Stok Durumu ve Sipariş**
+   - Stok > 0 olan ürünleri gösterme
+   - Sipariş oluşturma özellikleri:
+     - Ürün seçimi
+     - Adet girişi
+     - Otomatik fiyat hesaplama (örn: gram başı 2.5₺)
+     - Müşteri onay sistemi
+   
+4. **Siparişler**
+   - Sipariş durumu takibi:
+     - Onay bekliyor
+     - Üretimde
+     - Üretildi
+     - Hazırlanıyor
+     - Hazırlandı
+
+5. **Cari Hesap**
+   - Müşteri borç/alacak takibi
+   - Alış/veriş kayıtları
+
+6. **Filament Yönetimi**
+   - Filament stok takibi:
+     - Tür (PLA, ABS, Reçine vb.)
+     - Miktar
+     - Alış fiyatı
+     - Stok durumu
+
+7. **Müşteri Yönetimi**
+   - Müşteri bilgileri
+   - Fiyat anlaşmaları (örn: gram başı fiyat)
+   - Şirket/genel bilgiler
+
+8. **Ödeme İşlemleri**
+   - Ödeme alma kaydı
+   - Ödeme türü seçimi:
+     - Nakit
+     - Kart
+     - Vadeli
+
+### Güvenlik
+- Rol tabanlı erişim kontrolü
+- Güvenli oturum yönetimi
+
+### Teknolojiler
+- Next.js
+- TypeScript
+- Tailwind CSS
+
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Masaüstü Uygulaması Gereksinimleri
+
+### Genel Özellikler
+- Kullanıcı girişi gerektirmez (yerel kullanım)
+- Web sitesi ile gerçek zamanlı senkronizasyon
+- Stok ve sipariş odaklı arayüz
+
+### Ana Özellikler
+
+1. **Sipariş Yönetimi**
+   - Gelen siparişleri görüntüleme
+   - Sipariş durumu güncelleme:
+     - Üretimde
+     - Üretildi
+     - Hazırlanıyor
+     - Tamamlandı
+   - Otomatik stok güncelleme
+
+2. **Üretim Planlama**
+   - Tabla bazlı üretim planı
+   - Üretim miktarı belirleme
+   - Otomatik stok hesaplama
+
+3. **Stok Yönetimi**
+   - Mevcut stok görüntüleme
+   - Üretim sonrası otomatik stok güncelleme
+   - Satış sonrası otomatik stok düşme
+
+4. **Raporlama**
+   - Günlük üretim raporu
+   - Stok durumu raporu
+   - Sipariş durumu raporu
+
+### Teknolojiler
+- Electron.js (Masaüstü uygulaması için)
+- React
+- TypeScript
+- SQLite (Yerel veritabanı)
+- WebSocket (Gerçek zamanlı iletişim)
+
+### Veritabanı Senkronizasyonu
+- Web sunucusu ile sürekli bağlantı
+- Otomatik veri senkronizasyonu
+- Çevrimdışı çalışabilme özelliği
+- Çakışma çözümleme sistemi
+
+## Özellikler
+
+### Ürünler Sayfası
+- **Ürün Listesi**: Kart görünümünde ürün bilgileri
+  - Ürün görseli (3:2 oranında, optimize edilmiş boyut)
+  - Ürün kodu
+  - Ürün tipi (badge formatında)
+  - Boyutlar ve kapasite bilgisi
+  - Kompakt ve modern tasarım
+
+- **Arama ve Filtreleme**
+  - Anlık arama (ürün kodu ve ürün tipinde)
+  - Optimize edilmiş grid görünümü (2-5 sütun arası responsive)
+  - Gelişmiş kart tasarımı:
+    - Hover efektleri
+    - Görsel önizleme
+    - Detay modalı
+
+- **Ürün Detayları**
+
+## SON GÜNCELLEMELER VE YENİ ÖZELLİKLER
+
+### 📄 PDF Sevkiyat Belgesi Sistemi (Aralık 2024)
+**Özellik**: Admin kullanıcılar için profesyonel PDF sevkiyat belgesi oluşturma sistemi
+
+**Detaylar**:
+- **Sadece Admin Erişimi**: Yazdır butonu sadece admin kullanıcılara görünür
+- **Kapsamlı Bilgiler**: 
+  - Müşteri bilgileri (ad, telefon, e-posta, adres)
+  - Firma bilgileri (ULUDAĞ 3D detayları)
+  - Sipariş detayları (sipariş no, tarih)
+  - Ürün tablosu (kod, ad, adet, ağırlık, fiyat)
+  - KDV hesaplamaları (%20)
+  - Cari durum bilgisi
+- **Teknik Özellikler**:
+  - Modern CSS ile tasarım (html2canvas uyumlu)
+  - Sayfa kırılması optimizasyonu
+  - A4 formatında PDF çıktı
+  - Profesyonel görünüm
+
+### 🔧 Filament Stok Yönetimi Geliştirmeleri
+**Özellik**: Gelişmiş filament stok takip ve maliyet analizi sistemi
+
+**Yeni Özellikler**:
+- **Filament Satın Alma Sistemi**: 
+  - Stok ekleme modalı
+  - Satın alma tarihi ve miktarı kayıt
+  - Birim fiyat takibi
+- **Maliyet Analizi Dashboard**:
+  - Aylık filament maliyeti raporu
+  - Filament türü bazında harcama analizi
+  - Grafik görselleştirmeler
+- **Stok Düşüm Mantığı**:
+  - Filament stoku sadece sipariş "Hazırlandı" durumuna geldiğinde düşer
+  - Sipariş oluşturma/silme işlemlerinde stok etkilenmez
+  - Akıllı stok yönetimi
+
+### 🎨 Kullanıcı Arayüzü İyileştirmeleri
+**Geliştirmeler**:
+- **Responsive Tasarım**: Tüm sayfalarda mobil uyumluluk
+- **Modern Kart Tasarımı**: Ürün kartlarında hover efektleri
+- **Gelişmiş Tablolar**: Daha iyi görsellik ve kullanılabilirlik
+- **Durum Badge'leri**: Sipariş durumları için renkli göstergeler
+
+### 🔐 Güvenlik ve Yetkilendirme
+**İyileştirmeler**:
+- **Rol Bazlı Erişim**: Admin/müşteri ayrımı tüm sayfalarda
+- **Layout Entegrasyonu**: Tutarlı kullanıcı yönetimi sistemi
+- **Güvenli PDF Erişimi**: Yazdırma özelliği sadece yetkili kullanıcılarda
+
+### 🗃️ Veritabanı Geliştirmeleri
+**Yeni Tablolar ve Alanlar**:
+- `filament_purchases`: Filament satın alma kayıtları
+- `order_items.product_code`: Ürün kodu saklama
+- `order_items.product_name`: Ürün adı saklama (silinmiş ürünler için)
+- Gelişmiş veri bütünlüğü kontrolü
+
+### 🚀 Performans Optimizasyonları
+**İyileştirmeler**:
+- **Sayfa Geçiş Optimizasyonu**: PDF'lerde sayfa kırılması kontrolü
+- **CSS Optimizasyonu**: Modern CSS ile daha hızlı rendering
+- **Veritabanı Sorguları**: Optimize edilmiş JOIN işlemleri
+- **Cache Yönetimi**: Daha iyi browser cache kontrolü
+
+### 📱 Masaüstü Uygulama Desteği
+**Durum**: Masaüstü uygulama geliştirmesi durduruldu
+- Web tabanlı çözüm tercih edildi
+- Masaüstü kontrolleri kaldırıldı
+- Tam web uyumluluğu sağlandı
+
+### 🎯 Kullanıcı Deneyimi İyileştirmeleri
+**Geliştirmeler**:
+- **Hata Yönetimi**: Daha iyi hata mesajları ve kullanıcı bildirimleri
+- **Loading States**: Yükleme durumları için görsel geri bildirimler
+- **Responsive Modals**: Mobil uyumlu modal tasarımları
+- **Keyboard Navigation**: Klavye erişilebilirliği
+
+### 📊 Raporlama Sistemi
+**Yeni Özellikler**:
+- **Filament Maliyet Raporu**: Aylık bazda detaylı maliyet analizi
+- **PDF Sevkiyat Belgeleri**: Profesyonel dokümantasyon
+- **Stok Durumu Takibi**: Gerçek zamanlı stok görünürlüğü
+
+---
+
+**Son Güncelleme**: Aralık 2024
+**Geliştirici Notları**: Sistem artık tam fonksiyonel PDF sevkiyat belgesi üretimi ve gelişmiş filament yönetimi ile donatılmıştır.
+  - Tam ekran görsel önizleme
+  - Detaylı ürün bilgileri:
+    - Ürün kodu ve tipi
+    - Kapasite (1 tabla)
+    - Boyutlar (X,Y,Z)
+    - Baskı süresi
+    - Toplam gramaj
+    - Adet baş gramajı (otomatik hesaplanan)
+    - Filament detayları
+    - Dosya konumu
+    - Notlar
+
+- **Admin Özellikleri**
+  - Hızlı düzenleme ve silme butonları
+  - Yeni ürün ekleme
+  - Ürün güncelleme
+  - WEBP formatında görsel yükleme desteği
+
+### Son Güncellemeler (05.01.2024)
+- Kart görünümü optimize edildi
+- Responsive grid sistemi güncellendi
+- Görsel boyutları ve oranları standardize edildi
+- Kullanıcı arayüzü daha kompakt hale getirildi
+- Arama fonksiyonu iyileştirildi (code ve productType üzerinden)
+- Form validasyonları güncellendi
+
+### Teknik Özellikler
+- Next.js 14 ile geliştirildi
+- Tailwind CSS ile modern tasarım
+- Responsive tasarım (mobil uyumlu)
+- Client-side veri yönetimi (localStorage)
+- TypeScript ile tip güvenliği
+
+## Kurulum
+
+1. Proje klasörüne gidin:
+```bash
+cd ballim
+```
+
+2. Bağımlılıkları yükleyin:
+```bash
+npm install
+```
+
+3. Geliştirme sunucusunu başlatın:
+```bash
+npm run dev
+```
+
+4. Tarayıcınızda açın:
+```
+http://localhost:3000
+```
+
+## Kullanım
+
+### Ürün Ekleme
+1. "Yeni Ürün" butonuna tıklayın
+2. Gerekli bilgileri doldurun:
+   - Ürün kodu (zorunlu)
+   - Ürün tipi (zorunlu)
+   - Boyutlar
+   - Kapasite
+   - Ağırlık bilgileri
+   - Filament detayları
+3. "Kaydet" butonuna tıklayın
+
+### Ürün Arama
+- Üst kısımdaki arama kutusunu kullanın
+- Ürün kodu, tipi veya notlar içinde arama yapabilirsiniz
+- Kategoriye göre filtreleme yapabilirsiniz
+- Sonuçları istediğiniz kritere göre sıralayabilirsiniz
+
+### Ürün Düzenleme
+1. Ürün kartındaki kalem ikonuna tıklayın
+2. Bilgileri güncelleyin
+3. "Kaydet" butonuna tıklayın
+
+### Ürün Silme
+1. Ürün kartındaki çöp kutusu ikonuna tıklayın
+2. Onay verin
+
+## Notlar
+- Ürün görselleri WEBP formatında olmalıdır
+- Ürün kodları benzersiz olmalıdır
+- Filament renkleri çoklu eklenebilir
