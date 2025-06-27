@@ -1,36 +1,117 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ballim - Filament Stok Takip Sistemi
 
-## Getting Started
+3D yazıcı filament stoklarını takip etmek ve sipariş yönetimi yapmak için geliştirilmiş modern bir Next.js uygulaması.
 
-First, run the development server:
+![Status](https://img.shields.io/badge/status-active-success.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 🚀 Özellikler
+
+- **📦 Filament Stok Yönetimi**: Çok renkli filament stoklarını gram bazında takip
+- **🏭 Üretim Takibi**: Sipariş durumlarını takip etme
+- **👥 Müşteri Yönetimi**: Müşteri bilgileri ve sipariş geçmişi
+- **💰 Cari Hesap**: Müşteri ödemelerini takip etme
+- **📊 Dashboard**: Gerçek zamanlı istatistikler ve raporlar
+- **🔐 Güvenlik**: Rol tabanlı erişim kontrolü
+
+## 🛠️ Teknolojiler
+
+- **Framework**: Next.js 14 (App Router)
+- **Veritabanı**: PostgreSQL
+- **Styling**: Tailwind CSS
+- **TypeScript**: Full type safety
+- **Real-time**: WebSocket entegrasyonu
+
+## 🚀 Kurulum
+
+### Ön Gereksinimler
+
+- Node.js 18+
+- PostgreSQL
+- npm/yarn/pnpm
+
+### Adımlar
+
+1. **Repository'yi klonlayın**
+   ```bash
+   git clone https://github.com/d1mply/ballim.git
+   cd ballim
+   ```
+
+2. **Bağımlılıkları yükleyin**
+   ```bash
+   npm install
+   ```
+
+3. **Veritabanını kurun**
+   - PostgreSQL'de `ballim` adında bir veritabanı oluşturun
+   - `src/lib/db.ts` dosyasındaki bağlantı bilgilerini güncelleyin
+
+4. **Migration'ları çalıştırın**
+   ```bash
+   npm run dev
+   ```
+   Ardından: `http://localhost:3000/api/db-setup` POST endpoint'ini çağırın
+
+5. **Uygulamayı başlatın**
+   ```bash
+   npm run dev
+   ```
+
+6. **Tarayıcıda açın**
+   ```
+   http://localhost:3000
+   ```
+
+## 📁 Proje Yapısı
+
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── api/               # API routes
+│   ├── admin-dashboard/   # Admin paneli
+│   ├── filamentler/       # Filament yönetimi
+│   ├── urunler/          # Ürün yönetimi
+│   └── ...
+├── components/            # React bileşenleri
+├── lib/                  # Utility fonksiyonları
+│   ├── db.ts            # Veritabanı bağlantısı
+│   ├── security.ts      # Güvenlik middleware
+│   └── stock.ts         # Stok yönetimi
+└── types/               # TypeScript tip tanımları
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔑 Temel Özellikler
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Çok Renkli Filament Sistemi
+- Her ürün birden fazla filament rengi kullanabilir
+- Gram bazında hassas stok takibi
+- Otomatik stok düşme sistemi (üretim tamamlandığında)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Gelişmiş Sipariş Yönetimi
+- Sipariş durumu takibi
+- Üretim süreci yönetimi
+- Otomatik stok hesaplama
 
-## Learn More
+### Dashboard ve Raporlama
+- Gerçek zamanlı stok durumu
+- Satış istatistikleri
+- Müşteri analizi
 
-To learn more about Next.js, take a look at the following resources:
+## 🤝 Katkıda Bulunma
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Fork edin
+2. Feature branch oluşturun (`git checkout -b feature/AmazingFeature`)
+3. Commit edin (`git commit -m 'Add some AmazingFeature'`)
+4. Push edin (`git push origin feature/AmazingFeature`)
+5. Pull Request açın
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📄 Lisans
 
-## Deploy on Vercel
+Bu proje MIT lisansı altında lisanslanmıştır.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 📞 İletişim
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Proje Sahibi: [@d1mply](https://github.com/d1mply)
+
+Proje Linki: [https://github.com/d1mply/ballim](https://github.com/d1mply/ballim)
