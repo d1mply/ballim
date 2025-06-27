@@ -2,11 +2,13 @@ import { Pool } from 'pg';
 
 // Veritabanı bağlantı bilgileri
 export const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'ballim',
-  password: 'ballim146161',
-  port: 5432,
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME || 'ballim',
+  password: process.env.DB_PASSWORD || 'ballim146161',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  // Render için SSL gerekli
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
 // Sorgu çalıştırma yardımcı fonksiyonu
