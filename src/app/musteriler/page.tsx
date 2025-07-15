@@ -272,7 +272,7 @@ export default function MusterilerPage() {
     if (formData.filamentPrices && Array.isArray(formData.filamentPrices) && formData.filamentPrices.length > 0) {
       filamentPrices = formData.filamentPrices.map(fp => ({
         type: fp.type || 'PLA',
-        price: parseFloat(fp.price as any) || 0
+        price: parseFloat(String(fp.price)) || 0
       }));
     } else {
       filamentPrices = [{ type: 'PLA', price: 0 }];

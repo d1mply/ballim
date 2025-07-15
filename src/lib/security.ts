@@ -173,7 +173,7 @@ export function isSuspiciousUserAgent(userAgent: string): boolean {
 }
 
 // Güvenlik Logları - DAHA DETAYLI!
-export function logSecurityEvent(event: string, details: any, severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL') {
+export function logSecurityEvent(event: string, details: Record<string, string | number | boolean>, severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL') {
   const timestamp = new Date().toISOString();
   const logEntry = {
     timestamp,

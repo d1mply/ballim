@@ -5,7 +5,8 @@ import { pool } from '@/lib/db';
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
-    const customerId = url.searchParams.get('customerId');
+    const searchParams = url.searchParams;
+    const customerId = searchParams.get('customer_id');
     
     // Eğer müşteri ID'si belirtilmişse, sadece o müşterinin cari hesap işlemlerini getir
     let query = `
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
       JOIN customers c ON ch.musteri_id = c.id
     `;
     
-    let params = [];
+    const params = [];
     
     if (customerId) {
       query += ` WHERE ch.musteri_id = $1`;

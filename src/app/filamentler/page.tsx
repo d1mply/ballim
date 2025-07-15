@@ -6,57 +6,7 @@ import { SearchIcon, PlusIcon, EditIcon, TrashIcon } from '@/utils/Icons';
 import FilamentModal, { FilamentData } from '@/components/FilamentModal';
 import StockAddModal, { StockAddData } from '@/components/StockAddModal';
 
-// Örnek başlangıç verileri
-const initialFilaments: FilamentData[] = [
-  {
-    id: 'PLA-BLK-001',
-    code: 'PLA-BLK-001',
-    name: 'PLA Siyah',
-    type: 'PLA',
-    brand: 'Creality',
-    color: 'Siyah',
-    location: 'Raf-A1',
-    totalWeight: 1000,
-    remainingWeight: 750,
-    quantity: 5,
-    criticalStock: 200,
-    tempRange: '190-220°C',
-    cap: '1.75 mm',
-    pricePerGram: 2.5
-  },
-  {
-    id: 'PETG-RED-001',
-    code: 'PETG-RED-001',
-    name: 'PETG Kırmızı',
-    type: 'PETG',
-    brand: 'Prusament',
-    color: 'Kırmızı',
-    location: 'Raf-B2',
-    totalWeight: 1000,
-    remainingWeight: 1000,
-    quantity: 3,
-    criticalStock: 250,
-    tempRange: '230-250°C',
-    cap: '1.75 mm',
-    pricePerGram: 3.2
-  },
-  {
-    id: 'PLA-WHT-001',
-    code: 'PLA-WHT-001',
-    name: 'PLA Beyaz',
-    type: 'PLA',
-    brand: 'eSun',
-    color: 'Beyaz',
-    location: 'Raf-A2',
-    totalWeight: 1000,
-    remainingWeight: 250,
-    quantity: 2,
-    criticalStock: 300,
-    tempRange: '190-220°C',
-    cap: '1.75 mm',
-    pricePerGram: 2.3
-  }
-];
+
 
 export default function FilamentlerPage() {
   const [searchTerm, setSearchTerm] = useState('');

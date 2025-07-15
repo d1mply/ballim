@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Toplam ürün sayısı
     const productsResult = await query('SELECT COUNT(*) as count FROM products');

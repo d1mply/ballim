@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
 import { 
   HomeIcon, 
   PackageIcon, 
@@ -12,7 +11,6 @@ import {
   CreditCardIcon, 
   CubeIcon, 
   ReceiptIcon,
-  DesktopIcon,
   TruckIcon
 } from '../utils/Icons';
 
@@ -49,7 +47,7 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
   ];
 
   // Kullanıcı tipine göre menüyü belirle
-  let menuItems = userType === 'admin' ? adminMenuItems : customerMenuItems;
+  const menuItems = userType === 'admin' ? adminMenuItems : customerMenuItems;
 
   // Ana sayfa yönlendirmesini kullanıcı tipine göre ayarla
   const homePath = userType === 'admin' ? '/admin-dashboard' : '/customer-dashboard';

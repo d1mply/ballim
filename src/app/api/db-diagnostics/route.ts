@@ -1,8 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { NextResponse } from 'next/server';
 import { Pool } from 'pg';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const results = {
     diagnostics: [],
     errors: []

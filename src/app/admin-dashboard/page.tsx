@@ -9,7 +9,6 @@ import {
   CreditCardIcon,
   TrendingUpIcon,
   AlertTriangleIcon,
-  CheckCircleIcon,
   ClockIcon
 } from '@/utils/Icons';
 
@@ -22,6 +21,13 @@ interface DashboardStats {
   criticalStock: number;
   completedOrders: number;
   activeCustomers: number;
+}
+
+interface FilamentCost {
+  type: string;
+  totalUsed: number;
+  totalCost: number;
+  averageCostPerKg: number;
 }
 
 interface RecentOrder {
@@ -48,7 +54,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   
   // Filament maliyet verileri
-  const [filamentCosts, setFilamentCosts] = useState<any>(null);
+  const [filamentCosts, setFilamentCosts] = useState<FilamentCost[] | null>(null);
   const [costLoading, setCostLoading] = useState(true);
 
   useEffect(() => {
@@ -70,7 +76,7 @@ export default function AdminDashboard() {
       if (ordersResponse.ok) {
         const ordersData = await ordersResponse.json();
         // API'den gelen veriyi admin dashboard formatına çevir
-        const formattedOrders = ordersData.map((order: any) => ({
+        const formattedOrders = ordersData.map((order: RecentOrder) => ({
           id: order.id,
           order_code: order.orderCode || order.order_code,
           customer_name: order.customerName || order.customer_name,

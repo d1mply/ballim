@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/Layout';
-import { SearchIcon, PlusIcon, EditIcon, TrashIcon, FilterIcon } from '@/utils/Icons';
+import { SearchIcon, PlusIcon, EditIcon, TrashIcon } from '@/utils/Icons';
 import { LoggedInUser } from '../page';
 
 // Ödeme tipi
@@ -271,7 +271,7 @@ export default function OdemelerPage() {
       
       console.log('Gönderilen ödeme verisi:', odemeData); // Debug log
       
-      let url = '/api/odemeler';
+      const url = '/api/odemeler';
       let method = 'POST';
       
       if (selectedOdeme) {
@@ -411,7 +411,7 @@ export default function OdemelerPage() {
     if (!user || user.type !== 'admin') return;
     console.log('useEffect tetiklendi - Ödemeler yüklenecek'); // Debug log
     loadOdemeler();
-  }, [user, selectedMusteriId]);
+  }, [user, selectedMusteriId, loadOdemeler]);
   
   return (
     <Layout>

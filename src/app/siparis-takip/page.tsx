@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
-import { SearchIcon, EditIcon, TrashIcon, PrinterIcon } from '@/utils/Icons';
-import { ProductData } from '@/components/ProductModal';
+import { SearchIcon, TrashIcon, PrinterIcon } from '@/utils/Icons';
 import ShippingLabel from '@/components/ShippingLabel';
 
 // Sipariş tipi tanımla
@@ -29,8 +28,8 @@ export default function SiparisTakipPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isShippingLabelOpen, setIsShippingLabelOpen] = useState(false);
-  const [shippingLabelData, setShippingLabelData] = useState<any>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [shippingLabelData, setShippingLabelData] = useState<{ order: Order; customer: { name: string; address: string; phone: string } } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ type: string } | null>(null);
   
   // Kullanıcı bilgisini yükle - Layout ile aynı sistem
   useEffect(() => {

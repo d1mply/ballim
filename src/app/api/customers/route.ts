@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
 // Tüm müşterileri getir
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Önce veritabanı bağlantısını test et
     try {
@@ -151,7 +151,23 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      return NextResponse.json(customers);
+      // Ürün sayısı ve toplam tutar hesaplama
+      const customerStats = await Promise.all(
+        customers.map(async (customer: { id: number; orderCount: number; totalSpent: number; lastOrderDate: string; [key: string]: unknown }) => {
+          await query('UPDATE customers SET orders_count = $1, total_spent = $2 WHERE id = $3', 
+            [customer.orderCount, customer.totalSpent, customer.id]
+          );
+          
+          return {
+            ...customer,
+            orders_count: customer.orderCount,
+            total_spent: customer.totalSpent,
+            last_order_date: customer.orderCount > 0 ? new Date(customer.lastOrderDate) : null
+          };
+        })
+      );
+      
+      return NextResponse.json(customerStats);
     } catch (tableCheckError) {
       console.error('Tablo kontrol hatası:', tableCheckError);
       return NextResponse.json(
@@ -315,7 +331,7 @@ export async function PUT(request: NextRequest) {
     };
     
     // CamelCase anahtarları snake_case'e dönüştür
-    const updateFields: Record<string, any> = {};
+    const updateFields: Record<string, string | number | boolean> = {};
     Object.entries(updateData).forEach(([key, value]) => {
       if (!['orderCount', 'totalSpent', 'lastOrderDate'].includes(key)) {
         const snakeKey = snakeCaseMapping[key] || key.replace(/([A-Z])/g, '_$1').toLowerCase();
@@ -469,7 +485,7 @@ export async function PUT(request: NextRequest) {
 }
 
 // Sadece filament fiyatlarını güncellemek için yardımcı fonksiyon
-async function updateFilamentPrices(customerId: string, filamentPrices: any[]) {
+async function updateFilamentPrices(customerId: string, filamentPrices: { type: string; price: number }[]) {
   try {
     console.log("Filament fiyatlarını güncelleme:", customerId, filamentPrices);
     

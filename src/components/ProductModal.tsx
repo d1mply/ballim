@@ -128,7 +128,7 @@ export default function ProductModal({
         fetchFilamentDetails(filament.type);
       }
     });
-  }, [formData.filaments?.map(f => f.type).join(',')]);
+  }, [formData.filaments]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;

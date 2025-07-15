@@ -8,9 +8,7 @@ import {
   CreditCardIcon,
   ClockIcon,
   CheckCircleIcon,
-  TrendingUpIcon,
-  UserIcon,
-  ReceiptIcon
+  TrendingUpIcon
 } from '@/utils/Icons';
 
 interface CustomerStats {
@@ -28,7 +26,7 @@ interface CustomerOrder {
   order_date: string;
   total_amount: number;
   status: string;
-  products: any[];
+  products: { code: string; name: string; quantity: number }[];
 }
 
 interface RecentPayment {
@@ -51,7 +49,7 @@ export default function CustomerDashboard() {
   const [recentOrders, setRecentOrders] = useState<CustomerOrder[]>([]);
   const [recentPayments, setRecentPayments] = useState<RecentPayment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => {
     const userJson = localStorage.getItem('loggedUser');
@@ -234,7 +232,7 @@ export default function CustomerDashboard() {
                       </div>
                       {order.products && order.products.length > 0 && (
                         <div className="text-xs text-gray-600">
-                          {order.products.slice(0, 2).map((product: any, index: number) => (
+                          {order.products.slice(0, 2).map((product: { code: string; name: string; quantity: number }, index: number) => (
                             <span key={index}>
                               {product.name} ({product.quantity} adet)
                               {index < Math.min(2, order.products.length - 1) && ', '}

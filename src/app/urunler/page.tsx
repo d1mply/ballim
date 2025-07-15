@@ -12,46 +12,7 @@ interface LoggedInUser {
   type: 'admin' | 'customer';
 }
 
-// Örnek veri
-const initialProducts: ProductData[] = [
-  {
-    id: 'AA001',
-    code: 'AA001',
-    productType: 'Hayvan Figürü',
-    image: '/placeholder.jpg',
-    capacity: 30,
-    dimensionX: 5,
-    dimensionY: 5,
-    dimensionZ: 5,
-    printTime: 24,
-    totalGram: 300,
-    pieceGram: 10,
-    filaments: [
-      { type: 'PLA', color: 'Mavi', density: 'Mikrozey', weight: 200 },
-      { type: 'PLA', color: 'Kırmızı', density: 'Mikrozey', weight: 100 }
-    ],
-    filePath: '/models/AA001.stl',
-    notes: 'Singapur haritası figürü'
-  },
-  {
-    id: 'AA002',
-    code: 'AA002',
-    productType: 'Anahtarlık/Para',
-    image: '/placeholder.jpg',
-    capacity: 15,
-    dimensionX: 5,
-    dimensionY: 5,
-    dimensionZ: 5,
-    printTime: 12,
-    totalGram: 150,
-    pieceGram: 10,
-    filaments: [
-      { type: 'PLA', color: 'Siyah', density: 'Mikrozey', weight: 150 }
-    ],
-    filePath: '/models/AA002.stl',
-    notes: 'Formula 1 logolu anahtarlık'
-  },
-];
+// Örnek veri (şimdilik API'den yükleniyor)
 
 export default function UrunlerPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -62,8 +23,7 @@ export default function UrunlerPage() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [showFilters, setShowFilters] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
   const [user, setUser] = useState<LoggedInUser | null>(null);
   
 
@@ -389,7 +349,7 @@ export default function UrunlerPage() {
         
         <div className="mb-2 py-1 border-b border-border flex justify-between items-center text-sm">
           <span>{filteredProducts.length} ürün bulundu</span>
-          {searchTerm && <span>Arama: "{searchTerm}"</span>}
+          {searchTerm && <span>Arama: &quot;{searchTerm}&quot;</span>}
           {categoryFilter && <span>Kategori: {categoryFilter}</span>}
         </div>
         
@@ -585,7 +545,7 @@ export default function UrunlerPage() {
                     
                     <div>
                       <h4 className="text-sm font-medium mb-1">Dosya Konumu</h4>
-                      <p>{selectedProduct.filePath || "Belirtilmemiş"}</p>
+                      <p>{selectedProduct.filePath || 'Belirtilmemiş'}</p>
                     </div>
                   </div>
                 </div>

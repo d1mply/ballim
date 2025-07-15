@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const limit = url.searchParams.get('limit'); // limit parametresi
 
     // Temel sorgu ve parametreler
-    let params = [];
+    const params = [];
     let baseQuery = `
       SELECT 
         o.id,
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN inventory i ON i.product_id = p.id
     `;
 
-    let whereConditions = [];
+    const whereConditions = [];
 
     // Müşteri ID'si varsa WHERE koşulu ekle
     if (customerId) {
@@ -137,7 +137,6 @@ export async function POST(request: NextRequest) {
       notes,
       items,
       orderType,
-      pazaryeri,
       paymentStatus = 'Ödeme Bekliyor'
     } = body;
     
@@ -364,7 +363,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Durumu güncelle
-    const result = await query(`
+    await query(`
       UPDATE orders
       SET 
         status = $1,

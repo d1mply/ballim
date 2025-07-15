@@ -9,9 +9,9 @@ import {
   resetFailedAttempts,
   isSuspiciousUserAgent,
   validateHoneypot,
-  verifyPassword,
   SECURITY_CONFIG
 } from '@/lib/security';
+import bcrypt from 'bcrypt';
 
 // Kullanıcı girişi
 export async function POST(request: NextRequest) {
@@ -273,4 +273,10 @@ export async function POST(request: NextRequest) {
       error: 'Sunucu hatası' 
     }, { status: 500 });
   }
+}
+
+// Şifre hash'leme fonksiyonu
+export async function hashPassword(password: string): Promise<string> {
+  const saltRounds = 10;
+  return await bcrypt.hash(password, saltRounds);
 } 

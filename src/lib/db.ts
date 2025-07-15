@@ -12,7 +12,7 @@ export const pool = new Pool({
 });
 
 // Sorgu çalıştırma yardımcı fonksiyonu
-export async function query(text: string, params?: any[]) {
+export async function query(text: string, params?: (string | number | boolean | null)[]) {
   const start = Date.now();
   try {
     const res = await pool.query(text, params);
@@ -334,4 +334,9 @@ export async function createTables() {
 }
 
 // Modül açılışında otomatik olarak tabloları oluştur
-createTables().catch(console.error); 
+createTables().catch(console.error);
+
+// db objesi - eski kodlar için uyumluluk
+export const db = {
+  query
+}; 

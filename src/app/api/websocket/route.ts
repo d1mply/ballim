@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { Server } from 'ws';
 import { createServer } from 'http';
 
 let wss: Server | null = null;
-let httpServer: any = null;
+let httpServer: ReturnType<typeof createServer> | null = null;
 const PORT = 3000;
 
 const startWebSocketServer = () => {
@@ -63,7 +63,7 @@ const startWebSocketServer = () => {
 };
 
 // API route handler
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     startWebSocketServer();
     

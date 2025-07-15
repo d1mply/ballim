@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Layout from '@/components/Layout';
 import { SearchIcon, RefreshIcon } from '@/utils/Icons';
 import { ProductData } from '@/components/ProductModal';
@@ -18,12 +17,12 @@ export default function StokSiparisPage() {
   const [currentUser, setCurrentUser] = useState<LoggedInUser | null>(null);
   const [products, setProducts] = useState<StockItem[]>([]);
   const [cartItems, setCartItems] = useState<StockItem[]>([]);
-  const [kdvRate, setKdvRate] = useState(20);
+  const [kdvRate] = useState(20);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('Tüm Ürünler');
   const [productTypes, setProductTypes] = useState<string[]>([]);
 
-  const router = useRouter();
+
   
   // Kullanıcı bilgilerini yükle
   useEffect(() => {
@@ -67,27 +66,7 @@ export default function StokSiparisPage() {
       alert('Ürünler yüklenirken bir hata oluştu!');
     }
   };
-  
-  // Filament tiplerini API'den al
-  const getFilamentTypes = async () => {
-    try {
-      // Filament tiplerini API'den al
-      const response = await fetch('/api/filaments');
-      
-      if (!response.ok) {
-        throw new Error(`API hatası: ${response.status} ${response.statusText}`);
-      }
-      
-      const filaments = await response.json();
-      
-      // Benzersiz filament tiplerini döndür
-      const uniqueTypes = Array.from(new Set(filaments.map((f: any) => f.type)));
-      return uniqueTypes.length > 0 ? uniqueTypes : ['PLA', 'PETG', 'ABS', 'TPU'];
-    } catch (error) {
-      console.error('Filament tiplerini yüklerken hata:', error);
-      return ['PLA', 'PETG', 'ABS', 'TPU']; // Hata durumunda varsayılan tipler
-    }
-  };
+
   
   // Arama ve filtreleme
   const filteredProducts = products.filter((item) => {
@@ -144,17 +123,7 @@ export default function StokSiparisPage() {
       )
     );
   };
-  
-  // Stok durumu gösterimi için stil belirleme
-  const getStockStatusStyle = (status: string, amount: number) => {
-    if (amount > 5) {
-      return "bg-success text-white font-medium px-3 py-1.5 rounded-md text-sm";
-    } else if (amount > 0) {
-      return "bg-warning text-white font-medium px-3 py-1.5 rounded-md text-sm";
-    } else {
-      return "bg-danger text-white font-medium px-3 py-1.5 rounded-md text-sm";
-    }
-  };
+
   
   // Ürünün filament fiyatını bul
   const getFilamentPrice = (item: StockItem) => {

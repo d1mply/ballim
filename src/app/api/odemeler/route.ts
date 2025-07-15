@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
       JOIN customers c ON o.musteri_id = c.id
     `;
     
-    let conditions = [];
-    let params = [];
+    const conditions = [];
+    const params = [];
     let paramIndex = 1;
     
     if (customerId) {

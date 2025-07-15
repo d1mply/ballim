@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
 // Stok durumunu getir
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const result = await query(`
       SELECT i.*, 

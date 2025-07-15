@@ -28,7 +28,7 @@ interface CariHesapIslemi {
 
 export default function CariHesapPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [islemler, setIslemler] = useState<CariHesapIslemi[]>([]);
+  const [, setIslemler] = useState<CariHesapIslemi[]>([]);
   const [filteredIslemler, setFilteredIslemler] = useState<CariHesapIslemi[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

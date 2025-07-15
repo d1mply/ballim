@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
 // Tüm ürünleri getir
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Filament detaylarını ve basitleştirilmiş stok durumunu getir
     const result = await query(`
@@ -249,7 +249,7 @@ export async function PUT(request: NextRequest) {
     console.log("Geri kalan veriler:", restData);
     
     // Frontend'den gelen verileri veritabanı formatına dönüştür
-    const updateData: Record<string, any> = {
+    const updateData: Record<string, string | number | boolean> = {
       product_code: code,
       product_type: productType,
       image_path: image,
@@ -275,7 +275,7 @@ export async function PUT(request: NextRequest) {
     };
     
     // CamelCase anahtarları snake_case'e dönüştür
-    const updateFields: Record<string, any> = {};
+    const updateFields: Record<string, string | number | boolean> = {};
     
     Object.keys(updateData).forEach(key => {
       if (updateData[key] !== undefined) {

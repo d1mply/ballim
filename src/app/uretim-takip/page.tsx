@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/Layout';
 import { CheckIcon, RefreshIcon, PlayIcon, PackageIcon, TruckIcon, ClipboardIcon } from '@/utils/Icons';
 
-const WS_PORT = 3001; // WebSocket port tanımı
+// WebSocket port tanımı (şimdilik kullanılmıyor)
 
 // Sipariş durumları
 type OrderStatus = 'onay_bekliyor' | 'uretiliyor' | 'uretildi' | 'hazirlaniyor' | 'hazirlandi';
@@ -201,7 +201,7 @@ export default function UretimTakipPage() {
   const [dateFilter, setDateFilter] = useState(''); // Tarih filtresi
   const [customerFilter, setCustomerFilter] = useState(''); // Müşteri filtresi
   const [loading, setLoading] = useState(true);
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  // Seçili öğeler (gelecekte kullanılacak)
   const [productionModal, setProductionModal] = useState(false);
   const [selectedOrderItem, setSelectedOrderItem] = useState<OrderItem | null>(null);
   const [productionQuantity, setProductionQuantity] = useState<number>(0);
@@ -214,8 +214,7 @@ export default function UretimTakipPage() {
 
   // Masaüstü uygulaması kontrolü
   useEffect(() => {
-    // @ts-ignore
-    // Electron algılama yöntemini değiştiriyoruz
+    // @ts-expect-error - Electron algılama yöntemini değiştiriyoruz
     const isNodeJs = typeof process !== 'undefined';
     const isElectronCheck = isNodeJs && process?.versions?.hasOwnProperty('electron');
     
@@ -282,7 +281,7 @@ export default function UretimTakipPage() {
       console.log('🔍 API\'den gelen ham veriler:', data);
       console.log('🔍 İlk sipariş örneği:', data[0]);
       
-      const formattedOrders: OrderItem[] = data.map((order: any) => {
+      const formattedOrders: OrderItem[] = data.map((order: { id: string; orderCode: string; customerName: string; orderDate: string; status: string; products: { id?: string; code: string; name: string; quantity: number; capacity?: number; stock_quantity?: number }[]; production_quantity?: number; skip_production?: boolean }) => {
         console.log('🔄 Formatlanıyor:', {
           id: order.id,
           order_code: order.orderCode,
@@ -295,7 +294,7 @@ export default function UretimTakipPage() {
           customer_name: order.customerName || 'Pazaryeri Müşterisi',
           order_date: order.orderDate,
           status: convertStatus(order.status),
-          products: order.products.map((product: any) => ({
+          products: order.products.map((product: { id?: string; code: string; name: string; quantity: number; capacity?: number; stock_quantity?: number }) => ({
             id: product.id || '',
             product_id: product.code,
             product_code: product.code,
@@ -339,7 +338,7 @@ export default function UretimTakipPage() {
   // İlk yükleme
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [fetchOrders]);
 
   // Otomatik güncelleme (her 30 saniyede bir ve sadece aktifse)
   useEffect(() => {
@@ -350,7 +349,7 @@ export default function UretimTakipPage() {
     }, 30000); // 30 saniye (daha az sıklık)
 
     return () => clearInterval(interval);
-  }, [isPollingActive, consecutiveErrors]);
+  }, [isPollingActive, consecutiveErrors, fetchOrders]);
 
   // Manuel yenile fonksiyonu
   const handleManualRefresh = async () => {
@@ -537,16 +536,16 @@ export default function UretimTakipPage() {
     }
   };
 
-  // Stok durumuna göre renk
-  const getStockClass = (item: OrderItem) => {
-    if (item.products[0]?.stock_quantity === 0) {
-      return 'bg-red-100 border-red-300';
-    } else if (item.products[0]?.stock_quantity < item.products[0]?.quantity) {
-      return 'bg-orange-100 border-orange-300';
-    } else {
-      return 'bg-green-100 border-green-300';
-    }
-  };
+  // Stok durumuna göre renk (şimdilik kullanılmıyor)
+  // const getStockClass = (item: OrderItem) => {
+  //   if (item.products[0]?.stock_quantity === 0) {
+  //     return 'bg-red-100 border-red-300';
+  //   } else if (item.products[0]?.stock_quantity < item.products[0]?.quantity) {
+  //     return 'bg-orange-100 border-orange-300';
+  //   } else {
+  //     return 'bg-green-100 border-green-300';
+  //   }
+  // };
 
   if (loading) {
     return (

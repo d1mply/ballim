@@ -240,8 +240,8 @@ export default function ShippingLabel({ orderData, onClose }: ShippingLabelProps
                 </thead>
                                                  <tbody>
                   {orderData.items && orderData.items.length > 0 ? orderData.items.map((item, index) => {
-                    const itemKdv = item.total_price * kdvRate / (1 + kdvRate);
-                    const itemNet = item.total_price - itemKdv;
+                    // const itemKdv = item.total_price * kdvRate / (1 + kdvRate); // Şimdilik kullanılmıyor
+                    // const itemNet = item.total_price - itemKdv; // Şimdilik kullanılmıyor
                     return (
                       <tr key={index} style={{ pageBreakInside: 'avoid' }}>
                         <td style={{ border: '1px solid #d1d5db', padding: '8px', fontWeight: 'bold' }}>

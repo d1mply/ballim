@@ -53,7 +53,7 @@ export default function StockAddModal({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     
-    let processedValue: any = value;
+    let processedValue: string | number = value;
     if (type === 'number') {
       processedValue = parseFloat(value) || 0;
     }
