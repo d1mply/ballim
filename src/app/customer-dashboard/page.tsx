@@ -1,15 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
-import { 
-  PackageIcon, 
-  ShoppingCartIcon, 
-  CreditCardIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  TrendingUpIcon
-} from '@/utils/Icons';
+import Layout from '../../components/Layout';
+import { Icons } from '../../utils/Icons';
 
 interface CustomerStats {
   totalOrders: number;
@@ -151,7 +144,7 @@ export default function CustomerDashboard() {
                 <p className="text-sm opacity-90">Toplam Sipariş</p>
                 <p className="text-2xl font-bold">{stats.totalOrders}</p>
               </div>
-              <ShoppingCartIcon className="w-8 h-8 opacity-80" />
+              <Icons.ShoppingCartIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
 
@@ -161,7 +154,7 @@ export default function CustomerDashboard() {
                 <p className="text-sm opacity-90">Toplam Harcama</p>
                 <p className="text-2xl font-bold">₺{(stats.totalSpent || 0).toLocaleString()}</p>
               </div>
-              <TrendingUpIcon className="w-8 h-8 opacity-80" />
+              <Icons.TrendingUpIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
 
@@ -171,7 +164,7 @@ export default function CustomerDashboard() {
                 <p className="text-sm opacity-90">Bekleyen Sipariş</p>
                 <p className="text-2xl font-bold">{stats.pendingOrders}</p>
               </div>
-              <ClockIcon className="w-8 h-8 opacity-80" />
+              <Icons.ClockIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
 
@@ -181,7 +174,7 @@ export default function CustomerDashboard() {
                 <p className="text-sm opacity-90">Mevcut Bakiye</p>
                 <p className="text-2xl font-bold">₺{(stats.currentBalance || 0).toLocaleString()}</p>
               </div>
-              <CreditCardIcon className="w-8 h-8 opacity-80" />
+              <Icons.CreditCardIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
 
@@ -191,7 +184,7 @@ export default function CustomerDashboard() {
                 <p className="text-sm opacity-90">Tamamlanan Sipariş</p>
                 <p className="text-2xl font-bold">{stats.completedOrders}</p>
               </div>
-              <CheckCircleIcon className="w-8 h-8 opacity-80" />
+              <Icons.CheckCircleIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
 
@@ -201,7 +194,7 @@ export default function CustomerDashboard() {
                 <p className="text-sm opacity-90">Favori Ürünler</p>
                 <p className="text-2xl font-bold">{stats.favoriteProducts}</p>
               </div>
-              <PackageIcon className="w-8 h-8 opacity-80" />
+              <Icons.PackageIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
         </div>
@@ -293,7 +286,7 @@ export default function CustomerDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="content-card">
             <div className="content-card-body text-center">
-              <PackageIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
+              <Icons.PackageIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Ürün Kataloğu</h3>
               <p className="text-sm text-gray-600 mb-3">Mevcut ürünleri incele</p>
               <a href="/urunler" className="btn-primary inline-block">Ürünlere Git</a>
@@ -302,7 +295,7 @@ export default function CustomerDashboard() {
 
           <div className="content-card">
             <div className="content-card-body text-center">
-              <ShoppingCartIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
+              <Icons.ShoppingCartIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Sipariş Ver</h3>
               <p className="text-sm text-gray-600 mb-3">Yeni sipariş oluştur</p>
               <a href="/stok-siparis" className="btn-primary inline-block">Sipariş Ver</a>
@@ -311,7 +304,7 @@ export default function CustomerDashboard() {
 
           <div className="content-card">
             <div className="content-card-body text-center">
-              <ClockIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
+              <Icons.ClockIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Sipariş Takip</h3>
               <p className="text-sm text-gray-600 mb-3">Siparişlerini takip et</p>
               <a href="/siparis-takip" className="btn-primary inline-block">Takip Et</a>
@@ -320,7 +313,7 @@ export default function CustomerDashboard() {
 
           <div className="content-card">
             <div className="content-card-body text-center">
-              <CreditCardIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
+              <Icons.CreditCardIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Cari Hesap</h3>
               <p className="text-sm text-gray-600 mb-3">Hesap durumunu gör</p>
               <a href="/cari-hesap" className="btn-primary inline-block">Hesabı Gör</a>
