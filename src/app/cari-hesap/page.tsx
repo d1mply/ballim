@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
+import Layout from '../../components/Layout';
 import { SearchIcon } from '@/utils/Icons';
 import { LoggedInUser } from '../page';
 

@@ -1,16 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
-import { 
-  PackageIcon, 
-  ShoppingCartIcon, 
-  UsersIcon, 
-  CreditCardIcon,
-  TrendingUpIcon,
-  AlertTriangleIcon,
-  ClockIcon
-} from '@/utils/Icons';
+import Layout from '../../components/Layout';
+import { Icons } from '../../utils/Icons';
 
 interface DashboardStats {
   totalProducts: number;
@@ -159,7 +151,7 @@ export default function AdminDashboard() {
                 <p className="text-sm opacity-90">Toplam Ürün</p>
                 <p className="text-2xl font-bold">{stats.totalProducts}</p>
               </div>
-              <PackageIcon className="w-8 h-8 opacity-80" />
+              <Icons.PackageIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
 
@@ -169,7 +161,7 @@ export default function AdminDashboard() {
                 <p className="text-sm opacity-90">Toplam Sipariş</p>
                 <p className="text-2xl font-bold">{stats.totalOrders}</p>
               </div>
-              <ShoppingCartIcon className="w-8 h-8 opacity-80" />
+              <Icons.ShoppingCartIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
 
@@ -179,7 +171,7 @@ export default function AdminDashboard() {
                 <p className="text-sm opacity-90">Bekleyen Sipariş</p>
                 <p className="text-2xl font-bold">{stats.pendingOrders}</p>
               </div>
-              <ClockIcon className="w-8 h-8 opacity-80" />
+              <Icons.ClockIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
 
@@ -189,7 +181,7 @@ export default function AdminDashboard() {
                 <p className="text-sm opacity-90">Kritik Stok</p>
                 <p className="text-2xl font-bold">{stats.criticalStock}</p>
               </div>
-              <AlertTriangleIcon className="w-8 h-8 opacity-80" />
+              <Icons.AlertTriangleIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
 
@@ -199,7 +191,7 @@ export default function AdminDashboard() {
                 <p className="text-sm opacity-90">Toplam Müşteri</p>
                 <p className="text-2xl font-bold">{stats.totalCustomers}</p>
               </div>
-              <UsersIcon className="w-8 h-8 opacity-80" />
+              <Icons.UsersIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
 
@@ -209,7 +201,7 @@ export default function AdminDashboard() {
                 <p className="text-sm opacity-90">Toplam Gelir</p>
                 <p className="text-2xl font-bold">₺{(stats.totalRevenue || 0).toLocaleString()}</p>
               </div>
-              <TrendingUpIcon className="w-8 h-8 opacity-80" />
+              <Icons.TrendingUpIcon className="w-8 h-8 opacity-80" />
             </div>
           </div>
         </div>
@@ -307,7 +299,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="content-card">
             <div className="content-card-body text-center">
-              <PackageIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
+              <Icons.PackageIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Ürün Yönetimi</h3>
               <p className="text-sm text-gray-600 mb-3">Ürün ekle, düzenle ve stok takibi yap</p>
               <a href="/urunler" className="btn-primary inline-block">Ürünlere Git</a>
@@ -316,7 +308,7 @@ export default function AdminDashboard() {
 
           <div className="content-card">
             <div className="content-card-body text-center">
-              <ShoppingCartIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
+              <Icons.ShoppingCartIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Sipariş Yönetimi</h3>
               <p className="text-sm text-gray-600 mb-3">Siparişleri takip et ve yönet</p>
               <a href="/siparis-takip" className="btn-primary inline-block">Siparişlere Git</a>
@@ -325,7 +317,7 @@ export default function AdminDashboard() {
 
           <div className="content-card">
             <div className="content-card-body text-center">
-              <UsersIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
+              <Icons.UsersIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Müşteri Yönetimi</h3>
               <p className="text-sm text-gray-600 mb-3">Müşteri bilgilerini yönet</p>
               <a href="/musteriler" className="btn-primary inline-block">Müşterilere Git</a>
@@ -334,7 +326,7 @@ export default function AdminDashboard() {
 
           <div className="content-card">
             <div className="content-card-body text-center">
-              <CreditCardIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
+              <Icons.CreditCardIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Cari Hesap</h3>
               <p className="text-sm text-gray-600 mb-3">Müşteri hesaplarını takip et</p>
               <a href="/cari-hesap" className="btn-primary inline-block">Cari Hesaba Git</a>
