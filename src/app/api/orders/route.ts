@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
-import { handleOrderStock, manageStock, StockOperation } from '@/lib/stock';
+import { query } from '../../../lib/db';
+import { handleOrderStock, manageStock, StockOperation } from '../../../lib/stock';
 
 // Tüm siparişleri getir
 export async function GET(request: NextRequest) {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createTables } from '@/lib/db';
+import { createTables } from '../../../lib/db';
 
 export async function POST() {
   try {

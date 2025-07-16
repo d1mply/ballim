@@ -10,7 +10,7 @@ import {
   isSuspiciousUserAgent,
   validateHoneypot,
   SECURITY_CONFIG
-} from '@/lib/security';
+} from '../../../lib/security';
 import bcrypt from 'bcrypt';
 
 // Kullanıcı girişi

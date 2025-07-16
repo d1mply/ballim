@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query } from '../../../lib/db';
 
 // Tüm filamentleri getir
 export async function GET() {
