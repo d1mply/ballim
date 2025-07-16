@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
-import { SearchIcon, RefreshIcon } from '@/utils/Icons';
-import { ProductData } from '@/components/ProductModal';
+import Layout from '../../components/Layout';
+import { Icons } from '../../utils/Icons';
+import { ProductData } from '../../components/ProductModal';
 import { LoggedInUser } from '../page';
-import { ShoppingCartIcon, PackageIcon, MinusIcon, PlusIcon, TrashIcon } from '@/utils/Icons';
+
 
 // Stock item tipini tanımla
 interface StockItem extends ProductData {
@@ -248,14 +248,14 @@ export default function StokSiparisPage() {
               onClick={() => window.location.reload()}
               className="flex items-center justify-center gap-2 py-2 px-3 text-sm bg-secondary hover:bg-secondary/80 rounded-md transition-colors w-full sm:w-auto"
             >
-              <RefreshIcon className="w-4 h-4" />
+              <Icons.RefreshIcon className="w-4 h-4" />
               Yenile
             </button>
           </div>
 
           <div className="flex flex-col gap-4 mb-6">
             <div className="search-container">
-              <SearchIcon className="search-icon" />
+              <Icons.SearchIcon className="search-icon" />
               <input
                 type="text"
                 placeholder="Ürün kodu veya türü ile ara..."
@@ -301,7 +301,7 @@ export default function StokSiparisPage() {
                             <img src={item.image} alt={item.productType} className="w-12 h-12 rounded-md object-cover bg-muted" />
                           ) : (
                             <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center">
-                              <PackageIcon className="w-6 h-6 text-muted-foreground" />
+                              <Icons.PackageIcon className="w-6 h-6 text-muted-foreground" />
                             </div>
                           )}
                           <div>
@@ -327,7 +327,7 @@ export default function StokSiparisPage() {
                             onClick={() => addToCart(item)}
                             className="flex items-center gap-1.5 py-1.5 px-3 text-sm bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors"
                           >
-                            <ShoppingCartIcon className="w-4 h-4" />
+                            <Icons.ShoppingCartIcon className="w-4 h-4" />
                             Sepete Ekle
                           </button>
                         </td>
@@ -355,7 +355,7 @@ export default function StokSiparisPage() {
                       <img src={item.image} alt={item.productType} className="w-16 h-16 rounded-md object-cover bg-muted flex-shrink-0" />
                     ) : (
                       <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
-                        <PackageIcon className="w-8 h-8 text-muted-foreground" />
+                        <Icons.PackageIcon className="w-8 h-8 text-muted-foreground" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -382,7 +382,7 @@ export default function StokSiparisPage() {
                         onClick={() => addToCart(item)}
                         className="flex items-center gap-1.5 py-2 px-4 text-sm bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors"
                       >
-                        <ShoppingCartIcon className="w-4 h-4" />
+                        <Icons.ShoppingCartIcon className="w-4 h-4" />
                         Sepete Ekle
                       </button>
                     )}
@@ -416,7 +416,7 @@ export default function StokSiparisPage() {
               {cartItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                    <ShoppingCartIcon className="w-8 h-8 text-gray-400" />
+                    <Icons.ShoppingCartIcon className="w-8 h-8 text-gray-400" />
                   </div>
                   <h3 className="font-medium text-gray-900 mb-2">Sepetiniz boş</h3>
                   <p className="text-sm text-gray-500">Ürünleri sepete ekleyerek sipariş oluşturabilirsiniz</p>
@@ -437,7 +437,7 @@ export default function StokSiparisPage() {
                               />
                             ) : (
                               <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
-                                <PackageIcon className="w-8 h-8 text-gray-400" />
+                                <Icons.PackageIcon className="w-8 h-8 text-gray-400" />
                               </div>
                             )}
                           </div>
@@ -462,7 +462,7 @@ export default function StokSiparisPage() {
                             className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                             title="Sepetten Çıkar"
                           >
-                            <TrashIcon className="w-5 h-5" />
+                            <Icons.TrashIcon className="w-5 h-5" />
                           </button>
                         </div>
                         
@@ -476,7 +476,7 @@ export default function StokSiparisPage() {
                                 className="p-2 hover:bg-gray-100 rounded-l-lg transition-colors"
                                 disabled={(item.quantity || 1) <= 1}
                               >
-                                <MinusIcon className="w-4 h-4" />
+                                <Icons.MinusIcon className="w-4 h-4" />
                               </button>
                               <span className="px-4 py-2 bg-white font-medium min-w-[60px] text-center">
                                 {item.quantity || 1}
@@ -485,7 +485,7 @@ export default function StokSiparisPage() {
                                 onClick={() => updateQuantity(index, (item.quantity || 1) + 1)}
                                 className="p-2 hover:bg-gray-100 rounded-r-lg transition-colors"
                               >
-                                <PlusIcon className="w-4 h-4" />
+                                <Icons.PlusIcon className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
@@ -523,7 +523,7 @@ export default function StokSiparisPage() {
                     onClick={createOrder}
                     className="w-full mt-6 bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors flex items-center justify-center gap-3 text-lg"
                   >
-                    <ShoppingCartIcon className="w-6 h-6" />
+                    <Icons.ShoppingCartIcon className="w-6 h-6" />
                     SİPARİŞ OLUŞTUR
                   </button>
                 </>

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
-import { SearchIcon, PlusIcon, EditIcon, TrashIcon } from '@/utils/Icons';
+import Layout from '../../components/Layout';
+import { Icons } from '../../utils/Icons';
 
 // Filament fiyatı tipi
 interface FilamentPrice {
@@ -399,14 +399,14 @@ export default function MusterilerPage() {
               onClick={handleAddCustomer}
               className="btn-primary flex items-center gap-2"
             >
-              <PlusIcon /> Yeni Müşteri
+              <Icons.PlusIcon /> Yeni Müşteri
             </button>
           </div>
         </div>
         
         <div className="flex flex-col sm:flex-row gap-4 items-center mb-6">
           <div className="search-container flex-grow">
-            <SearchIcon className="search-icon" />
+            <Icons.SearchIcon className="search-icon" />
             <input
               type="text"
               placeholder="Müşteri ara..."
@@ -495,14 +495,14 @@ export default function MusterilerPage() {
                             className="action-btn action-btn-edit"
                             title="Düzenle"
                           >
-                            <EditIcon />
+                            <Icons.EditIcon />
                           </button>
                           <button 
                             onClick={() => handleDeleteCustomer(customer.id)}
                             className="action-btn action-btn-delete"
                             title="Sil"
                           >
-                            <TrashIcon />
+                            <Icons.TrashIcon />
                           </button>
                         </div>
                       </td>
@@ -667,7 +667,7 @@ export default function MusterilerPage() {
                       onClick={addFilamentPrice}
                       className="text-sm text-primary hover:text-primary/80 flex items-center gap-1"
                     >
-                      <PlusIcon /> Filament Ekle
+                      <Icons.PlusIcon /> Filament Ekle
                     </button>
                   </div>
                   
@@ -707,7 +707,7 @@ export default function MusterilerPage() {
                           className="mt-6 p-1 text-danger opacity-70 hover:opacity-100 disabled:opacity-30"
                           title="Filament Fiyatını Kaldır"
                         >
-                          <TrashIcon />
+                          <Icons.TrashIcon />
                         </button>
                       </div>
                     ))}

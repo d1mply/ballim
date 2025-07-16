@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
-import { SearchIcon, PlusIcon, EditIcon, TrashIcon } from '@/utils/Icons';
-import FilamentModal, { FilamentData } from '@/components/FilamentModal';
-import StockAddModal, { StockAddData } from '@/components/StockAddModal';
+import Layout from '../../components/Layout';
+import { Icons } from '../../utils/Icons';
+import FilamentModal, { FilamentData } from '../../components/FilamentModal';
+import StockAddModal, { StockAddData } from '../../components/StockAddModal';
 
 
 
@@ -275,13 +275,13 @@ export default function FilamentlerPage() {
             onClick={handleAddFilament}
             className="btn-primary flex items-center gap-2"
           >
-            <PlusIcon /> Yeni Filament
+            <Icons.PlusIcon /> Yeni Filament
           </button>
         </div>
         
         <div className="flex flex-col sm:flex-row gap-4 items-center mb-6">
           <div className="search-container flex-grow">
-            <SearchIcon className="search-icon" />
+            <Icons.SearchIcon className="search-icon" />
             <input
               type="text"
               placeholder="Filament ara..."
@@ -404,14 +404,14 @@ export default function FilamentlerPage() {
                             className="action-btn action-btn-edit"
                             title="Düzenle"
                           >
-                            <EditIcon />
+                            <Icons.EditIcon />
                           </button>
                           <button 
                             onClick={() => handleDeleteFilament(filament.id || '')}
                             className="action-btn action-btn-delete"
                             title="Sil"
                           >
-                            <TrashIcon />
+                            <Icons.TrashIcon />
                           </button>
                         </div>
                       </td>

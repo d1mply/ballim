@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { PlusIcon } from '@/utils/Icons';
+import { Icons } from '../utils/Icons';
 
 type ProductModalProps = {
   isOpen: boolean;
@@ -443,7 +443,7 @@ export default function ProductModal({
                       onClick={addFilament}
                       className="text-xs text-primary flex items-center gap-1"
                     >
-                      <PlusIcon /> Filament Ekle
+                      <Icons.Plus /> Filament Ekle
                     </button>
                   ) : null}
                 </div>

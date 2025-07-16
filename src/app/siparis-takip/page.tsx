@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
-import { SearchIcon, TrashIcon, PrinterIcon } from '@/utils/Icons';
-import ShippingLabel from '@/components/ShippingLabel';
+import Layout from '../../components/Layout';
+import { Icons } from '../../utils/Icons';
+import ShippingLabel from '../../components/ShippingLabel';
 
 // Sipariş tipi tanımla
 interface Order {
@@ -173,7 +173,7 @@ export default function SiparisTakipPage() {
         <div className="bg-card border border-border rounded-lg p-4 mb-6">
           <div className="flex flex-col sm:flex-row gap-4 items-center">
             <div className="search-container flex-grow">
-              <SearchIcon className="search-icon" />
+              <Icons.SearchIcon className="search-icon" />
               <input
                 type="text"
                 placeholder="Sipariş veya müşteri ara..."
@@ -241,7 +241,7 @@ export default function SiparisTakipPage() {
                             className="action-btn action-btn-primary"
                             title="Sevkiyat Belgesi Yazdır"
                           >
-                            <PrinterIcon />
+                            <Icons.PrinterIcon />
                           </button>
                         )}
                         <button 
@@ -249,7 +249,7 @@ export default function SiparisTakipPage() {
                           className="action-btn action-btn-delete"
                           title="Sil"
                         >
-                          <TrashIcon />
+                          <Icons.TrashIcon />
                         </button>
                       </div>
                     </td>

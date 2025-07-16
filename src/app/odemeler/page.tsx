@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Layout from '@/components/Layout';
-import { SearchIcon, PlusIcon, EditIcon, TrashIcon } from '@/utils/Icons';
+import Layout from '../../components/Layout';
+import { Icons } from '../../utils/Icons';
 import { LoggedInUser } from '../page';
 
 // Ödeme tipi
@@ -459,7 +459,7 @@ export default function OdemelerPage() {
               Ara
             </label>
             <div className="search-container">
-              <SearchIcon className="search-icon" />
+              <Icons.SearchIcon className="search-icon" />
               <input
                 type="text"
                 id="search"
@@ -523,7 +523,7 @@ export default function OdemelerPage() {
             onClick={handleAddOdeme}
             className="btn-primary flex items-center"
           >
-            <PlusIcon className="h-5 w-5 mr-1" />
+            <Icons.PlusIcon className="h-5 w-5 mr-1" />
             Yeni Ödeme
           </button>
         </div>
@@ -609,13 +609,13 @@ export default function OdemelerPage() {
                             onClick={() => handleEditOdeme(odeme)}
                             className="text-indigo-600 hover:text-indigo-900 mr-4"
                           >
-                            <EditIcon className="h-5 w-5" />
+                            <Icons.EditIcon className="h-5 w-5" />
                           </button>
                           <button
                             onClick={() => handleDeleteOdeme(odeme.id)}
                             className="text-red-600 hover:text-red-900"
                           >
-                            <TrashIcon className="h-5 w-5" />
+                            <Icons.TrashIcon className="h-5 w-5" />
                           </button>
                         </td>
                       </tr>

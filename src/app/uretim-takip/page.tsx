@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Layout from '@/components/Layout';
-import { CheckIcon, RefreshIcon, PlayIcon, PackageIcon, TruckIcon, ClipboardIcon } from '@/utils/Icons';
+import Layout from '../../components/Layout';
+import { Icons } from '../../utils/Icons';
 
 // WebSocket port tanımı (şimdilik kullanılmıyor)
 
@@ -151,7 +151,7 @@ const OrderCard = ({ item, onStartProduction, onStatusChange }: {
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
               onClick={() => onStartProduction(item)}
             >
-              <PlayIcon className="w-5 h-5 mr-2" /> 
+              <Icons.PlayIcon className="w-5 h-5 mr-2" /> 
               Üretime Al
             </button>
           )}
@@ -161,7 +161,7 @@ const OrderCard = ({ item, onStartProduction, onStatusChange }: {
               className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
               onClick={() => onStatusChange(item.id, 'uretildi')}
             >
-              <CheckIcon className="w-5 h-5 mr-2" /> 
+              <Icons.CheckIcon className="w-5 h-5 mr-2" /> 
               Üretimi Tamamla
             </button>
           )}
@@ -171,7 +171,7 @@ const OrderCard = ({ item, onStartProduction, onStatusChange }: {
               className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors duration-200"
               onClick={() => onStatusChange(item.id, 'hazirlaniyor')}
             >
-              <PackageIcon className="w-5 h-5 mr-2" /> 
+              <Icons.PackageIcon className="w-5 h-5 mr-2" /> 
               Hazırlamaya Başla
             </button>
           )}
@@ -181,7 +181,7 @@ const OrderCard = ({ item, onStartProduction, onStatusChange }: {
               className="inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition-colors duration-200"
               onClick={() => onStatusChange(item.id, 'hazirlandi')}
             >
-              <TruckIcon className="w-5 h-5 mr-2" /> 
+              <Icons.TruckIcon className="w-5 h-5 mr-2" /> 
               Hazırlandı
             </button>
           )}
@@ -563,7 +563,7 @@ export default function UretimTakipPage() {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center h-[70vh]">
-          <PackageIcon className="h-16 w-16 text-muted-foreground mb-4" />
+          <Icons.PackageIcon className="h-16 w-16 text-muted-foreground mb-4" />
           <h2 className="text-xl font-semibold mb-2">Masaüstü Özelliği</h2>
           <p className="text-muted-foreground text-center max-w-md">
             Üretim takip özelliği sadece masaüstü uygulamasında kullanılabilir. 
@@ -579,7 +579,7 @@ export default function UretimTakipPage() {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center h-[70vh]">
-          <ClipboardIcon className="h-16 w-16 text-muted-foreground mb-4" />
+          <Icons.ClipboardIcon className="h-16 w-16 text-muted-foreground mb-4" />
           <h2 className="text-xl font-semibold mb-2">Yetkisiz Erişim</h2>
           <p className="text-muted-foreground text-center max-w-md">
             Bu sayfaya erişim yetkiniz bulunmamaktadır. 
@@ -611,7 +611,7 @@ export default function UretimTakipPage() {
             onClick={handleManualRefresh}
             className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <RefreshIcon className="w-4 h-4 mr-1" />
+            <Icons.RefreshIcon className="w-4 h-4 mr-1" />
             Yenile
           </button>
         </div>
@@ -647,14 +647,14 @@ export default function UretimTakipPage() {
               setCustomerFilter('');
               setStatusFilter('tumu');
             }}>
-              <RefreshIcon className="w-4 h-4 mr-1" /> Filtreleri Temizle
+              <Icons.RefreshIcon className="w-4 h-4 mr-1" /> Filtreleri Temizle
             </button>
           </div>
         </div>
         
         {filteredOrders.length === 0 ? (
           <div className="bg-white border rounded-lg p-12 text-center">
-            <PackageIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <Icons.PackageIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
             <h3 className="text-lg font-medium mb-2">Gösterilecek sipariş yok</h3>
             <p className="text-gray-600">
               Seçilen filtrelere uygun sipariş bulunamadı.

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
-import { SearchIcon } from '@/utils/Icons';
+import { Icons } from '../../utils/Icons';
 import { LoggedInUser } from '../page';
 
 // Müşteri tipi
@@ -181,7 +181,7 @@ export default function CariHesapPage() {
           <div className="p-4">
             <div className="flex items-center space-x-4">
               <div className="search-container flex-1">
-                <SearchIcon className="search-icon" />
+                <Icons.SearchIcon className="search-icon" />
                 <input
                   type="text"
                   placeholder="Ara..."

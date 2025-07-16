@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
-import { LoggedInUser } from '@/app/page';
-import { LogOutIcon, MenuIcon, XIcon } from '@/utils/Icons';
+import { LoggedInUser } from '../app/page';
+import { Icons } from '../utils/Icons';
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -51,7 +51,7 @@ export default function Layout({ children, hideNavigation = false }: LayoutProps
               className="lg:hidden p-2 hover:bg-primary-foreground/20 rounded-md transition-colors"
               aria-label="Menüyü aç/kapat"
             >
-              {sidebarOpen ? <XIcon className="w-5 h-5" /> : <MenuIcon className="w-5 h-5" />}
+              {sidebarOpen ? <Icons.XIcon className="w-5 h-5" /> : <Icons.MenuIcon className="w-5 h-5" />}
             </button>
             
             <div className="font-bold text-lg">Ballim</div>
@@ -80,7 +80,7 @@ export default function Layout({ children, hideNavigation = false }: LayoutProps
                 className="flex items-center gap-1 px-3 py-1.5 hover:bg-primary-foreground/20 text-sm rounded-md transition-colors"
                 title="Çıkış Yap"
               >
-                <LogOutIcon className="w-4 h-4" />
+                <Icons.LogOutIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">Çıkış Yap</span>
               </button>
             </div>

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
-import { SearchIcon, PlusIcon, EditIcon, TrashIcon, GridIcon, ListIcon, FilterIcon, EyeIcon } from '@/utils/Icons';
-import ProductModal, { ProductData } from '@/components/ProductModal';
+import Layout from '../../components/Layout';
+import { Icons } from '../../utils/Icons';
+import ProductModal, { ProductData } from '../../components/ProductModal';
 
 // LoggedInUser arayüzü
 interface LoggedInUser {
@@ -236,14 +236,14 @@ export default function UrunlerPage() {
                 className={`p-2 ${viewMode === 'grid' ? 'bg-primary text-white' : 'bg-secondary'}`}
                 title="Kart Görünümü"
               >
-                <GridIcon />
+                <Icons.GridIcon />
               </button>
               <button 
                 onClick={() => setViewMode('table')}
                 className={`p-2 ${viewMode === 'table' ? 'bg-primary text-white' : 'bg-secondary'}`}
                 title="Tablo Görünümü"
               >
-                <ListIcon />
+                <Icons.ListIcon />
               </button>
             </div>
             
@@ -252,7 +252,7 @@ export default function UrunlerPage() {
                 onClick={handleAddProduct}
                 className="btn-primary flex items-center gap-2"
               >
-                <PlusIcon /> Yeni Ürün
+                <Icons.PlusIcon /> Yeni Ürün
               </button>
             )}
           </div>
@@ -263,7 +263,7 @@ export default function UrunlerPage() {
         <div className="bg-card border border-border p-4 rounded-lg">
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
             <div className="search-container flex-grow">
-              <SearchIcon className="search-icon" />
+              <Icons.SearchIcon className="search-icon" />
               <input
                 type="text"
                 placeholder="Ürün ara..."
@@ -283,7 +283,7 @@ export default function UrunlerPage() {
                 }`}
                 title="Filtreleri Göster/Gizle"
               >
-                <FilterIcon /> Filtreler
+                <Icons.FilterIcon /> Filtreler
               </button>
               
               <div className="flex items-center gap-2">
@@ -383,7 +383,7 @@ export default function UrunlerPage() {
                         className="p-1 hover:text-primary"
                         title="Detayları Göster"
                       >
-                        <EyeIcon />
+                        <Icons.EyeIcon />
                       </button>
                       {user?.type === 'admin' && (
                         <>
@@ -392,14 +392,14 @@ export default function UrunlerPage() {
                             className="p-1 hover:text-primary"
                             title="Düzenle"
                           >
-                            <EditIcon />
+                            <Icons.EditIcon />
                           </button>
                           <button
                             onClick={() => handleDeleteProduct(product.id)}
                             className="p-1 hover:text-destructive"
                             title="Sil"
                           >
-                            <TrashIcon />
+                            <Icons.TrashIcon />
                           </button>
                         </>
                       )}
@@ -443,7 +443,7 @@ export default function UrunlerPage() {
                           className="p-1 hover:text-primary"
                           title="Detayları Göster"
                         >
-                          <EyeIcon />
+                          <Icons.EyeIcon />
                         </button>
                         {user?.type === 'admin' && (
                           <>
@@ -452,14 +452,14 @@ export default function UrunlerPage() {
                               className="p-1 hover:text-primary"
                               title="Düzenle"
                             >
-                              <EditIcon />
+                              <Icons.EditIcon />
                             </button>
                             <button
                               onClick={() => handleDeleteProduct(product.id)}
                               className="p-1 hover:text-destructive"
                               title="Sil"
                             >
-                              <TrashIcon />
+                              <Icons.TrashIcon />
                             </button>
                           </>
                         )}

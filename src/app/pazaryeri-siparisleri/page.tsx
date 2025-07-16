@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Layout from '@/components/Layout';
-import { SearchIcon, PlusIcon, ShoppingCartIcon, PackageIcon } from '@/utils/Icons';
+import Layout from '../../components/Layout';
+import { Icons } from '../../utils/Icons';
 
 // Kullanıcı tipi
 interface LoggedInUser {
@@ -270,7 +270,7 @@ export default function PazaryeriSiparisleriPage() {
         {/* Sipariş Oluşturma Formu */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <PlusIcon className="w-5 h-5" />
+            <Icons.PlusIcon className="w-5 h-5" />
             Yeni Pazaryeri Siparişi
           </h2>
           
@@ -423,7 +423,7 @@ export default function PazaryeriSiparisleriPage() {
                 disabled={isLoading}
                 className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-md transition-colors flex items-center gap-2"
               >
-                <ShoppingCartIcon className="w-5 h-5" />
+                <Icons.ShoppingCartIcon className="w-5 h-5" />
                 {isLoading ? 'Oluşturuluyor...' : 'Sipariş Oluştur'}
               </button>
             </div>
@@ -443,7 +443,7 @@ export default function PazaryeriSiparisleriPage() {
             {/* Arama ve Filtreleme */}
             <div className="flex gap-4">
               <div className="search-container flex-1">
-                <SearchIcon className="search-icon" />
+                <Icons.SearchIcon className="search-icon" />
                 <input
                   type="text"
                   placeholder="Sipariş kodu veya ürün kodu ara..."
@@ -541,7 +541,7 @@ export default function PazaryeriSiparisleriPage() {
                   <tr>
                     <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                       <div className="flex flex-col items-center">
-                        <PackageIcon className="w-12 h-12 text-gray-300 mb-2" />
+                        <Icons.PackageIcon className="w-12 h-12 text-gray-300 mb-2" />
                         <div>Henüz pazaryeri siparişi bulunmuyor</div>
                       </div>
                     </td>
