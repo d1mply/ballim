@@ -545,7 +545,6 @@ export const Icons = {
   ClipboardListIcon,
   UsersIcon,
   CreditCardIcon,
-  BarChart3Icon,
   TrendingUpIcon,
   AlertTriangleIcon,
   ClockIcon,

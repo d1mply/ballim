@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
@@ -107,30 +107,31 @@ export default function OdemelerPage() {
     loadUser();
   }, [router]);
   
-  // Müşterileri yükle
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      if (!user || user.type !== 'admin') return;
-      
-      try {
-        const response = await fetch('/api/customers');
-        if (!response.ok) {
-          throw new Error(`API hatası: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        if (Array.isArray(data)) {
-          setCustomers(data);
-        }
-      } catch (error) {
-        console.error('Müşteriler yüklenirken hata:', error);
-      }
-    };
+  // Müşterileri yükle - useCallback ile optimize edilmiş
+  const fetchCustomers = useCallback(async () => {
+    if (!user || user.type !== 'admin') return;
     
-    if (user?.type === 'admin') {
-      fetchCustomers();
+    try {
+      const response = await fetch('/api/customers');
+      if (!response.ok) {
+        throw new Error(`API hatası: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setCustomers(data);
+      }
+    } catch (error) {
+      console.error('Müşteriler yüklenirken hata:', error);
     }
   }, [user]);
+
+  // Müşterileri sadece bir kez yükle
+  useEffect(() => {
+    if (user?.type === 'admin' && customers.length === 0) {
+      fetchCustomers();
+    }
+  }, [user, fetchCustomers, customers.length]);
   
   // Siparişleri yükle (müşteri seçildiğinde)
   useEffect(() => {
@@ -167,8 +168,8 @@ export default function OdemelerPage() {
     }
   }, [selectedMusteriId, user]);
   
-  // Ödemeleri filtrele
-  useEffect(() => {
+  // Ödemeleri filtrele - useCallback ile optimize edilmiş
+  const filterOdemeler = useCallback(() => {
     if (!odemeler.length) return;
 
     let filtered = [...odemeler];
@@ -202,44 +203,13 @@ export default function OdemelerPage() {
 
     setFilteredOdemeler(filtered);
   }, [odemeler, searchTerm, statusFilter, dateRange]);
+
+  // Filtreleme işlemini çağır
+  useEffect(() => {
+    filterOdemeler();
+  }, [filterOdemeler]);
   
-  // Ödemeleri yükle
-  const loadOdemeler = async () => {
-    console.log('Ödemeler yükleniyor...'); // Debug log
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      let url = '/api/odemeler';
-      if (selectedMusteriId) {
-        url += `?customerId=${selectedMusteriId}`;
-      }
-      
-      console.log('API çağrısı yapılıyor:', url); // Debug log
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`API hatası: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Yüklenen ödemeler:', data); // Debug log
-      
-      // Ödemeleri formatlayarak state'e kaydet
-      const formattedOdemeler = Array.isArray(data) ? data.map(odeme => ({
-        ...odeme,
-        siparis_id: odeme.siparis_id ? `SIP-${String(odeme.siparis_id).padStart(3, '0')}` : null
-      })) : [];
-      
-      setOdemeler(formattedOdemeler);
-      setFilteredOdemeler(formattedOdemeler);
-    } catch (error) {
-      console.error('Ödeme verileri yüklenirken hata:', error);
-      setError('Ödeme verileri yüklenirken bir hata oluştu');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
   
   // Form değişikliklerini işle
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -406,6 +376,44 @@ export default function OdemelerPage() {
     }).format(amount);
   };
   
+  // loadOdemeler fonksiyonunu useCallback ile sarmalayalım
+  const loadOdemeler = useCallback(async () => {
+    console.log('Ödemeler yükleniyor...'); // Debug log
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      let url = '/api/odemeler';
+      if (selectedMusteriId) {
+        url += `?customerId=${selectedMusteriId}`;
+      }
+      
+      console.log('API çağrısı yapılıyor:', url); // Debug log
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`API hatası: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Yüklenen ödemeler:', data); // Debug log
+      
+      // Ödemeleri formatlayarak state'e kaydet
+      const formattedOdemeler = Array.isArray(data) ? data.map(odeme => ({
+        ...odeme,
+        siparis_id: odeme.siparis_id ? `SIP-${String(odeme.siparis_id).padStart(3, '0')}` : null
+      })) : [];
+      
+      setOdemeler(formattedOdemeler);
+      setFilteredOdemeler(formattedOdemeler);
+    } catch (error) {
+      console.error('Ödeme verileri yüklenirken hata:', error);
+      setError('Ödeme verileri yüklenirken bir hata oluştu');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedMusteriId]);
+
   // Ödemeleri yükle (component mount olduğunda ve müşteri seçildiğinde)
   useEffect(() => {
     if (!user || user.type !== 'admin') return;

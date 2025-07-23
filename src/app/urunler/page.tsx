@@ -25,7 +25,8 @@ export default function UrunlerPage() {
   const [showFilters, setShowFilters] = useState(false);
 
   const [user, setUser] = useState<LoggedInUser | null>(null);
-  
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   
   // Kullanıcı bilgisini yükle

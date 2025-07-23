@@ -2,14 +2,24 @@ import { Pool } from 'pg';
 
 // Veritabanı bağlantı bilgileri
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: parseInt(process.env.DB_PORT || '5432'),
 });
 
 // Sorgu çalıştırma yardımcı fonksiyonu
 export async function query(text: string, params?: (string | number | boolean | null)[]) {
   const start = Date.now();
   try {
+    console.log('Sorgu başlatılıyor:', { text, params });
+    console.log('Veritabanı bilgileri:', {
+      user: process.env.DB_USER,
+      host: process.env.DB_HOST,
+      database: process.env.DB_NAME,
+      port: process.env.DB_PORT
+    });
     const res = await pool.query(text, params);
     const duration = Date.now() - start;
     console.log('Sorgu çalıştırıldı', { text, duration, rows: res.rowCount });
@@ -328,8 +338,18 @@ export async function createTables() {
   return success;
 }
 
-// Modül açılışında otomatik olarak tabloları oluştur
-createTables().catch(console.error);
+// Tabloları sadece bir kez oluştur - development modunda
+if (process.env.NODE_ENV === 'development') {
+  let tablesCreated = false;
+  if (!tablesCreated) {
+    createTables()
+      .then(() => {
+        tablesCreated = true;
+        console.log('Tablolar başarıyla oluşturuldu');
+      })
+      .catch(console.error);
+  }
+}
 
 // db objesi - eski kodlar için uyumluluk
 export const db = {

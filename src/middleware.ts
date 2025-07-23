@@ -148,6 +148,8 @@ export function middleware(request: NextRequest) {
   }
   
   // 🚫 LAMER KONTROL 6: Referer kontrolü (sadece API endpoint'leri için)
+  // Geçici olarak devre dışı bırakıldı
+  /*
   if (url.pathname.startsWith('/api/')) {
     const referer = request.headers.get('referer');
     const origin = request.headers.get('origin');
@@ -173,6 +175,7 @@ export function middleware(request: NextRequest) {
       }
     }
   }
+  */
   
   // 🚫 LAMER KONTROL 7: Content-Length kontrolü (çok büyük request'ler)
   const contentLength = request.headers.get('content-length');
