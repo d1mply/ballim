@@ -194,7 +194,7 @@ const OrderCard = ({ item, onStartProduction, onStatusChange }: {
 export default function UretimTakipPage() {
   const router = useRouter();
   const [user, setUser] = useState<LoggedInUser | null>(null);
-  const [isDesktop, setIsDesktop] = useState(false);
+
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<OrderItem[]>([]);
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'tumu'>('tumu');
@@ -212,22 +212,7 @@ export default function UretimTakipPage() {
   const [isPollingActive, setIsPollingActive] = useState(true);
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
 
-  // Masaüstü uygulaması kontrolü
-  useEffect(() => {
-    // @ts-expect-error - Electron algılama yöntemini değiştiriyoruz
-    const isNodeJs = typeof process !== 'undefined';
-    const isElectronCheck = isNodeJs && process?.versions?.hasOwnProperty('electron');
-    
-    console.log('İşlem kontrolü:', isNodeJs);
-    console.log('Electron kontrolü:', isElectronCheck);
-    
-    // Geliştirme modunda her zaman erişime izin ver
-    // Production modunda sadece Electron içinde çalışıyorsa true olacak
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    setIsDesktop(isDevelopment ? true : isElectronCheck);
-    
-    console.log('Geliştirme modu:', isDevelopment);
-  }, []);
+
 
   // Kullanıcı kontrolü ve sayfa yetkisi
   useEffect(() => {
@@ -251,16 +236,7 @@ export default function UretimTakipPage() {
     }
   }, [router]);
 
-  // Masaüstü uygulaması değilse ana sayfaya yönlendir
-  useEffect(() => {
-    // Geliştirme modunda yönlendirmeyi devre dışı bırak, production'da etkinleştir
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    
-    if (!isDevelopment && !isDesktop && typeof window !== 'undefined') {
-      router.push('/');
-    }
-    console.log("Masaüstü kontrolü: ", isDesktop);
-  }, [isDesktop, user, router]);
+
 
   // Siparişleri API'den çek
   const fetchOrders = async () => {
@@ -557,25 +533,10 @@ export default function UretimTakipPage() {
     );
   }
   
-  // Masaüstü kontrolü - sadece production modunda aktif
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  if (!isDevelopment && !isDesktop) {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center h-[70vh]">
-          <Icons.PackageIcon className="h-16 w-16 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Masaüstü Özelliği</h2>
-          <p className="text-muted-foreground text-center max-w-md">
-            Üretim takip özelliği sadece masaüstü uygulamasında kullanılabilir. 
-            Lütfen Ballim masaüstü uygulamasını indirin ve kullanın.
-          </p>
-        </div>
-      </Layout>
-    );
-  }
+
   
-  // Admin kontrolünü de production modunda etkinleştir
-  if (!isDevelopment && user?.type !== 'admin') {
+  // Admin kontrolü - sadece admin kullanıcıları erişebilir
+  if (user?.type !== 'admin') {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center h-[70vh]">
