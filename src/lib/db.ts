@@ -1,34 +1,79 @@
 import { Pool } from 'pg';
 
 // Veritabanı bağlantı bilgileri
-export const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  ssl: process.env.NODE_ENV === 'production' ? {
-    rejectUnauthorized: false
-  } : false,
-});
+export const pool = new Pool(
+  // Render'da DATABASE_URL varsa onu kullan, yoksa individual env variables kullan
+  process.env.DATABASE_URL ? {
+    connectionString: process.env.DATABASE_URL + (
+      process.env.DATABASE_URL.includes('?') ? '&sslmode=require' : '?sslmode=require'
+    ),
+    ssl: {
+      rejectUnauthorized: false
+    },
+    // Connection pool optimization
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  } : {
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: parseInt(process.env.DB_PORT || '5432'),
+    // Local development'ta SSL false, aksi halde SSL aktif
+    ssl: process.env.NODE_ENV === 'development' ? false : {
+      rejectUnauthorized: false
+    },
+    // Connection pool optimization
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  }
+);
+
+// Connection test fonksiyonu
+export async function testConnection() {
+  try {
+    await pool.query('SELECT NOW()');
+    console.log('Veritabanı bağlantısı başarılı');
+    return true;
+  } catch (error) {
+    console.error('Veritabanı bağlantı hatası:', error);
+    return false;
+  }
+}
 
 // Sorgu çalıştırma yardımcı fonksiyonu
 export async function query(text: string, params?: (string | number | boolean | null)[]) {
   const start = Date.now();
   try {
-    console.log('Sorgu başlatılıyor:', { text, params });
-    console.log('Veritabanı bilgileri:', {
-      user: process.env.DB_USER,
-      host: process.env.DB_HOST,
-      database: process.env.DB_NAME,
-      port: process.env.DB_PORT
-    });
+    // Production'da log seviyesini azalt
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Sorgu başlatılıyor:', { text, params });
+      console.log('Veritabanı bilgileri:', {
+        user: process.env.DB_USER,
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME,
+        port: process.env.DB_PORT,
+        hasDatabase_URL: !!process.env.DATABASE_URL
+      });
+    }
+    
     const res = await pool.query(text, params);
     const duration = Date.now() - start;
-    console.log('Sorgu çalıştırıldı', { text, duration, rows: res.rowCount });
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Sorgu çalıştırıldı', { text, duration, rows: res.rowCount });
+    }
+    
     return res;
   } catch (error) {
-    console.error('Sorgu hatası:', error);
+    console.error('Sorgu hatası:', {
+      error: error.message,
+      query: text,
+      params: params,
+      timestamp: new Date().toISOString()
+    });
     throw error;
   }
 }
