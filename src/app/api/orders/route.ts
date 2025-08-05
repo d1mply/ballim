@@ -2,9 +2,52 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
 import { handleOrderStock, manageStock, StockOperation } from '../../../lib/stock';
 
+// Production quantity ve skip_production sütunlarını kontrol et ve yoksa ekle
+const checkAndAddOrderColumns = async () => {
+  try {
+    // production_quantity sütununu kontrol et
+    const checkProductionQuantityColumn = await query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'orders' 
+      AND column_name = 'production_quantity'
+    `);
+
+    if (checkProductionQuantityColumn.rowCount === 0) {
+      await query(`
+        ALTER TABLE orders 
+        ADD COLUMN production_quantity INTEGER DEFAULT 0
+      `);
+      console.log('production_quantity sütunu eklendi');
+    }
+
+    // skip_production sütununu kontrol et
+    const checkSkipProductionColumn = await query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'orders' 
+      AND column_name = 'skip_production'
+    `);
+
+    if (checkSkipProductionColumn.rowCount === 0) {
+      await query(`
+        ALTER TABLE orders 
+        ADD COLUMN skip_production BOOLEAN DEFAULT false
+      `);
+      console.log('skip_production sütunu eklendi');
+    }
+  } catch (error) {
+    console.error('Orders tablo sütunları kontrol/ekleme hatası:', error);
+    // Hata olsa bile devam et
+  }
+};
+
 // Tüm siparişleri getir
 export async function GET(request: NextRequest) {
   try {
+    // Önce gerekli sütunları kontrol et ve ekle
+    await checkAndAddOrderColumns();
+    
     const url = new URL(request.url);
     const customerId = url.searchParams.get('customerId');
     const orderType = url.searchParams.get('type'); // pazaryeri veya normal
@@ -22,6 +65,7 @@ export async function GET(request: NextRequest) {
         o.status,
         o.notes,
         COALESCE(o.production_quantity, 0) as production_quantity,
+        COALESCE(o.skip_production, false) as skip_production,
         json_agg(
           json_build_object(
             'code', COALESCE(oi.product_code, p.product_code, 'SİLİNMİŞ'),
@@ -94,6 +138,7 @@ export async function GET(request: NextRequest) {
         totalAmount: parseFloat(order.total_amount),
         status: order.status,
         production_quantity: parseInt(order.production_quantity) || 0,
+        skip_production: order.skip_production || false,
         products: order.products[0] === null ? [] : order.products.map(product => ({
           ...product,
           capacity: parseInt(product.capacity) || 0,
