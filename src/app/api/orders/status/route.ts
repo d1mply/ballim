@@ -176,14 +176,19 @@ export async function PUT(request: NextRequest) {
           const effectiveSkipProduction = newStatus === 'Üretimde' ? skipProduction : currentSkipProduction;
           
           // ÜRÜN STOK İŞLEMLERİ
-          const stockResults = await handleOrderStock(
-            orderId,
-            currentStatus,
-            newStatus,
-            prodQuantity,
-            effectiveSkipProduction
-          );
-          console.log('✅ Ürün stok işlemleri tamamlandı. Sonuçlar:', stockResults);
+          try {
+            const stockResults = await handleOrderStock(
+              orderId,
+              currentStatus,
+              newStatus,
+              prodQuantity,
+              effectiveSkipProduction
+            );
+            console.log('✅ Ürün stok işlemleri tamamlandı. Sonuçlar:', stockResults);
+          } catch (stockError) {
+            console.error('❌ Ürün stok işlemi hatası:', stockError);
+            throw stockError; // Transaction'ı geri almak için hatayı yeniden fırlat
+          }
           
           // *** YENİ: FİLAMENT STOK İŞLEMLERİ ***
           // "Hazırlandı" durumuna geçildiğinde filament stoku düşürülür
@@ -239,28 +244,33 @@ export async function PUT(request: NextRequest) {
                   console.log(`   - Yeni stok: ${newRemainingWeight}gr`);
                   console.log(`📉 ${filament.filament_code}: ${filament.remaining_weight}gr → ${newRemainingWeight}gr`);
                   
-                  // Stok güncelle
-                  await query(`
-                    UPDATE filaments 
-                    SET remaining_weight = $1, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = $2
-                  `, [newRemainingWeight, filament.id]);
-                  
-                  // Filament kullanım geçmişi kaydet
-                  await query(`
-                    INSERT INTO filament_usage (
-                      filament_id, product_id, order_id, usage_date, amount, description
-                    )
-                    VALUES ($1, $2, $3, CURRENT_DATE, $4, $5)
-                  `, [
-                    filament.id,
-                    item.product_id,
-                    orderId,
-                    totalWeightNeeded,
-                    `Sipariş ${orderCode} üretimi tamamlandı`
-                  ]);
-                  
-                  console.log('✅ Filament stok güncellendi ve kullanım geçmişi kaydedildi');
+                  try {
+                    // Stok güncelle
+                    await query(`
+                      UPDATE filaments 
+                      SET remaining_weight = $1, updated_at = CURRENT_TIMESTAMP
+                      WHERE id = $2
+                    `, [newRemainingWeight, filament.id]);
+                    
+                    // Filament kullanım geçmişi kaydet
+                    await query(`
+                      INSERT INTO filament_usage (
+                        filament_id, product_id, order_id, usage_date, amount, description
+                      )
+                      VALUES ($1, $2, $3, CURRENT_DATE, $4, $5)
+                    `, [
+                      filament.id,
+                      item.product_id,
+                      orderId,
+                      totalWeightNeeded,
+                      `Sipariş ${orderCode} üretimi tamamlandı`
+                    ]);
+                    
+                    console.log('✅ Filament stok güncellendi ve kullanım geçmişi kaydedildi');
+                  } catch (filamentError) {
+                    console.error('❌ Filament stok güncelleme hatası:', filamentError);
+                    throw filamentError; // Transaction'ı geri almak için hatayı yeniden fırlat
+                  }
                 } else {
                   console.warn(`⚠️ UYARI: ${prodFilament.filament_type} ${prodFilament.filament_color} stokta bulunamadı!`);
                 }
@@ -272,7 +282,7 @@ export async function PUT(request: NextRequest) {
           
         } catch (stockError) {
           console.error('❌ Stok işlemi hatası:', stockError);
-          // Stok hatası olsa bile sipariş durumunu güncelledik, transaction'ı devam ettir
+          throw stockError; // Transaction'ı geri almak için hatayı yeniden fırlat
         }
       } else {
         console.log('⏭️ Stok işlemleri atlandı (skipProduction: true)');

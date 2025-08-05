@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 
     // Group by ve order by ekle
     baseQuery += `
-      GROUP BY o.id, o.order_code, c.name, o.order_date, o.total_amount, o.status, o.notes, o.production_quantity
+      GROUP BY o.id, o.order_code, c.name, o.order_date, o.total_amount, o.status, o.notes, o.production_quantity, o.skip_production
       ORDER BY o.order_date DESC
     `;
 
