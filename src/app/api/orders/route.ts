@@ -55,6 +55,24 @@ export async function GET(request: NextRequest) {
 
     // Temel sorgu ve parametreler
     const params = [];
+    
+    // Önce skip_production sütununun varlığını kontrol et
+    let hasSkipProductionColumn = true;
+    try {
+      const columnCheck = await query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'orders' 
+        AND column_name = 'skip_production'
+      `);
+      hasSkipProductionColumn = columnCheck.rowCount > 0;
+    } catch (columnError) {
+      console.error('Sütun kontrolü hatası:', columnError);
+      hasSkipProductionColumn = false;
+    }
+
+    console.log('skip_production sütunu mevcut mu?', hasSkipProductionColumn);
+
     let baseQuery = `
       SELECT 
         o.id,
@@ -65,7 +83,7 @@ export async function GET(request: NextRequest) {
         o.status,
         o.notes,
         COALESCE(o.production_quantity, 0) as production_quantity,
-        COALESCE(o.skip_production, false) as skip_production,
+        ${hasSkipProductionColumn ? 'COALESCE(o.skip_production, false) as skip_production,' : 'false as skip_production,'}
         json_agg(
           json_build_object(
             'code', COALESCE(oi.product_code, p.product_code, 'SİLİNMİŞ'),
@@ -105,7 +123,7 @@ export async function GET(request: NextRequest) {
 
     // Group by ve order by ekle
     baseQuery += `
-      GROUP BY o.id, o.order_code, c.name, o.order_date, o.total_amount, o.status, o.notes, o.production_quantity, o.skip_production
+      GROUP BY o.id, o.order_code, c.name, o.order_date, o.total_amount, o.status, o.notes, o.production_quantity${hasSkipProductionColumn ? ', o.skip_production' : ''}
       ORDER BY o.order_date DESC
     `;
 
@@ -164,8 +182,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(formattedOrders);
   } catch (error) {
     console.error('Siparişler getirilirken hata:', error);
+    console.error('Hata detayı:', {
+      message: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      stack: error instanceof Error ? error.stack : 'Stack bulunamadı',
+      name: error instanceof Error ? error.name : 'Bilinmeyen hata türü'
+    });
+    
     return NextResponse.json(
-      { error: 'Siparişler getirilemedi' },
+      { 
+        error: 'Siparişler getirilemedi',
+        details: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      },
       { status: 500 }
     );
   }
