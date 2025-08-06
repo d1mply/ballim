@@ -206,10 +206,12 @@ export async function PUT(request: NextRequest) {
             for (const item of orderItems.rows) {
               console.log(`📦 Ürün ${item.product_id} için filament stoku düşürülüyor...`);
               
-              // Bu ürünün hangi filamentleri kullandığını bul
+              // Bu ürünün hangi filamentleri kullandığını ve kapasitesini bul
               const productFilaments = await query(`
-                SELECT pf.filament_type, pf.filament_color, pf.weight, pf.filament_density as brand
+                SELECT pf.filament_type, pf.filament_color, pf.weight, pf.filament_density as brand,
+                       p.capacity
                 FROM product_filaments pf
+                JOIN products p ON p.id = pf.product_id
                 WHERE pf.product_id = $1
               `, [item.product_id]);
 
@@ -217,12 +219,32 @@ export async function PUT(request: NextRequest) {
 
               // Her filament için stok düşürme
               for (const prodFilament of productFilaments.rows) {
-                const totalWeightNeeded = prodFilament.weight * item.quantity;
+                // DÜZELTME: Gerçek üretim miktarını hesapla
+                let actualQuantityProduced;
+                
+                if (skipProduction) {
+                  // Stoktan kullanıldı - sipariş adedi kadar
+                  actualQuantityProduced = item.quantity;
+                  console.log(`📦 STOKTAN KULLANILDI: ${actualQuantityProduced} adet`);
+                } else {
+                  // Üretim yapıldı - production_quantity değerini kullan
+                  if (prodQuantity > 0) {
+                    // Production quantity tabla cinsindense, adet cinsine çevir
+                    actualQuantityProduced = prodQuantity * (prodFilament.capacity || 1);
+                    console.log(`🏭 ÜRETİM YAPILDI: ${prodQuantity} tabla × ${prodFilament.capacity} kapasite = ${actualQuantityProduced} adet`);
+                  } else {
+                    // Fallback: sipariş adedi kadar
+                    actualQuantityProduced = item.quantity;
+                    console.log(`🏭 ÜRETİM YAPILDI (fallback): ${actualQuantityProduced} adet`);
+                  }
+                }
+                
+                const totalWeightNeeded = prodFilament.weight * actualQuantityProduced;
                 
                 console.log(`🔍 HESAPLAMA:`);
                 console.log(`   - Filament weight (adet başı): ${prodFilament.weight}gr`);
-                console.log(`   - Üretilen miktar: ${item.quantity} adet`);
-                console.log(`   - Toplam: ${prodFilament.weight} × ${item.quantity} = ${totalWeightNeeded}gr`);
+                console.log(`   - Gerçek üretilen miktar: ${actualQuantityProduced} adet`);
+                console.log(`   - Toplam: ${prodFilament.weight} × ${actualQuantityProduced} = ${totalWeightNeeded}gr`);
                 console.log(`🎯 ${prodFilament.filament_type} ${prodFilament.filament_color} - ${totalWeightNeeded}gr düşürülecek`);
                 
                 // Filament stoğunu bul ve güncelle

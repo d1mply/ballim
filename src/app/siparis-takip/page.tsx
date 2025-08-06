@@ -44,7 +44,19 @@ export default function SiparisTakipPage() {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const response = await fetch('/api/orders');
+        // Müşteri tipine göre API URL'ini oluştur
+        let apiUrl = '/api/orders';
+        
+        if (currentUser?.type === 'customer') {
+          // Müşteri ise sadece kendi siparişlerini getir
+          const customerId = currentUser.id;
+          apiUrl = `/api/orders?customerId=${customerId}`;
+          console.log('🔒 Müşteri izolasyonu: Sadece kendi siparişleri getiriliyor:', customerId);
+        } else {
+          console.log('👑 Admin: Tüm siparişler getiriliyor');
+        }
+        
+        const response = await fetch(apiUrl);
         
         if (!response.ok) {
           console.error('API Yanıt Detayları:', {
@@ -81,7 +93,7 @@ export default function SiparisTakipPage() {
     };
     
     fetchOrders();
-  }, []);
+  }, [currentUser]); // currentUser değiştiğinde yeniden fetch et
   
   // Arama ve filtreleme
   const filteredOrders = orders.filter(order => {

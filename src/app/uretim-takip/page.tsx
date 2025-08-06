@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
@@ -238,8 +238,8 @@ export default function UretimTakipPage() {
 
 
 
-  // Siparişleri API'den çek
-  const fetchOrders = async () => {
+  // Siparişleri API'den çek - useCallback ile optimize et
+  const fetchOrders = useCallback(async () => {
     try {
       const response = await fetch('/api/orders', {
         method: 'GET',
@@ -309,20 +309,20 @@ export default function UretimTakipPage() {
         console.warn('Sürekli API hatası nedeniyle otomatik güncelleme durduruldu. Manuel yenile butonunu kullanın.');
       }
     }
-  };
+  }, []); // useCallback dependencies
 
   // İlk yükleme
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Otomatik güncelleme (her 30 saniyede bir ve sadece aktifse)
+  // Otomatik güncelleme (her 2 dakikada bir ve sadece aktifse)
   useEffect(() => {
     if (!isPollingActive) return;
 
     const interval = setInterval(() => {
       fetchOrders();
-    }, 30000); // 30 saniye (daha az sıklık)
+    }, 120000); // 2 dakika (120 saniye)
 
     return () => clearInterval(interval);
   }, [isPollingActive, consecutiveErrors, fetchOrders]);

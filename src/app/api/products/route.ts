@@ -97,16 +97,75 @@ export async function POST(request: NextRequest) {
       filaments
     } = body;
     
-    // Ürün kodunu kullan veya otomatik oluştur
+    // Ürün kodunu kontrolü ve benzersizlik sağlama
     let productCode = code;
-    if (!productCode) {
-      // Ürün kodunu otomatik oluştur (AA001, AA002, ...)
-      const countResult = await query(`
-        SELECT COUNT(*) FROM products
-      `);
+    
+    // Manuel girilen kodun benzersizliğini kontrol et
+    if (productCode) {
+      const existingProduct = await query(`
+        SELECT id FROM products WHERE product_code = $1
+      `, [productCode]);
       
-      const count = parseInt(countResult.rows[0].count) + 1;
-      productCode = `AA${count.toString().padStart(3, '0')}`;
+      if (existingProduct.rows.length > 0) {
+        // Kod çakışması var - alternatif kodlar öner
+        const suggestions = [];
+        for (let i = 1; i <= 5; i++) {
+          const altCode = `${productCode}-${i}`;
+          const checkAlt = await query(`
+            SELECT id FROM products WHERE product_code = $1
+          `, [altCode]);
+          
+          if (checkAlt.rows.length === 0) {
+            suggestions.push(altCode);
+          }
+        }
+        
+        return NextResponse.json({
+          error: 'Bu ürün kodu zaten kullanılıyor',
+          suggestions: suggestions.slice(0, 3),
+          conflictCode: productCode
+        }, { status: 409 });
+      }
+    } else {
+      // Otomatik kod üretimi - güvenli yöntem
+      let attempts = 0;
+      const maxAttempts = 100;
+      
+      do {
+        // Son ürün kodunu bul ve +1 ekle
+        const lastCodeResult = await query(`
+          SELECT product_code FROM products 
+          WHERE product_code ~ '^AA[0-9]+$' 
+          ORDER BY CAST(SUBSTRING(product_code FROM 3) AS INTEGER) DESC 
+          LIMIT 1
+        `);
+        
+        let nextNumber = 1;
+        if (lastCodeResult.rows.length > 0) {
+          const lastCode = lastCodeResult.rows[0].product_code;
+          const lastNumber = parseInt(lastCode.substring(2));
+          nextNumber = lastNumber + 1;
+        }
+        
+        productCode = `AA${nextNumber.toString().padStart(3, '0')}`;
+        
+        // Bu kodun kullanılmadığını doğrula
+        const existingCheck = await query(`
+          SELECT id FROM products WHERE product_code = $1
+        `, [productCode]);
+        
+        if (existingCheck.rows.length === 0) {
+          break; // Benzersiz kod bulundu
+        }
+        
+        attempts++;
+      } while (attempts < maxAttempts);
+      
+      if (attempts >= maxAttempts) {
+        return NextResponse.json({
+          error: 'Benzersiz ürün kodu oluşturulamadı'
+        }, { status: 500 });
+      }
     }
     
     // Ana ürün kaydını oluştur
