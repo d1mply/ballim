@@ -44,16 +44,28 @@ export default function SiparisTakipPage() {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
+        // 🔒 GÜVENLİK KONTROLÜ: Giriş yapılmış kullanıcı yoksa hiçbir şey gösterme
+        if (!currentUser) {
+          console.log('🚫 Giriş yapılmamış - sipariş verileri yüklenmiyor');
+          setOrders([]);
+          return;
+        }
+
         // Müşteri tipine göre API URL'ini oluştur
         let apiUrl = '/api/orders';
         
-        if (currentUser?.type === 'customer') {
+        if (currentUser.type === 'customer') {
           // Müşteri ise sadece kendi siparişlerini getir
           const customerId = currentUser.id;
           apiUrl = `/api/orders?customerId=${customerId}`;
           console.log('🔒 Müşteri izolasyonu: Sadece kendi siparişleri getiriliyor:', customerId);
-        } else {
+        } else if (currentUser.type === 'admin') {
           console.log('👑 Admin: Tüm siparişler getiriliyor');
+        } else {
+          // Tanımlanmamış kullanıcı tipi
+          console.log('🚫 Tanımlanmamış kullanıcı tipi - erişim reddedildi');
+          setOrders([]);
+          return;
         }
         
         const response = await fetch(apiUrl);
@@ -175,6 +187,32 @@ export default function SiparisTakipPage() {
     }
   };
   
+  // Giriş yapılmamışsa uyarı göster
+  if (!currentUser) {
+    return (
+      <Layout>
+        <div className="space-y-5 w-full">
+          <div className="flex justify-between items-center">
+            <h1 className="text-xl font-bold">Sipariş Takip</h1>
+          </div>
+          
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 text-center">
+            <div className="flex justify-center mb-4">
+              <Icons.UserIcon className="w-16 h-16 text-destructive" />
+            </div>
+            <h2 className="text-xl font-semibold text-destructive mb-2">Erişim Reddedildi</h2>
+            <p className="text-muted-foreground mb-4">
+              Sipariş bilgilerinizi görüntülemek için giriş yapmanız gerekiyor.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Lütfen admin tarafından verilen kullanıcı adı ve şifre ile giriş yapın.
+            </p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="space-y-5 w-full">
