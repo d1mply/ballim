@@ -459,6 +459,7 @@ export default function UretimTakipPage() {
       orderId: selectedOrderItem.order_code,
       status: 'Üretimde',
       productionQuantity: skipProduction ? 0 : productionQuantity,
+      productionType: productionType, // 'tabla' veya 'adet'
       skipProduction
     };
 

@@ -48,7 +48,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     console.log('🔍 Ham Request Body:', JSON.stringify(body, null, 2));
 
-    const { orderId, status, productionQuantity = 0, skipProduction = false } = body;
+    const { orderId, status, productionQuantity = 0, productionType = 'adet', skipProduction = false } = body;
 
     // Tip kontrolleri
     console.log('🔍 Parametreler detaylı analiz:', {
@@ -227,11 +227,11 @@ export async function PUT(request: NextRequest) {
                   actualQuantityProduced = item.quantity;
                   console.log(`📦 STOKTAN KULLANILDI: ${actualQuantityProduced} adet`);
                 } else {
-                  // Üretim yapıldı - production_quantity değerini kullan
+                  // Üretim yapıldı - productionQuantity frontend'de hesaplanmış
                   if (prodQuantity > 0) {
-                    // Production quantity tabla cinsindense, adet cinsine çevir
-                    actualQuantityProduced = prodQuantity * (prodFilament.capacity || 1);
-                    console.log(`🏭 ÜRETİM YAPILDI: ${prodQuantity} tabla × ${prodFilament.capacity} kapasite = ${actualQuantityProduced} adet`);
+                    // Frontend'den gelen productionQuantity doğru adet sayısı
+                    actualQuantityProduced = prodQuantity;
+                    console.log(`🏭 ÜRETİM YAPILDI (${productionType}): ${actualQuantityProduced} adet`);
                   } else {
                     // Fallback: sipariş adedi kadar
                     actualQuantityProduced = item.quantity;
