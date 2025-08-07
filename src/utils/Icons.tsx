@@ -592,5 +592,6 @@ export const Icons = {
   CheckIcon,
   TruckIcon,
   ClipboardIcon,
-  PrinterIcon
+  PrinterIcon,
+  UserIcon
 }; 
