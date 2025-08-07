@@ -239,12 +239,16 @@ export async function PUT(request: NextRequest) {
                   }
                 }
                 
-                const totalWeightNeeded = prodFilament.weight * actualQuantityProduced;
+                // DÜZELTME: Filament weight tabla başı, adet başına çevir
+                const weightPerPiece = prodFilament.weight / (prodFilament.capacity || 1);
+                const totalWeightNeeded = weightPerPiece * actualQuantityProduced;
                 
                 console.log(`🔍 HESAPLAMA:`);
-                console.log(`   - Filament weight (adet başı): ${prodFilament.weight}gr`);
+                console.log(`   - Filament weight (tabla başı): ${prodFilament.weight}gr`);
+                console.log(`   - Tabla kapasitesi: ${prodFilament.capacity} adet`);
+                console.log(`   - Adet başı: ${prodFilament.weight} ÷ ${prodFilament.capacity} = ${weightPerPiece}gr`);
                 console.log(`   - Gerçek üretilen miktar: ${actualQuantityProduced} adet`);
-                console.log(`   - Toplam: ${prodFilament.weight} × ${actualQuantityProduced} = ${totalWeightNeeded}gr`);
+                console.log(`   - Toplam: ${weightPerPiece} × ${actualQuantityProduced} = ${totalWeightNeeded}gr`);
                 console.log(`🎯 ${prodFilament.filament_type} ${prodFilament.filament_color} - ${totalWeightNeeded}gr düşürülecek`);
                 
                 // Filament stoğunu bul ve güncelle
