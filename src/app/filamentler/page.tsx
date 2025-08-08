@@ -266,6 +266,17 @@ export default function FilamentlerPage() {
     return filament.remainingWeight <= filament.criticalStock;
   };
   
+  // Ağırlık formatı (>= 1000g için hem g hem kg göster)
+  const formatWeight = (grams: number) => {
+    const roundedG = Math.round(grams || 0);
+    if (roundedG >= 1000) {
+      const kg = roundedG / 1000;
+      const kgStr = (Math.trunc(kg * 1000) / 1000).toFixed(3).replace(/\.0+$/, '').replace(/\.$/, '');
+      return `${roundedG}g (${kgStr}kg)`;
+    }
+    return `${roundedG}g`;
+  };
+  
   return (
     <Layout>
       <div className="space-y-5">
@@ -357,7 +368,7 @@ export default function FilamentlerPage() {
                         <div className="w-full">
                           <div className="flex justify-between mb-1">
                             <span className="text-sm">
-                              {filament.remainingWeight}g / {filament.totalWeight}g
+                              {formatWeight(filament.remainingWeight)} / {formatWeight(filament.totalWeight)}
                             </span>
                             <span className="text-sm">
                               {Math.round(calculateRemainingPercentage(filament))}%
@@ -368,11 +379,7 @@ export default function FilamentlerPage() {
                               className="progress-bar-value" 
                               style={{ 
                                 width: `${calculateRemainingPercentage(filament)}%`,
-                                backgroundColor: 
-                                  isStockCritical(filament) ? 'var(--danger)' :
-                                  calculateRemainingPercentage(filament) > 70 ? 'var(--success)' :
-                                  calculateRemainingPercentage(filament) > 30 ? 'var(--warning)' :
-                                  'var(--danger)'
+                                backgroundColor: isStockCritical(filament) ? 'var(--danger)' : 'var(--success)'
                               }}
                             ></div>
                           </div>

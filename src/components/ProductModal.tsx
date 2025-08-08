@@ -16,6 +16,7 @@ export interface ProductData {
   code: string;
   productType: string;
   image?: string;
+  barcode?: string;
   capacity: number;
   dimensionX: number;
   dimensionY: number;
@@ -45,6 +46,7 @@ export default function ProductModal({
   const [formData, setFormData] = useState<ProductData>({
     code: '',
     productType: '',
+    barcode: '',
     capacity: 0,
     dimensionX: 0,
     dimensionY: 0,
@@ -293,6 +295,19 @@ export default function ProductModal({
                   value={formData.productType}
                   onChange={handleChange}
                   required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="barcode" className="block text-sm font-medium mb-1">
+                  Barkod No
+                </label>
+                <input
+                  id="barcode"
+                  name="barcode"
+                  type="text"
+                  value={formData.barcode || ''}
+                  onChange={handleChange}
                 />
               </div>
               

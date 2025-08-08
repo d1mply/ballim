@@ -14,6 +14,11 @@ interface StockItem extends ProductData {
 }
 
 export default function StokSiparisPage() {
+  // 2 ondalık basamakta kesme (yuvarlamasız)
+  const truncate2 = (value: number) => {
+    if (!isFinite(value)) return 0;
+    return Math.trunc(value * 100) / 100;
+  };
   const [currentUser, setCurrentUser] = useState<LoggedInUser | null>(null);
   const [products, setProducts] = useState<StockItem[]>([]);
   const [cartItems, setCartItems] = useState<StockItem[]>([]);
@@ -156,26 +161,33 @@ export default function StokSiparisPage() {
     
     try {
       // Sipariş ürünlerini hazırla
-      const orderItems = cartItems.map(item => ({
-        productId: item.id,
-        quantity: item.quantity || 1,
-        unitPrice: Math.round(item.pieceGram * getFilamentPrice(item))
-      }));
+      const orderItems = cartItems.map(item => {
+        const unit = truncate2((item.pieceGram || 0) * (getFilamentPrice(item) || 0));
+        return {
+          productId: item.id,
+          quantity: item.quantity || 1,
+          unitPrice: unit
+        };
+      });
       
       console.log('📦 Sipariş ürünleri hazırlandı:', orderItems);
       
       // Toplam tutarı hesapla
-      const subtotal = cartItems.reduce((total, item) => {
-        const filamentPrice = getFilamentPrice(item);
-        if (item.pieceGram && filamentPrice) {
-          const itemPrice = Math.round(item.pieceGram * filamentPrice);
-          return total + (itemPrice * (item.quantity || 1));
-        }
-        return total;
-      }, 0);
+      const subtotal = truncate2(
+        cartItems.reduce((total, item) => {
+          const filamentPrice = getFilamentPrice(item);
+          if (item.pieceGram && filamentPrice) {
+            const unit = truncate2(item.pieceGram * filamentPrice);
+            const lineTotal = truncate2(unit * (item.quantity || 1));
+            return total + lineTotal;
+          }
+          return total;
+        }, 0)
+      );
       
       // KDV dahil fiyattan sipariş oluştur
-      const totalAmount = Math.round(subtotal * (1 + kdvRate / 100));
+      const kdvAmountLocal = truncate2(subtotal * (kdvRate / 100));
+      const totalAmount = truncate2(subtotal + kdvAmountLocal);
       
       const orderData = {
         customerId: currentUser?.type === 'customer' ? currentUser.id : null,
@@ -222,20 +234,22 @@ export default function StokSiparisPage() {
   };
   
   // Ara toplam hesaplama
-  const subTotal = cartItems.reduce((total, item) => {
-    const filamentPrice = getFilamentPrice(item);
-    if (item.pieceGram && filamentPrice) {
-      const itemPrice = Math.round(item.pieceGram * filamentPrice);
-      return total + (itemPrice * (item.quantity || 1));
-    }
-    return total;
-  }, 0);
+  const subTotal = truncate2(
+    cartItems.reduce((total, item) => {
+      const filamentPrice = getFilamentPrice(item);
+      if (item.pieceGram && filamentPrice) {
+        const unit = truncate2(item.pieceGram * filamentPrice);
+        const lineTotal = truncate2(unit * (item.quantity || 1));
+        return total + lineTotal;
+      }
+      return total;
+    }, 0)
+  );
   
   // KDV hariç toplam tutarı hesaplama
-  const displayTotal = Math.round(subTotal * (1 + kdvRate / 100));
+  const kdvAmount = truncate2(subTotal * (kdvRate / 100));
+  const displayTotal = truncate2(subTotal + kdvAmount);
   
-  // KDV tutarını hesaplama
-  const kdvAmount = Math.round(subTotal * kdvRate / 100);
   
   return (
     <Layout>
@@ -450,10 +464,10 @@ export default function StokSiparisPage() {
                             <p className="text-xs text-gray-400 mb-1">
                               Gramaj: {item.pieceGram}g | Fiyat: {getFilamentPrice(item)}₺/g
                             </p>
-                            <p className="text-sm font-medium text-blue-600">
+                              <p className="text-sm font-medium text-blue-600">
                               {item.pieceGram && getFilamentPrice(item) ? 
-                                Math.round(item.pieceGram * getFilamentPrice(item)) : 0}₺ / adet
-                            </p>
+                                (Math.trunc(item.pieceGram * getFilamentPrice(item) * 100) / 100).toFixed(2) : '0.00'}₺ / adet
+                              </p>
                           </div>
                           
                           {/* Sil Butonu */}
@@ -492,10 +506,10 @@ export default function StokSiparisPage() {
                           
                           {/* Toplam Fiyat */}
                           <div className="text-right">
-                            <p className="text-lg font-bold text-gray-900">
+                              <p className="text-lg font-bold text-gray-900">
                               {item.pieceGram && getFilamentPrice(item) ? 
-                                Math.round(item.pieceGram * getFilamentPrice(item) * (item.quantity || 1)) : 0}₺
-                            </p>
+                                (Math.trunc(item.pieceGram * getFilamentPrice(item) * (item.quantity || 1) * 100) / 100).toFixed(2) : '0.00'}₺
+                              </p>
                           </div>
                         </div>
                       </div>
@@ -506,15 +520,15 @@ export default function StokSiparisPage() {
                   <div className="border-t border-gray-200 pt-4 space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Ara Toplam:</span>
-                      <span className="font-medium">{subTotal}₺</span>
+                      <span className="font-medium">{subTotal.toFixed(2)}₺</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">KDV (%{kdvRate}):</span>
-                      <span className="font-medium">{kdvAmount}₺</span>
+                      <span className="font-medium">{kdvAmount.toFixed(2)}₺</span>
                     </div>
                     <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-3">
                       <span>Toplam:</span>
-                      <span className="text-blue-600">{displayTotal}₺</span>
+                      <span className="text-blue-600">{displayTotal.toFixed(2)}₺</span>
                     </div>
                   </div>
                   

@@ -29,6 +29,7 @@ export async function GET() {
         product_code, 
         product_type, 
         image_path, 
+        barcode,
         capacity,
         dimension_x, 
         dimension_y, 
@@ -49,6 +50,7 @@ export async function GET() {
         code: product_code,
         productType: product_type,
         image: image_path,
+        barcode: barcode || '',
         capacity: capacity || 0,
         dimensionX: dimension_x || 0,
         dimensionY: dimension_y || 0,
@@ -85,6 +87,7 @@ export async function POST(request: NextRequest) {
       code,
       productType,
       image,
+      barcode,
       capacity,
       dimensionX,
       dimensionY,
@@ -171,16 +174,17 @@ export async function POST(request: NextRequest) {
     // Ana ürün kaydını oluştur
     const productResult = await query(`
       INSERT INTO products (
-        product_code, product_type, image_path, capacity,
+        product_code, product_type, image_path, barcode, capacity,
         dimension_x, dimension_y, dimension_z, print_time,
         total_gram, piece_gram, file_path, notes
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `, [
       productCode, 
       productType, 
       image, 
+      barcode || null,
       capacity || 0,
       dimensionX || 0, 
       dimensionY || 0, 
@@ -249,6 +253,7 @@ export async function POST(request: NextRequest) {
       product_code, 
       product_type, 
       image_path, 
+      barcode: bc,
       dimension_x, 
       dimension_y, 
       dimension_z, 
@@ -264,6 +269,7 @@ export async function POST(request: NextRequest) {
       code: product_code,
       productType: product_type,
       image: image_path,
+      barcode: bc || '',
       capacity: capacity || 0,
       dimensionX: dimension_x || 0,
       dimensionY: dimension_y || 0,
@@ -293,7 +299,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     console.log("Güncelleme için gelen veriler:", JSON.stringify(body, null, 2));
     
-    const { id, filaments, image, code, productType, ...restData } = body;
+    const { id, filaments, image, code, productType, barcode: bcUpdate, ...restData } = body;
     
     if (!id) {
       console.error("Ürün ID eksik:", body);
@@ -308,10 +314,11 @@ export async function PUT(request: NextRequest) {
     console.log("Geri kalan veriler:", restData);
     
     // Frontend'den gelen verileri veritabanı formatına dönüştür
-    const updateData: Record<string, string | number | boolean> = {
+    const updateData: Record<string, string | number | boolean | null> = {
       product_code: code,
       product_type: productType,
       image_path: image,
+      barcode: bcUpdate,
       ...restData
     };
 
@@ -465,6 +472,7 @@ export async function PUT(request: NextRequest) {
       product_code, 
       product_type, 
       image_path, 
+      barcode: bc2,
       capacity,
       dimension_x, 
       dimension_y, 
@@ -484,6 +492,7 @@ export async function PUT(request: NextRequest) {
       code: product_code,
       productType: product_type,
       image: image_path,
+      barcode: bc2 || '',
       capacity: capacity || 0,
       dimensionX: dimension_x || 0,
       dimensionY: dimension_y || 0,

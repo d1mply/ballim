@@ -114,6 +114,32 @@ export default function UrunlerPage() {
     setIsDetailOpen(true);
   };
 
+  // Ürün kopyala
+  const handleDuplicateProduct = async (product: ProductData) => {
+    try {
+      const response = await fetch('/api/products/duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceId: product.id })
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Kopyalama başarısız');
+      }
+
+      const duplicated = await response.json();
+      // Listeye ekle
+      setProductsList(prev => [...prev, duplicated]);
+      // İstersen detay açmadan düzenlemeye al
+      setSelectedProduct(duplicated);
+      setIsModalOpen(true);
+    } catch (e) {
+      console.error('Kopyalama hatası:', e);
+      alert(`Ürün kopyalanamadı: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   // Modal kaydetme işlemi
   const handleSaveProduct = async (productData: ProductData) => {
     console.log("Frontend - Kaydetme işlemi başlıyor");
@@ -396,6 +422,13 @@ export default function UrunlerPage() {
                             <Icons.EditIcon />
                           </button>
                           <button
+                            onClick={() => handleDuplicateProduct(product)}
+                            className="p-1 hover:text-primary"
+                            title="Kopyala"
+                          >
+                            <Icons.ClipboardIcon />
+                          </button>
+                          <button
                             onClick={() => handleDeleteProduct(product.id)}
                             className="p-1 hover:text-destructive"
                             title="Sil"
@@ -454,6 +487,13 @@ export default function UrunlerPage() {
                               title="Düzenle"
                             >
                               <Icons.EditIcon />
+                            </button>
+                            <button
+                              onClick={() => handleDuplicateProduct(product)}
+                              className="p-1 hover:text-primary"
+                              title="Kopyala"
+                            >
+                              <Icons.ClipboardIcon />
                             </button>
                             <button
                               onClick={() => handleDeleteProduct(product.id)}

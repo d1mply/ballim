@@ -40,7 +40,7 @@ export default function Layout({ children, hideNavigation = false }: LayoutProps
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className={`flex flex-col min-h-screen ${hideNavigation ? 'bg-transparent' : 'bg-background'}`}>
       {/* Üst menü barı */}
       {!hideNavigation && currentUser && (
         <header className="fixed top-0 left-0 right-0 w-full bg-primary text-primary-foreground shadow-md z-20" style={{backgroundColor: 'var(--primary)'}}>
@@ -88,13 +88,13 @@ export default function Layout({ children, hideNavigation = false }: LayoutProps
         </header>
       )}
 
-      <div className="flex flex-1 pt-14">
+      <div className={`flex flex-1 ${hideNavigation ? 'pt-0' : 'pt-14'}`}>
         {!hideNavigation && (
           <Sidebar isOpen={sidebarOpen} userType={currentUser?.type} onClose={() => setSidebarOpen(false)} />
         )}
         
         <main className={`ballim-content w-full ${hideNavigation ? 'pl-0' : ''}`}>
-          <div className="w-full max-w-full h-full p-4">
+          <div className={`w-full max-w-full h-full ${hideNavigation ? 'p-0' : 'p-4'}`}>
             {children}
           </div>
         </main>

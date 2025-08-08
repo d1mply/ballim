@@ -119,6 +119,7 @@ export async function createTables() {
         product_code VARCHAR(50) UNIQUE NOT NULL,
         product_type VARCHAR(50) NOT NULL,
         image_path TEXT,
+        barcode VARCHAR(50),
         capacity INTEGER NOT NULL,
         dimension_x FLOAT,
         dimension_y FLOAT,
@@ -133,6 +134,12 @@ export async function createTables() {
       )
     `);
     console.log('Products tablosu oluşturuldu veya zaten mevcut');
+
+    // Var olan tabloya yeni kolonları ekle
+    await query(`
+      ALTER TABLE products
+      ADD COLUMN IF NOT EXISTS barcode VARCHAR(50)
+    `);
   } catch (error) {
     console.error('Products tablosu oluşturulurken hata:', error);
     success = false;
