@@ -70,6 +70,22 @@ export function middleware(request: NextRequest) {
   const url = request.nextUrl;
   const userAgent = request.headers.get('user-agent') || '';
   const clientIP = getClientIP(request);
+
+  // Render sağlık kontrolü ve iç trafik whitelisti
+  const isRenderHealthCheck = /Go-http-client/i.test(userAgent) ||
+    request.headers.has('x-render-id') ||
+    request.headers.get('x-forwarded-for')?.startsWith('10.') ||
+    clientIP.startsWith('10.') || clientIP === '127.0.0.1' || clientIP === '::1';
+
+  // Sağlık uç noktası - her zaman 200
+  if (url.pathname === '/health' || url.pathname === '/healthz') {
+    return new NextResponse('ok', { status: 200 });
+  }
+
+  // Render/health check isteklerini hiç kısıtlamadan geçir
+  if (isRenderHealthCheck) {
+    return response;
+  }
   
   // 🚫 LAMER KONTROL 1: Şüpheli User-Agent
   const suspiciousUserAgents = [

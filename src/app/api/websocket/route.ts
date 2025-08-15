@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { Server } from 'ws';
+import { Server, WebSocketServer } from 'ws';
 import { createServer } from 'http';
 
 let wss: Server | null = null;
 let httpServer: ReturnType<typeof createServer> | null = null;
-const PORT = 3000;
+const PORT = Number(process.env.WS_PORT || process.env.PORT || 3000);
 
 const startWebSocketServer = () => {
   if (!wss) {
@@ -65,6 +65,10 @@ const startWebSocketServer = () => {
 // API route handler
 export async function GET() {
   try {
+    // Production ortamında kendi HTTP sunucumuzu başlatmayalım
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ status: 'disabled', message: 'WebSocket server disabled in production' }, { status: 200 });
+    }
     startWebSocketServer();
     
     return NextResponse.json({ 

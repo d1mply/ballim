@@ -21,7 +21,6 @@
     "autoprefixer": "^10.4.16",
     "bcrypt": "^5.1.1",
     "html2canvas": "^1.4.1",
-    "http": "^0.0.1-security",
     "jspdf": "^3.0.1",
     "lucide-react": "^0.510.0",
     "next": "15.3.1",
