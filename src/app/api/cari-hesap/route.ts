@@ -8,6 +8,35 @@ export async function GET(request: NextRequest) {
     const searchParams = url.searchParams;
     const customerId = searchParams.get('customer_id');
     
+    // 🔒 GÜVENLİK: Auth kontrolü - Cookie'den kullanıcı bilgisini al
+    const authCookie = request.cookies.get('auth-token');
+    if (!authCookie) {
+      return NextResponse.json(
+        { error: 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.' },
+        { status: 401 }
+      );
+    }
+    
+    let currentUser;
+    try {
+      currentUser = JSON.parse(authCookie.value);
+    } catch {
+      return NextResponse.json(
+        { error: 'Geçersiz oturum. Lütfen yeniden giriş yapın.' },
+        { status: 401 }
+      );
+    }
+    
+    // 🔒 GÜVENLİK: Müşteriler sadece kendi cari hesaplarını görebilir
+    if (currentUser.type === 'customer') {
+      if (!customerId || customerId !== currentUser.id.toString()) {
+        return NextResponse.json(
+          { error: 'Bu bilgilere erişim yetkiniz yok.' },
+          { status: 403 }
+        );
+      }
+    }
+    
     // Eğer müşteri ID'si belirtilmişse, sadece o müşterinin cari hesap işlemlerini getir
     let query = `
       SELECT 
@@ -45,7 +74,6 @@ export async function GET(request: NextRequest) {
     }
     
   } catch (error) {
-    console.error('Cari hesap verilerini getirirken hata:', error);
     return NextResponse.json(
       { error: 'Cari hesap verileri getirilemedi' },
       { status: 500 }
@@ -56,6 +84,33 @@ export async function GET(request: NextRequest) {
 // Yeni cari hesap işlemi ekle
 export async function POST(request: NextRequest) {
   try {
+    // 🔒 GÜVENLİK: Auth kontrolü
+    const authCookie = request.cookies.get('auth-token');
+    if (!authCookie) {
+      return NextResponse.json(
+        { error: 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.' },
+        { status: 401 }
+      );
+    }
+    
+    let currentUser;
+    try {
+      currentUser = JSON.parse(authCookie.value);
+    } catch {
+      return NextResponse.json(
+        { error: 'Geçersiz oturum. Lütfen yeniden giriş yapın.' },
+        { status: 401 }
+      );
+    }
+    
+    // 🔒 GÜVENLİK: Sadece admin cari hesap işlemi ekleyebilir
+    if (currentUser.type !== 'admin') {
+      return NextResponse.json(
+        { error: 'Bu işlem için yetkiniz yok.' },
+        { status: 403 }
+      );
+    }
+    
     const data = await request.json();
     const { 
       musteri_id, 
@@ -79,7 +134,7 @@ export async function POST(request: NextRequest) {
     try {
       await client.query('BEGIN');
       
-      // Müşterinin son bakiyesini al
+            // Müşterinin son bakiyesini al
       const bakiyeResult = await client.query(
         `SELECT bakiye FROM cari_hesap 
          WHERE musteri_id = $1 
@@ -130,7 +185,6 @@ export async function POST(request: NextRequest) {
     }
     
   } catch (error) {
-    console.error('Cari hesap işlemi eklenirken hata:', error);
     return NextResponse.json(
       { error: 'Cari hesap işlemi eklenemedi' },
       { status: 500 }
@@ -141,6 +195,33 @@ export async function POST(request: NextRequest) {
 // Bir cari hesap işlemini güncelle
 export async function PUT(request: NextRequest) {
   try {
+    // 🔒 GÜVENLİK: Auth kontrolü
+    const authCookie = request.cookies.get('auth-token');
+    if (!authCookie) {
+      return NextResponse.json(
+        { error: 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.' },
+        { status: 401 }
+      );
+    }
+    
+    let currentUser;
+    try {
+      currentUser = JSON.parse(authCookie.value);
+    } catch {
+      return NextResponse.json(
+        { error: 'Geçersiz oturum. Lütfen yeniden giriş yapın.' },
+        { status: 401 }
+      );
+    }
+    
+    // 🔒 GÜVENLİK: Sadece admin cari hesap işlemini güncelleyebilir
+    if (currentUser.type !== 'admin') {
+      return NextResponse.json(
+        { error: 'Bu işlem için yetkiniz yok.' },
+        { status: 403 }
+      );
+    }
+    
     const data = await request.json();
     const { 
       id,
@@ -251,7 +332,6 @@ export async function PUT(request: NextRequest) {
     }
     
   } catch (error) {
-    console.error('Cari hesap işlemi güncellenirken hata:', error);
     return NextResponse.json(
       { error: 'Cari hesap işlemi güncellenemedi' },
       { status: 500 }
@@ -262,6 +342,33 @@ export async function PUT(request: NextRequest) {
 // Bir cari hesap işlemini sil
 export async function DELETE(request: NextRequest) {
   try {
+    // 🔒 GÜVENLİK: Auth kontrolü
+    const authCookie = request.cookies.get('auth-token');
+    if (!authCookie) {
+      return NextResponse.json(
+        { error: 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.' },
+        { status: 401 }
+      );
+    }
+    
+    let currentUser;
+    try {
+      currentUser = JSON.parse(authCookie.value);
+    } catch {
+      return NextResponse.json(
+        { error: 'Geçersiz oturum. Lütfen yeniden giriş yapın.' },
+        { status: 401 }
+      );
+    }
+    
+    // 🔒 GÜVENLİK: Sadece admin cari hesap işlemini silebilir
+    if (currentUser.type !== 'admin') {
+      return NextResponse.json(
+        { error: 'Bu işlem için yetkiniz yok.' },
+        { status: 403 }
+      );
+    }
+    
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
     

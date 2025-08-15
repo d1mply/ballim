@@ -45,7 +45,7 @@ export default function CariHesapPage() {
         const data = await response.json();
         setCustomers(data);
       } catch (error) {
-        console.error('Müşteriler yüklenirken hata:', error);
+        // Müşteri yükleme hatası - sessizce devam et
       }
     };
 
@@ -80,17 +80,13 @@ export default function CariHesapPage() {
           url += `?customer_id=${selectedMusteriId}`;
         }
         
-        console.log('🔍 Cari hesap URL:', url, 'User:', { id: user.id, type: user.type });
-        
         const response = await fetch(url);
         if (!response.ok) throw new Error('Veriler getirilemedi');
         
         const data = await response.json();
-        console.log('📊 Cari hesap verisi:', data);
         setIslemler(data);
         setFilteredIslemler(data);
       } catch (error) {
-        console.error('Cari hesap verileri yüklenirken hata:', error);
         setError('Veriler yüklenirken bir hata oluştu');
       } finally {
         setIsLoading(false);

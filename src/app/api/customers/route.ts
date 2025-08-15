@@ -8,9 +8,8 @@ export async function GET() {
     try {
       await query('SELECT 1');
     } catch (dbError) {
-      console.error('Veritabanı bağlantı hatası:', dbError);
       return NextResponse.json(
-        { error: `Veritabanı bağlantısında hata: ${dbError.message || 'Bilinmeyen bağlantı hatası'}` },
+        { error: 'Veritabanı bağlantısında hata oluştu' },
         { status: 500 }
       );
     }
@@ -192,7 +191,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    console.log("Yeni müşteri ekleme verisi:", body);
+    // Güvenlik: Müşteri ekleme verisi loglanmaz
     
     const {
       name,
@@ -211,12 +210,36 @@ export async function POST(request: NextRequest) {
     } = body;
     
     // Müşteri kodunu otomatik oluştur (MUS-001, MUS-002, ...)
-    const countResult = await query(`
-      SELECT COUNT(*) FROM customers
-    `);
+    // Güvenli bir şekilde benzersiz kod oluştur
+    let customerCode;
+    let attempts = 0;
+    const maxAttempts = 10;
     
-    const count = parseInt(countResult.rows[0].count) + 1;
-    const customerCode = `MUS-${count.toString().padStart(3, '0')}`;
+    do {
+      const countResult = await query(`
+        SELECT COUNT(*) FROM customers
+      `);
+      
+      const count = parseInt(countResult.rows[0].count) + 1 + attempts;
+      customerCode = `MUS-${count.toString().padStart(3, '0')}`;
+      
+      // Bu kod zaten var mı kontrol et
+      const existingCode = await query(`
+        SELECT id FROM customers WHERE customer_code = $1
+      `, [customerCode]);
+      
+      if (existingCode.rowCount === 0) {
+        break; // Benzersiz kod bulundu
+      }
+      
+      attempts++;
+    } while (attempts < maxAttempts);
+    
+    if (attempts >= maxAttempts) {
+      // Yedek çözüm: timestamp ile benzersiz kod
+      const timestamp = Date.now().toString().slice(-6);
+      customerCode = `MUS-${timestamp}`;
+    }
     
     const result = await query(`
       INSERT INTO customers (
@@ -230,7 +253,13 @@ export async function POST(request: NextRequest) {
       customerCode, name, company, phone,
       email, address, notes, type,
       taxNumber, username, password, customerCategory, discountRate
-    ]);
+    ]).catch(error => {
+      // Duplicate key hatası için özel mesaj
+      if (error.code === '23505' && error.constraint === 'customers_customer_code_key') {
+        throw new Error(`Müşteri kodu ${customerCode} zaten kullanımda. Lütfen tekrar deneyin.`);
+      }
+      throw error;
+    });
     
     const customerId = result.rows[0].id;
     
