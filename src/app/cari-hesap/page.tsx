@@ -72,15 +72,21 @@ export default function CariHesapPage() {
       
       try {
         let url = '/api/cari-hesap';
-        if (selectedMusteriId || user.type === 'customer') {
-          const musteriId = selectedMusteriId || user.id;
-          url += `?customerId=${musteriId}`;
+        
+        // 🔒 GÜVENLİK: Müşteriler sadece kendi cari hesaplarını görebilir
+        if (user.type === 'customer') {
+          url += `?customer_id=${user.id}`;
+        } else if (user.type === 'admin' && selectedMusteriId) {
+          url += `?customer_id=${selectedMusteriId}`;
         }
+        
+        console.log('🔍 Cari hesap URL:', url, 'User:', { id: user.id, type: user.type });
         
         const response = await fetch(url);
         if (!response.ok) throw new Error('Veriler getirilemedi');
         
         const data = await response.json();
+        console.log('📊 Cari hesap verisi:', data);
         setIslemler(data);
         setFilteredIslemler(data);
       } catch (error) {
@@ -129,13 +135,55 @@ export default function CariHesapPage() {
     }).format(amount);
   };
 
+  // 💳 Admin tarafından ödeme ekleme fonksiyonu
+  const addPayment = async (customerId: string, amount: number, method: string) => {
+    if (user?.type !== 'admin') {
+      alert('Sadece admin ödeme ekleyebilir!');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/cari-hesap', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          musteri_id: customerId,
+          tarih: new Date().toISOString().split('T')[0],
+          aciklama: `Manuel ödeme girişi`,
+          islem_turu: 'Tahsilat',
+          tutar: amount,
+          odeme_yontemi: method
+        }),
+      });
+
+      if (response.ok) {
+        alert(`✅ ${amount}₺ ödeme başarıyla eklendi!`);
+        // Sayfayı yenile
+        window.location.reload();
+      } else {
+        const errorData = await response.json();
+        alert(`❌ Hata: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error('Ödeme ekleme hatası:', error);
+      alert('❌ Ödeme eklenirken bir hata oluştu!');
+    }
+  };
+
   return (
     <Layout>
       <div className="container mx-auto py-6 px-4">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Cari Hesap Hareketleri</h1>
+          <h1 className="text-2xl font-bold">
+            Cari Hesap Hareketleri
+            {user?.type === 'customer' && (
+              <span className="text-lg font-normal text-gray-600 ml-2">- {user.name}</span>
+            )}
+          </h1>
           
-          {/* Müşteri seçimi (sadece admin için) */}
+          {/* Müşteri seçimi ve Admin butonları */}
           {user?.type === 'admin' && (
             <div className="flex items-center space-x-4">
               <select
@@ -150,6 +198,21 @@ export default function CariHesapPage() {
                   </option>
                 ))}
               </select>
+              
+              {selectedMusteriId && (
+                <button
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                  onClick={() => {
+                    const amount = prompt('Ödeme tutarı (₺):');
+                    if (amount && !isNaN(parseFloat(amount))) {
+                      const method = prompt('Ödeme yöntemi:', 'Nakit') || 'Nakit';
+                      addPayment(selectedMusteriId, parseFloat(amount), method);
+                    }
+                  }}
+                >
+                  💳 Ödeme Ekle
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -234,17 +297,17 @@ export default function CariHesapPage() {
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                           islem.islem_turu === 'Tahsilat' 
                             ? 'bg-green-100 text-green-800' 
-                            : 'bg-blue-100 text-blue-800'
+                            : 'bg-red-100 text-red-800'
                         }`}>
-                          {islem.islem_turu}
+                          {islem.islem_turu === 'Tahsilat' ? 'Ödeme' : 'Sipariş'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {islem.odeme_yontemi || '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={islem.islem_turu === 'Tahsilat' ? 'text-green-600' : 'text-blue-600'}>
-                          {formatCurrency(islem.tutar)}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold">
+                        <span className={islem.islem_turu === 'Tahsilat' ? 'text-green-600' : 'text-red-600'}>
+                          {islem.islem_turu === 'Tahsilat' ? '+' : '-'}{formatCurrency(islem.tutar)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">

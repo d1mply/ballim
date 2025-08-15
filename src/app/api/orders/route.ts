@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
 import { handleOrderStock, manageStock, StockOperation } from '../../../lib/stock';
+import { calculateOrderItemPrice } from '../../../lib/pricing';
 
 // Production quantity ve skip_production sütunlarını kontrol et ve yoksa ekle
 const checkAndAddOrderColumns = async () => {
@@ -77,7 +78,15 @@ export async function GET(request: NextRequest) {
       SELECT 
         o.id,
         o.order_code,
-        COALESCE(c.name, 'Pazaryeri Müşterisi') as customer_name,
+        CASE 
+          WHEN o.customer_id IS NULL AND o.notes LIKE '%STOK ÜRETİM EMRİ%' THEN 
+            CASE 
+              WHEN o.notes ~ 'Sebep:\\s*([^|\\n]+)' THEN 'Stok Üretimi (' || (regexp_match(o.notes, 'Sebep:\\s*([^|\\n]+)'))[1] || ')'
+              ELSE 'Stok Üretimi'
+            END
+          WHEN o.customer_id IS NULL THEN 'Pazaryeri Müşterisi'
+          ELSE c.name 
+        END as customer_name,
         o.order_date,
         o.total_amount,
         o.status,
@@ -91,6 +100,7 @@ export async function GET(request: NextRequest) {
             'quantity', oi.quantity,
             'capacity', COALESCE(p.capacity, 0),
             'stock_quantity', COALESCE(i.quantity, 0),
+            'available_stock', COALESCE(i.quantity, 0) + oi.quantity,
             'unit_price', oi.unit_price
           )
         ) as products
@@ -205,18 +215,20 @@ export async function POST(request: NextRequest) {
     
     const {
       customerId,
-      totalAmount,
+      totalAmount, // Bu değer yeniden hesaplanacak
       notes,
       items,
       orderType,
-      paymentStatus = 'Ödeme Bekliyor'
+      paymentStatus = 'Ödeme Bekliyor',
+      isStockOrder = false,
+      customerName
     } = body;
     
     // Pazaryeri siparişi için özel kontroller
-    const isMarketplaceOrder = orderType === 'pazaryeri' || customerId === null;
+    const isMarketplaceOrder = orderType === 'pazaryeri' || (customerId === null && !isStockOrder);
     
-    // Normal sipariş için müşteri ID gerekli
-    if (!isMarketplaceOrder && !customerId) {
+    // Normal sipariş için müşteri ID gerekli (stok siparişleri hariç)
+    if (!isMarketplaceOrder && !isStockOrder && !customerId) {
       return NextResponse.json(
         { error: 'Müşteri ID gerekli' },
         { status: 400 }
@@ -230,11 +242,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ürünlerin geçerliliğini kontrol et
+    // Ürünlerin geçerliliğini kontrol et ve fiyatları hesapla
+    let calculatedTotalAmount = 0;
+    const itemsWithCalculatedPrices = [];
+    
     for (const item of items) {
-      if (!item.productId || !item.quantity || !item.unitPrice) {
+      if (!item.productId || !item.quantity) {
         return NextResponse.json(
-          { error: 'Ürün bilgileri eksik veya hatalı' },
+          { error: 'Ürün ID ve miktar bilgileri gerekli' },
           { status: 400 }
         );
       }
@@ -250,6 +265,37 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      
+      let calculatedUnitPrice = 0;
+      
+      if (isStockOrder) {
+        // Stok siparişleri için minimal fiyat
+        calculatedUnitPrice = 0.01;
+      } else {
+        try {
+          // Yeni fiyatlama sistemi ile fiyat hesapla
+          calculatedUnitPrice = await calculateOrderItemPrice(
+            customerId,
+            item.productId,
+            item.quantity,
+            item.filamentType // Normal müşteriler için gerekli
+          );
+        } catch (pricingError) {
+          console.error('Fiyat hesaplama hatası:', pricingError);
+          return NextResponse.json(
+            { error: `Fiyat hesaplanamadı: ${pricingError.message}` },
+            { status: 400 }
+          );
+        }
+      }
+      
+      const itemWithPrice = {
+        ...item,
+        unitPrice: calculatedUnitPrice
+      };
+      
+      itemsWithCalculatedPrices.push(itemWithPrice);
+      calculatedTotalAmount += calculatedUnitPrice;
     }
     
     // Varsayılan değerleri ayarla
@@ -257,7 +303,24 @@ export async function POST(request: NextRequest) {
     
     // Sipariş kodunu otomatik oluştur
     const getNextOrderCode = async () => {
-      const prefix = isMarketplaceOrder ? 'PAZ' : 'SIP';
+      let prefix = 'SIP'; // Default normal sipariş
+      
+      if (isStockOrder) {
+        prefix = 'STK';
+      } else if (isMarketplaceOrder) {
+        prefix = 'PAZ';
+      } else if (customerId) {
+        // Müşteri kategorisini kontrol et
+        const customerResult = await query(`
+          SELECT customer_category 
+          FROM customers 
+          WHERE id = $1
+        `, [customerId]);
+        
+        if (customerResult.rowCount > 0 && customerResult.rows[0].customer_category === 'wholesale') {
+          prefix = 'TOP'; // Toptancı siparişleri
+        }
+      }
       
       // En son sipariş kodunu bul
       const lastOrderResult = await query(`
@@ -295,9 +358,9 @@ export async function POST(request: NextRequest) {
         RETURNING *
       `, [
         orderCode, 
-        isMarketplaceOrder ? null : customerId, 
+        (isMarketplaceOrder || isStockOrder) ? null : customerId, 
         orderDate,
-        totalAmount, 
+        calculatedTotalAmount, // Hesaplanan toplam tutarı kullan
         status, 
         notes || '', 
         paymentStatus
@@ -305,13 +368,14 @@ export async function POST(request: NextRequest) {
       
       const orderId = orderResult.rows[0].id;
       
-      // Sipariş ürünlerini ekle
-      if (items && items.length > 0) {
-        for (const item of items) {
+      // Sipariş ürünlerini ekle (hesaplanan fiyatlarla)
+      if (itemsWithCalculatedPrices && itemsWithCalculatedPrices.length > 0) {
+        for (const item of itemsWithCalculatedPrices) {
           console.log('Sipariş ürünü ekleniyor:', {
             productId: item.productId,
             quantity: item.quantity,
-            unitPrice: item.unitPrice
+            unitPrice: item.unitPrice,
+            filamentType: item.filamentType
           });
           
           // Ürün bilgilerini al
@@ -333,13 +397,20 @@ export async function POST(request: NextRequest) {
             orderId, item.productId, productCode, productName, item.quantity, item.unitPrice
           ]);
 
-          // *** YENİ: ÜRÜN STOK REZERVASYONU ***
-          console.log(`🎯 Ürün stoğu rezerve ediliyor: ${item.productId} - ${item.quantity} adet`);
-          await manageStock(
-            item.productId,
-            item.quantity,
-            StockOperation.RESERVE
-          );
+          // *** STOK REZERVASYONU - Sadece normal siparişler için ***
+          // Stok üretim emirleri için stok düşürme
+          const isStockProductionOrder = notes && notes.includes('STOK ÜRETİM EMRİ');
+          
+          if (!isStockProductionOrder) {
+            console.log(`🎯 Ürün stoğu rezerve ediliyor: ${item.productId} - ${item.quantity} adet`);
+            await manageStock(
+              item.productId,
+              item.quantity,
+              StockOperation.RESERVE
+            );
+          } else {
+            console.log(`📦 STOK ÜRETİM EMRİ: Stok rezervasyonu atlanıyor: ${item.productId} - ${item.quantity} adet`);
+          }
           
           // *** YENİ YAKLAŞIM: FİLAMENT STOKU SİPARİŞ OLUŞTURULDUĞUNDA DÜŞÜRÜLMEZ ***
           // Filament stoku sadece "Hazırlandı" durumuna geçildiğinde düşürülecek
@@ -380,6 +451,38 @@ export async function POST(request: NextRequest) {
         created_at, updated_at, ...rest 
       } = completeOrderResult.rows[0];
       
+      // 💳 Eğer normal müşteri siparişi ise cari hesaba borç kaydı ekle
+      if (!isMarketplaceOrder && !isStockOrder && customerId && calculatedTotalAmount > 0) {
+        try {
+          await query(`
+            INSERT INTO cari_hesap (
+              musteri_id, tarih, aciklama, islem_turu, tutar, 
+              siparis_id, bakiye, created_at
+            ) 
+            SELECT 
+              $1, $2, $3, 'Borçlandırma', $4, $5,
+              COALESCE((
+                SELECT bakiye FROM cari_hesap 
+                WHERE musteri_id = $1 
+                ORDER BY created_at DESC, id DESC 
+                LIMIT 1
+              ), 0) + $4,
+              NOW()
+          `, [
+            customerId,
+            orderDate,
+            `Sipariş: ${order_code}`,
+            calculatedTotalAmount,
+            orderId
+          ]);
+          
+          console.log(`💳 Cari hesap kaydı eklendi: ${order_code} - ${calculatedTotalAmount}₺`);
+        } catch (cariError) {
+          console.error('❌ Cari hesap kaydı eklenirken hata:', cariError);
+          // Cari hesap hatası sipariş oluşturmayı engellemez
+        }
+      }
+
       const formattedOrder = {
         ...rest,
         orderCode: order_code,

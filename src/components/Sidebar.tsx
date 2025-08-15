@@ -11,7 +11,8 @@ import {
   CreditCardIcon, 
   CubeIcon, 
   ReceiptIcon,
-  TruckIcon
+  TruckIcon,
+  CalculatorIcon
 } from '../utils/Icons';
 
 type SidebarProps = {
@@ -26,6 +27,7 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
   // Admin için menü öğeleri
   const adminMenuItems = [
     { name: 'Ana Sayfa', path: '/admin-dashboard', icon: <HomeIcon /> },
+    { name: 'Teklif Hesaplama', path: '/teklif', icon: <CalculatorIcon /> },
     { name: 'Ürünler', path: '/urunler', icon: <PackageIcon /> },
     { name: 'Stok ve Sipariş', path: '/stok-siparis', icon: <ShoppingCartIcon /> },
     { name: 'Pazaryeri Siparişleri', path: '/pazaryeri-siparisleri', icon: <TruckIcon /> },
@@ -35,6 +37,7 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
     { name: 'Filamentler', path: '/filamentler', icon: <CubeIcon /> },
     { name: 'Ödemeler', path: '/odemeler', icon: <ReceiptIcon /> },
     { name: 'Üretim Takip', path: '/uretim-takip', icon: <ClipboardListIcon /> },
+    { name: 'Stok Üretim Emri', path: '/stok-uretim-emri', icon: <CubeIcon /> },
   ];
 
   // Müşteri için menü öğeleri

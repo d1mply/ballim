@@ -22,6 +22,7 @@ export default function StokSiparisPage() {
   const [currentUser, setCurrentUser] = useState<LoggedInUser | null>(null);
   const [products, setProducts] = useState<StockItem[]>([]);
   const [cartItems, setCartItems] = useState<StockItem[]>([]);
+  const [cartPrices, setCartPrices] = useState<{[key: string]: number}>({});
   const [kdvRate] = useState(20);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('Tüm Ürünler');
@@ -41,6 +42,33 @@ export default function StokSiparisPage() {
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  // Sepet fiyatlarını hesapla
+  useEffect(() => {
+    const calculateCartPrices = async () => {
+      if (!currentUser || cartItems.length === 0) {
+        return;
+      }
+
+      const newPrices: {[key: string]: number} = {};
+      
+      for (const item of cartItems) {
+        const key = `${item.id}-${item.quantity}`;
+        
+        try {
+          const price = await getItemPrice(item, item.quantity || 1);
+          newPrices[key] = price;
+        } catch (error) {
+          console.error(`Fiyat hesaplama hatası ${item.id}:`, error);
+          newPrices[key] = 0;
+        }
+      }
+      
+      setCartPrices(newPrices);
+    };
+
+    calculateCartPrices();
+  }, [cartItems, currentUser]);
 
   const fetchProducts = async () => {
     try {
@@ -115,11 +143,12 @@ export default function StokSiparisPage() {
   };
   
   // Ürün miktarını güncelleme
-  const updateQuantity = (index: number, newQuantity: number) => {
+  const updateQuantity = async (index: number, newQuantity: number) => {
     // Sadece müşteri hesapları için miktar güncellenebilir
     if (currentUser?.type !== 'customer') return;
 
     if (newQuantity < 1) return;
+    
     setCartItems(prevItems => 
       prevItems.map((item, i) => 
         i === index 
@@ -130,7 +159,43 @@ export default function StokSiparisPage() {
   };
 
   
-  // Ürünün filament fiyatını bul
+  // Ürün fiyatını hesapla (normal müşteri vs toptancı)
+  const getItemPrice = async (item: StockItem, quantity: number = 1) => {
+    if (currentUser?.type !== 'customer') {
+      return 0;
+    }
+
+    const requestData = {
+      customerId: currentUser.id,
+      productId: item.id,
+      quantity: quantity,
+      filamentType: item.filaments?.[0]?.type || 'PLA'
+    };
+
+    try {
+      const response = await fetch('/api/calculate-price', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      if (response.ok) {
+        const priceData = await response.json();
+        return priceData.totalPrice || 0;
+      } else {
+        const errorText = await response.text();
+        console.error('API hatası:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('Fiyat hesaplama hatası:', error);
+    }
+
+    return 0;
+  };
+
+  // Ürünün filament fiyatını bul (eski sistem - normal müşteriler için)
   const getFilamentPrice = (item: StockItem) => {
     // Eğer müşteri oturumu açmışsa
     if (currentUser?.type === 'customer' && currentUser?.filamentPrices) {
@@ -161,27 +226,22 @@ export default function StokSiparisPage() {
     
     try {
       // Sipariş ürünlerini hazırla
-      const orderItems = cartItems.map(item => {
-        const unit = truncate2((item.pieceGram || 0) * (getFilamentPrice(item) || 0));
+      const orderItems = await Promise.all(cartItems.map(async (item) => {
+        const totalPrice = await getItemPrice(item, item.quantity || 1);
         return {
           productId: item.id,
           quantity: item.quantity || 1,
-          unitPrice: unit
+          unitPrice: totalPrice,
+          filamentType: item.filaments?.[0]?.type || 'PLA'
         };
-      });
+      }));
       
       console.log('📦 Sipariş ürünleri hazırlandı:', orderItems);
       
-      // Toplam tutarı hesapla
+      // Toplam tutarı hesapla (orderItems'dan al)
       const subtotal = truncate2(
-        cartItems.reduce((total, item) => {
-          const filamentPrice = getFilamentPrice(item);
-          if (item.pieceGram && filamentPrice) {
-            const unit = truncate2(item.pieceGram * filamentPrice);
-            const lineTotal = truncate2(unit * (item.quantity || 1));
-            return total + lineTotal;
-          }
-          return total;
+        orderItems.reduce((total, item) => {
+          return total + (item.unitPrice || 0);
         }, 0)
       );
       
@@ -236,13 +296,9 @@ export default function StokSiparisPage() {
   // Ara toplam hesaplama
   const subTotal = truncate2(
     cartItems.reduce((total, item) => {
-      const filamentPrice = getFilamentPrice(item);
-      if (item.pieceGram && filamentPrice) {
-        const unit = truncate2(item.pieceGram * filamentPrice);
-        const lineTotal = truncate2(unit * (item.quantity || 1));
-        return total + lineTotal;
-      }
-      return total;
+      const key = `${item.id}-${item.quantity}`;
+      const itemTotal = cartPrices[key] || 0;
+      return total + itemTotal;
     }, 0)
   );
   
@@ -460,14 +516,30 @@ export default function StokSiparisPage() {
                           <div className="flex-1 min-w-0">
                             <h4 className="font-medium text-gray-900 truncate">{item.code}</h4>
                             <p className="text-sm text-gray-500 mb-2">{item.productType}</p>
-                            {/* Debug için gram bilgisini göster */}
-                            <p className="text-xs text-gray-400 mb-1">
-                              Gramaj: {item.pieceGram}g | Fiyat: {getFilamentPrice(item)}₺/g
+
+                            <p className="text-sm font-medium text-blue-600">
+                              {(() => {
+                                const key = `${item.id}-${item.quantity}`;
+                                const totalPrice = cartPrices[key] || 0;
+                                const quantity = item.quantity || 1;
+                                const pricePerPiece = totalPrice > 0 ? (totalPrice / quantity).toFixed(2) : '0.00';
+                                return `${pricePerPiece}₺ / adet`;
+                              })()}
                             </p>
-                              <p className="text-sm font-medium text-blue-600">
-                              {item.pieceGram && getFilamentPrice(item) ? 
-                                (Math.trunc(item.pieceGram * getFilamentPrice(item) * 100) / 100).toFixed(2) : '0.00'}₺ / adet
+                            
+                            {/* Filament bilgisi göster */}
+                            {currentUser?.customerCategory === 'normal' && (
+                              <p className="text-xs text-gray-500">
+                                {(() => {
+                                  const filamentType = item.filaments?.[0]?.type || 'PLA';
+                                  const filamentPrice = currentUser?.filamentPrices?.find(fp => fp.type === filamentType);
+                                  if (filamentPrice) {
+                                    return `${filamentType} ${filamentPrice.price}₺/gr`;
+                                  }
+                                  return `${filamentType} 8₺/gr (varsayılan)`;
+                                })()}
                               </p>
+                            )}
                           </div>
                           
                           {/* Sil Butonu */}
@@ -492,9 +564,16 @@ export default function StokSiparisPage() {
                               >
                                 <Icons.MinusIcon className="w-4 h-4" />
                               </button>
-                              <span className="px-4 py-2 bg-white font-medium min-w-[60px] text-center">
-                                {item.quantity || 1}
-                              </span>
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.quantity || 1}
+                                onChange={(e) => {
+                                  const newQuantity = parseInt(e.target.value) || 1;
+                                  updateQuantity(index, newQuantity);
+                                }}
+                                className="w-16 px-2 py-2 bg-white font-medium text-center border-0 focus:outline-none focus:bg-blue-50 focus:ring-2 focus:ring-blue-300 rounded"
+                              />
                               <button
                                 onClick={() => updateQuantity(index, (item.quantity || 1) + 1)}
                                 className="p-2 hover:bg-gray-100 rounded-r-lg transition-colors"
@@ -506,10 +585,13 @@ export default function StokSiparisPage() {
                           
                           {/* Toplam Fiyat */}
                           <div className="text-right">
-                              <p className="text-lg font-bold text-gray-900">
-                              {item.pieceGram && getFilamentPrice(item) ? 
-                                (Math.trunc(item.pieceGram * getFilamentPrice(item) * (item.quantity || 1) * 100) / 100).toFixed(2) : '0.00'}₺
-                              </p>
+                            <p className="text-lg font-bold text-gray-900">
+                              {(() => {
+                                const key = `${item.id}-${item.quantity}`;
+                                const totalPrice = cartPrices[key] || 0;
+                                return `${totalPrice.toFixed(2)}₺`;
+                              })()}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -548,4 +630,4 @@ export default function StokSiparisPage() {
       </div>
     </Layout>
   );
-} 
+}

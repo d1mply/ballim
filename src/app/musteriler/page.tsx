@@ -26,6 +26,8 @@ interface Customer {
   username: string; // Giriş kullanıcı adı
   password: string; // Giriş şifresi
   filamentPrices: FilamentPrice[]; // Özel filament fiyatları
+  customerCategory?: 'normal' | 'wholesale'; // Müşteri kategorisi
+  discountRate?: number; // Toptancı iskonto oranı (%)
 }
 
 export default function MusterilerPage() {
@@ -51,7 +53,9 @@ export default function MusterilerPage() {
     password: '',
     filamentPrices: [{ type: 'PLA', price: 0 }],
     orders: 0,
-    totalSpent: 0
+    totalSpent: 0,
+    customerCategory: 'normal',
+    discountRate: 0
   });
 
   // Filament tiplerini API'den çek
@@ -266,6 +270,12 @@ export default function MusterilerPage() {
       return;
     }
 
+    // Toptancı için iskonto oranı zorunlu
+    if (formData.customerCategory === 'wholesale' && (!formData.discountRate || formData.discountRate <= 0)) {
+      alert('Toptancı müşteriler için iskonto oranı girmelisiniz.');
+      return;
+    }
+
     // Filament fiyatlarını doğru şekilde hazırla
     let filamentPrices = [];
     
@@ -290,6 +300,8 @@ export default function MusterilerPage() {
       taxNumber: formData.taxNumber || '',
       username: formData.username,
       password: formData.password,
+      customerCategory: formData.customerCategory || 'normal',
+      discountRate: formData.discountRate || 0,
       filamentPrices
     };
     
@@ -461,7 +473,16 @@ export default function MusterilerPage() {
                           )}
                         </div>
                       </td>
-                      <td>{customer.type || 'Bireysel'}</td>
+                      <td>
+                        <div>
+                          <div>{customer.type || 'Bireysel'}</div>
+                          {customer.customerCategory === 'wholesale' && (
+                            <div className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full inline-block mt-1">
+                              Toptancı %{customer.discountRate}
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td>
                         <div>
                           <div>{customer.phone}</div>
@@ -474,14 +495,20 @@ export default function MusterilerPage() {
                       <td>{customer.username || '-'}</td>
                       <td>
                         <div className="text-sm">
-                          {customer.filamentPrices && customer.filamentPrices.length > 0 ? (
-                            customer.filamentPrices.map((fp, i) => (
-                              <div key={i}>
-                                {fp.type}: {fp.price}₺
-                              </div>
-                            ))
+                          {customer.customerCategory === 'wholesale' ? (
+                            <div className="text-purple-600 font-medium">
+                              Gram Aralığı Sistemi
+                            </div>
                           ) : (
-                            <div>Tanımlanmamış</div>
+                            customer.filamentPrices && customer.filamentPrices.length > 0 ? (
+                              customer.filamentPrices.map((fp, i) => (
+                                <div key={i}>
+                                  {fp.type}: {fp.price}₺
+                                </div>
+                              ))
+                            ) : (
+                              <div>Tanımlanmamış</div>
+                            )
                           )}
                         </div>
                       </td>
@@ -565,6 +592,59 @@ export default function MusterilerPage() {
                       required
                     />
                   </div>
+                </div>
+
+                {/* Müşteri Kategorisi */}
+                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                  <label className="block text-sm font-medium mb-2">Müşteri Kategorisi</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="customerCategory"
+                        value="normal"
+                        checked={formData.customerCategory === 'normal'}
+                        onChange={handleFormChange}
+                        className="text-blue-600"
+                      />
+                      <span className="text-sm">Normal Müşteri</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="customerCategory"
+                        value="wholesale"
+                        checked={formData.customerCategory === 'wholesale'}
+                        onChange={handleFormChange}
+                        className="text-blue-600"
+                      />
+                      <span className="text-sm">Toptancı</span>
+                    </label>
+                  </div>
+                  
+                  {/* Toptancı İskonto Oranı */}
+                  {formData.customerCategory === 'wholesale' && (
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium mb-1">İskonto Oranı (%)*</label>
+                      <input
+                        type="number"
+                        name="discountRate"
+                        placeholder="60"
+                        value={formData.discountRate || ''}
+                        onChange={handleFormChange}
+                        min="0"
+                        max="100"
+                        className="w-full"
+                        required
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Örnek: %60 iskonto için 60 yazın
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
                   <div>
                     <label className="block text-sm font-medium mb-1">Firma {formData.type === 'Kurumsal' ? '*' : '(İsteğe bağlı)'}</label>
@@ -659,17 +739,19 @@ export default function MusterilerPage() {
                   </div>
                 </div>
                 
-                <div className="border-t border-border pt-4 mt-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium">Filament Fiyatları</h3>
-                    <button 
-                      type="button"
-                      onClick={addFilamentPrice}
-                      className="text-sm text-primary hover:text-primary/80 flex items-center gap-1"
-                    >
-                      <Icons.PlusIcon /> Filament Ekle
-                    </button>
-                  </div>
+                {/* Filament Fiyatları - Sadece Normal Müşteriler İçin */}
+                {formData.customerCategory === 'normal' && (
+                  <div className="border-t border-border pt-4 mt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-medium">Filament Fiyatları</h3>
+                      <button 
+                        type="button"
+                        onClick={addFilamentPrice}
+                        className="text-sm text-primary hover:text-primary/80 flex items-center gap-1"
+                      >
+                        <Icons.PlusIcon /> Filament Ekle
+                      </button>
+                    </div>
                   
                   <div className="space-y-3">
                     {filamentInputs.map((filament, index) => (
@@ -713,6 +795,16 @@ export default function MusterilerPage() {
                     ))}
                   </div>
                 </div>
+                )}
+
+                {/* Toptancı İçin Bilgi Notu */}
+                {formData.customerCategory === 'wholesale' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-700">
+                      <strong>Toptancı Fiyatlandırması:</strong> Gram aralığı bazında fiyatlandırma sistemi kullanılacaktır.
+                    </p>
+                  </div>
+                )}
               </form>
             </div>
             

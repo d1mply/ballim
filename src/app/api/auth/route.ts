@@ -195,6 +195,8 @@ export async function POST(request: NextRequest) {
             name: customer.name,
             email: customer.email,
             type: 'customer',
+            customerCategory: customer.customer_category || 'normal',
+            discountRate: customer.discount_rate || 0,
             filamentPrices: customer.filament_prices || []
           };
           

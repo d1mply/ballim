@@ -65,7 +65,8 @@ export default function Layout({ children, hideNavigation = false }: LayoutProps
                 <div className="text-sm">
                   <div className="font-medium">{currentUser.name || currentUser.username || 'Kullanıcı'}</div>
                   <div className="text-xs opacity-80">
-                    {currentUser.type === 'admin' ? 'Administrator' : 'Müşteri'}
+                    {currentUser.type === 'admin' ? 'Administrator' : 
+                     currentUser.customerCategory === 'wholesale' ? 'Toptancı' : 'Müşteri'}
                   </div>
                 </div>
               </div>

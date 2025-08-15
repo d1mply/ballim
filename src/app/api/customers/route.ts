@@ -128,6 +128,8 @@ export async function GET() {
             customer_code, 
             customer_type, 
             tax_number,
+            customer_category,
+            discount_rate,
             created_at, 
             updated_at,
             ...rest 
@@ -138,6 +140,8 @@ export async function GET() {
             customerCode: customer_code || '',
             type: customer_type || 'Bireysel',
             taxNumber: tax_number || '',
+            customerCategory: customer_category || 'normal',
+            discountRate: discount_rate || 0,
             orderCount: orderCount,
             totalSpent: totalSpent,
             lastOrderDate: lastOrderDate ? new Date(lastOrderDate).toLocaleDateString('tr-TR') : '-',
@@ -201,6 +205,8 @@ export async function POST(request: NextRequest) {
       taxNumber,
       username,
       password,
+      customerCategory = 'normal',
+      discountRate = 0,
       filamentPrices = []
     } = body;
     
@@ -216,14 +222,14 @@ export async function POST(request: NextRequest) {
       INSERT INTO customers (
         customer_code, name, company, phone, 
         email, address, notes, customer_type,
-        tax_number, username, password
+        tax_number, username, password, customer_category, discount_rate
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `, [
       customerCode, name, company, phone,
       email, address, notes, type,
-      taxNumber, username, password
+      taxNumber, username, password, customerCategory, discountRate
     ]);
     
     const customerId = result.rows[0].id;

@@ -25,6 +25,7 @@ interface OrderItem {
     quantity: number;
     capacity: number;
     stock_quantity: number;
+    available_stock: number;
   }[];
   production_quantity?: number;
   skip_production?: boolean;
@@ -120,17 +121,22 @@ const OrderCard = ({ item, onStartProduction, onStatusChange }: {
           <div className="bg-gray-50 p-3 rounded-lg">
             <div className="text-sm text-gray-600">Stok Durumu</div>
             <div className="text-lg font-semibold mt-1">
-              {product.stock_quantity} adet
-              {product.stock_quantity === 0 && (
+              {product.available_stock || product.stock_quantity} adet
+              {(product.available_stock || product.stock_quantity) === 0 && (
                 <span className="text-red-500 text-sm block">Stokta Yok</span>
               )}
-              {product.stock_quantity > 0 && product.stock_quantity < product.quantity && (
+              {(product.available_stock || product.stock_quantity) > 0 && (product.available_stock || product.stock_quantity) < product.quantity && (
                 <span className="text-orange-500 text-sm block">Yetersiz</span>
               )}
-              {product.stock_quantity >= product.quantity && (
+              {(product.available_stock || product.stock_quantity) >= product.quantity && (
                 <span className="text-green-500 text-sm block">Yeterli</span>
               )}
             </div>
+            {product.available_stock && product.available_stock !== product.stock_quantity && (
+              <div className="text-xs text-gray-500 mt-1">
+                Genel stok: {product.stock_quantity} adet
+              </div>
+            )}
           </div>
 
           <div className="bg-gray-50 p-3 rounded-lg">
@@ -270,14 +276,15 @@ export default function UretimTakipPage() {
           customer_name: order.customerName || 'Pazaryeri Müşterisi',
           order_date: order.orderDate,
           status: convertStatus(order.status),
-          products: order.products.map((product: { id?: string; code: string; name: string; quantity: number; capacity?: number; stock_quantity?: number }) => ({
+          products: order.products.map((product: { id?: string; code: string; name: string; quantity: number; capacity?: number; stock_quantity?: number; available_stock?: number }) => ({
             id: product.id || '',
             product_id: product.code,
             product_code: product.code,
             product_type: product.name,
             quantity: product.quantity,
             capacity: product.capacity || 0,
-            stock_quantity: product.stock_quantity || 0
+            stock_quantity: product.stock_quantity || 0,
+            available_stock: product.available_stock || product.stock_quantity || 0
           })),
           production_quantity: order.production_quantity || 0,
           skip_production: order.skip_production || false
@@ -650,11 +657,16 @@ export default function UretimTakipPage() {
                 Sipariş miktarı: {selectedOrderItem.products[0]?.quantity || 0} adet
               </p>
               <p className="text-sm text-muted-foreground mb-3">
-                Mevcut stok: {selectedOrderItem.products[0]?.stock_quantity || 0} adet
+                Kullanılabilir stok: {selectedOrderItem.products[0]?.available_stock || selectedOrderItem.products[0]?.stock_quantity || 0} adet
               </p>
+              {selectedOrderItem.products[0]?.available_stock && selectedOrderItem.products[0]?.available_stock !== selectedOrderItem.products[0]?.stock_quantity && (
+                <p className="text-xs text-gray-400 mb-3">
+                  (Genel stok: {selectedOrderItem.products[0]?.stock_quantity || 0} adet + Bu sipariş için ayrılan: {(selectedOrderItem.products[0]?.available_stock || 0) - (selectedOrderItem.products[0]?.stock_quantity || 0)} adet)
+                </p>
+              )}
               
               {/* Yeterli stok bilgisi */}
-              {selectedOrderItem.products[0]?.stock_quantity >= selectedOrderItem.products[0]?.quantity && (
+              {(selectedOrderItem.products[0]?.available_stock || selectedOrderItem.products[0]?.stock_quantity || 0) >= (selectedOrderItem.products[0]?.quantity || 0) && (
                 <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
                   <p className="text-green-700 font-medium">Yeterli stok mevcut</p>
                   <p className="text-green-600 text-sm mt-1">

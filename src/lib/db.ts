@@ -384,6 +384,93 @@ export async function createTables() {
     success = false;
   }
 
+  // Toptancı Gram Aralığı Fiyatları tablosu
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS wholesale_price_ranges (
+        id SERIAL PRIMARY KEY,
+        min_gram FLOAT NOT NULL,
+        max_gram FLOAT NOT NULL,
+        price FLOAT NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(min_gram, max_gram)
+      )
+    `);
+    console.log('Wholesale Price Ranges tablosu oluşturuldu veya zaten mevcut');
+  } catch (error) {
+    console.error('Wholesale Price Ranges tablosu oluşturulurken hata:', error);
+    success = false;
+  }
+
+  // Customers tablosuna toptancı alanları ekle (güvenli şekilde)
+  try {
+    // customer_category sütunu kontrol et ve ekle
+    const checkCategoryColumn = await query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'customers' 
+      AND column_name = 'customer_category'
+    `);
+
+    if (checkCategoryColumn.rowCount === 0) {
+      await query(`
+        ALTER TABLE customers 
+        ADD COLUMN customer_category VARCHAR(20) DEFAULT 'normal'
+      `);
+      console.log('customers tablosuna customer_category sütunu eklendi');
+    }
+
+    // discount_rate sütunu kontrol et ve ekle
+    const checkDiscountColumn = await query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'customers' 
+      AND column_name = 'discount_rate'
+    `);
+
+    if (checkDiscountColumn.rowCount === 0) {
+      await query(`
+        ALTER TABLE customers 
+        ADD COLUMN discount_rate FLOAT DEFAULT 0
+      `);
+      console.log('customers tablosuna discount_rate sütunu eklendi');
+    }
+
+  } catch (error) {
+    console.error('Customers tablosu toptancı alanları eklenirken hata:', error);
+    success = false;
+  }
+
+  // Varsayılan gram aralığı fiyatlarını ekle
+  try {
+    const checkPriceRanges = await query(`
+      SELECT COUNT(*) FROM wholesale_price_ranges
+    `);
+
+    if (parseInt(checkPriceRanges.rows[0].count) === 0) {
+      // Başlangıç gram aralığı fiyatlarını ekle
+      const defaultRanges = [
+        { min: 0, max: 15, price: 25 },
+        { min: 15, max: 30, price: 40 },
+        { min: 30, max: 50, price: 60 }
+      ];
+
+      for (const range of defaultRanges) {
+        await query(`
+          INSERT INTO wholesale_price_ranges (min_gram, max_gram, price)
+          VALUES ($1, $2, $3)
+        `, [range.min, range.max, range.price]);
+      }
+      
+      console.log('Varsayılan gram aralığı fiyatları eklendi');
+    }
+  } catch (error) {
+    console.error('Varsayılan gram aralığı fiyatları eklenirken hata:', error);
+    success = false;
+  }
+
   if (success) {
     console.log('Tüm tablolar başarıyla oluşturuldu veya zaten mevcuttu');
   } else {

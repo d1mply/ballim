@@ -12,6 +12,8 @@ export interface LoggedInUser {
   name?: string; // Opsiyonel, geriye dönük uyumluluk için
   type: 'admin' | 'customer';
   email?: string; // Customer için
+  customerCategory?: 'normal' | 'wholesale'; // Müşteri kategorisi
+  discountRate?: number; // Toptancı iskonto oranı
   filamentPrices?: { type: string; price: number }[];
 }
 

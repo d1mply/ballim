@@ -186,6 +186,23 @@ export const XIcon = () => (
   </svg>
 );
 
+export const XMarkIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+    className="w-6 h-6"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M6 18L18 6M6 6l12 12"
+    />
+  </svg>
+);
+
 export const PlusIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -395,6 +412,23 @@ export const TruckIcon = () => (
   </svg>
 );
 
+export const CalculatorIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+    className="w-5 h-5"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25V13.5zm0 2.25h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25V18zm2.498-6.75h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007V13.5zm0 2.25h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007V18zm2.504-6.75h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V13.5zm0 2.25h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V18zm2.498-6.75h.008v.008h-.008v-.008zM17.25 15.75h.008v.008h-.008v-.008zM3.375 4.125c-.621 0-1.125.504-1.125 1.125v13.5c0 .621.504 1.125 1.125 1.125h13.5c.621 0 1.125-.504 1.125-1.125V5.25c0-.621-.504-1.125-1.125-1.125H3.375z"
+    />
+  </svg>
+);
+
 export function LogOutIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -545,6 +579,7 @@ export const Icons = {
   ClipboardListIcon,
   UsersIcon,
   CreditCardIcon,
+  CubeIcon,
   TrendingUpIcon,
   AlertTriangleIcon,
   ClockIcon,
@@ -559,6 +594,7 @@ export const Icons = {
   LogOutIcon,
   MenuIcon,
   XIcon,
+  XMarkIcon,
   CheckIcon,
   RefreshIcon,
   PlayIcon,
@@ -579,6 +615,7 @@ export const Icons = {
   PackageIcon,
   ShoppingCartIcon,
   CreditCardIcon,
+  CubeIcon,
   ClockIcon,
   CheckCircleIcon,
   TrendingUpIcon,
@@ -586,6 +623,7 @@ export const Icons = {
   LogOutIcon,
   MenuIcon,
   XIcon,
+  XMarkIcon,
   RefreshIcon,
   MinusIcon,
   PlayIcon,
@@ -593,5 +631,6 @@ export const Icons = {
   TruckIcon,
   ClipboardIcon,
   PrinterIcon,
-  UserIcon
+  UserIcon,
+  CalculatorIcon
 }; 
