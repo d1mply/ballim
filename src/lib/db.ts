@@ -3,10 +3,13 @@ import { Pool } from 'pg';
 // Veritabanı bağlantı bilgileri
 export const pool = new Pool(
   // Render'da DATABASE_URL varsa onu kullan, yoksa individual env variables kullan
+  // DATABASE_URL'in direkt kullanılmasını sağlıyorum, fazladan SSL parametresi eklenmesini engelliyorum.
+  // process.env.DATABASE_URL.includes('?') ? '&sslmode=require' : '?sslmode=require'
   process.env.DATABASE_URL ? {
-    connectionString: process.env.DATABASE_URL + (
-      process.env.DATABASE_URL.includes('?') ? '&sslmode=require' : '?sslmode=require'
-    ),
+    connectionString: process.env.DATABASE_URL ? process.env.DATABASE_URL : undefined,
+    // Render'da DATABASE_URL varsa onu kullan, yoksa individual env variables kullan
+    // DATABASE_URL'in direkt kullanılmasını sağlıyorum, fazladan SSL parametresi eklenmesini engelliyorum.
+    // process.env.DATABASE_URL.includes('?') ? '&sslmode=require' : '?sslmode=require'
     ssl: {
       rejectUnauthorized: false
     },
