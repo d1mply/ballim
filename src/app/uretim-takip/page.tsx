@@ -374,10 +374,11 @@ export default function UretimTakipPage() {
     
     // Müşteri filtresi
     if (customerFilter) {
+      const lowerCaseFilter = customerFilter.toLowerCase();
       filtered = filtered.filter(item => 
-        item.customer_name.toLowerCase().includes(customerFilter.toLowerCase()) ||
-        item.id.toString().toLowerCase().includes(customerFilter.toLowerCase()) ||
-        item.order_code.toString().toLowerCase().includes(customerFilter.toLowerCase())
+        (item.customer_name && item.customer_name.toLowerCase().includes(lowerCaseFilter)) ||
+        (item.id && item.id.toString().toLowerCase().includes(lowerCaseFilter)) ||
+        (item.order_code && item.order_code.toString().toLowerCase().includes(lowerCaseFilter))
       );
     }
     
