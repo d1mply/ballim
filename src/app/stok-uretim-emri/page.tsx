@@ -56,6 +56,13 @@ export default function StokUretimEmriPage() {
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showFilamentModal, setShowFilamentModal] = useState(false);
+  const [showStockReductionModal, setShowStockReductionModal] = useState(false);
+  const [stockReductionData, setStockReductionData] = useState({
+    productId: '',
+    quantity: 1,
+    reason: '',
+    notes: ''
+  });
 
   // Kullanıcı kontrolü
   useEffect(() => {
@@ -144,6 +151,61 @@ export default function StokUretimEmriPage() {
     const totalGram = selectedProduct.totalGram * formData.quantity;
     // Gram başına ortalama 0.05 TL (bu değer dinamik olmalı)
     return (totalGram * 0.05).toFixed(2);
+  };
+
+  // Stoktan düşme
+  const handleStockReduction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!stockReductionData.productId || stockReductionData.quantity <= 0) {
+      alert('Lütfen ürün ve miktar bilgilerini kontrol edin!');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      // Stoktan düşme işlemi - sadece stok miktarı güncellenir
+      const response = await fetch('/api/inventory/reduce-stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId: stockReductionData.productId,
+          quantity: stockReductionData.quantity,
+          reason: stockReductionData.reason,
+          notes: stockReductionData.notes,
+          reductionDate: new Date().toISOString().split('T')[0]
+        }),
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Stoktan düşme işlemi başarısız');
+      }
+
+      alert('Stoktan düşme işlemi başarıyla tamamlandı!');
+      setShowStockReductionModal(false);
+      setStockReductionData({
+        productId: '',
+        quantity: 1,
+        reason: '',
+        notes: ''
+      });
+      
+      // Ürün listesini yenile
+      const productsResponse = await fetch('/api/products');
+      if (productsResponse.ok) {
+        const updatedProducts = await productsResponse.json();
+        setProducts(updatedProducts);
+      }
+    } catch (error) {
+      console.error('Stoktan düşme hatası:', error);
+      alert('Stoktan düşme işlemi sırasında bir hata oluştu: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Form gönderimi
@@ -261,9 +323,27 @@ export default function StokUretimEmriPage() {
       <div className="space-y-6 w-full max-w-4xl mx-auto">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <h1 className="text-2xl font-bold">Stok Üretim Emri</h1>
+            <h1 className="text-2xl font-bold">Stok Yönetimi</h1>
             <Icons.CubeIcon className="w-8 h-8 text-blue-600" />
           </div>
+        </div>
+
+        {/* Stoktan Düşme Butonu */}
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-800">📉 Stok Yönetimi</h2>
+            <button
+              type="button"
+              onClick={() => setShowStockReductionModal(true)}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+            >
+              <Icons.MinusIcon className="w-4 h-4" />
+              <span>Stoktan Düş</span>
+            </button>
+          </div>
+          <p className="text-gray-600 text-sm">
+            Üretimi tamamlanmış ürünleri stoktan düşmek için "Stoktan Düş" butonuna tıklayın.
+          </p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border p-6">
@@ -494,6 +574,138 @@ export default function StokUretimEmriPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stoktan Düşme Modal */}
+      {showStockReductionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-lg w-full p-6 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-red-800">📉 Stoktan Düşme</h3>
+              <button
+                onClick={() => setShowStockReductionModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <Icons.XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleStockReduction} className="space-y-4">
+              {/* Ürün Seçimi */}
+              <div>
+                <label htmlFor="reductionProductId" className="block text-sm font-medium mb-2">
+                  Ürün Seçin *
+                </label>
+                <select
+                  id="reductionProductId"
+                  value={stockReductionData.productId}
+                  onChange={(e) => setStockReductionData(prev => ({ ...prev, productId: e.target.value }))}
+                  required
+                  className="w-full border border-border rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">Ürün seçin...</option>
+                  {products.map(product => (
+                    <option key={product.id} value={product.id}>
+                      {product.code} - {product.productType} (Mevcut: {product.stockQuantity} adet)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Miktar */}
+              <div>
+                <label htmlFor="reductionQuantity" className="block text-sm font-medium mb-2">
+                  Düşülecek Miktar *
+                </label>
+                <input
+                  type="number"
+                  id="reductionQuantity"
+                  min="1"
+                  value={stockReductionData.quantity}
+                  onChange={(e) => setStockReductionData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
+                  required
+                  className="w-full border border-border rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              {/* Sebep */}
+              <div>
+                <label htmlFor="reductionReason" className="block text-sm font-medium mb-2">
+                  Düşme Sebebi *
+                </label>
+                <select
+                  id="reductionReason"
+                  value={stockReductionData.reason}
+                  onChange={(e) => setStockReductionData(prev => ({ ...prev, reason: e.target.value }))}
+                  required
+                  className="w-full border border-border rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">Sebep seçin...</option>
+                  <option value="Montaj">Montaj</option>
+                  <option value="Satış">Satış</option>
+                  <option value="Hasar">Hasar/Defo</option>
+                  <option value="Test">Test/Sample</option>
+                  <option value="Hediye">Hediye</option>
+                  <option value="Diğer">Diğer</option>
+                </select>
+              </div>
+
+              {/* Notlar */}
+              <div>
+                <label htmlFor="reductionNotes" className="block text-sm font-medium mb-2">
+                  Notlar
+                </label>
+                <textarea
+                  id="reductionNotes"
+                  value={stockReductionData.notes}
+                  onChange={(e) => setStockReductionData(prev => ({ ...prev, notes: e.target.value }))}
+                  rows={3}
+                  className="w-full border border-border rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="Stoktan düşme ile ilgili ek bilgiler..."
+                />
+              </div>
+
+              {/* Uyarı */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                <div className="flex items-center space-x-2">
+                  <Icons.AlertTriangleIcon className="w-5 h-5 text-yellow-600" />
+                  <span className="text-sm text-yellow-800 font-medium">Önemli Not</span>
+                </div>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Bu işlem sadece stok miktarını azaltır. Filament kullanımından düşülmez çünkü ürün zaten üretilmiş durumda.
+                </p>
+              </div>
+
+              {/* Butonlar */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowStockReductionModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed transition-colors flex items-center"
+                >
+                  {submitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      İşleniyor...
+                    </>
+                  ) : (
+                    <>
+                      <Icons.MinusIcon className="w-4 h-4 mr-2" />
+                      Stoktan Düş
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

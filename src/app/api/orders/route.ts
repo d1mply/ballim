@@ -101,7 +101,22 @@ export async function GET(request: NextRequest) {
             'capacity', COALESCE(p.capacity, 0),
             'stock_quantity', COALESCE(i.quantity, 0),
             'available_stock', COALESCE(i.quantity, 0) + oi.quantity,
-            'unit_price', oi.unit_price
+            'unit_price', oi.unit_price,
+            'filaments', (
+              SELECT COALESCE(
+                json_agg(
+                  json_build_object(
+                    'type', pf.filament_type,
+                    'color', pf.filament_color,
+                    'brand', pf.filament_density,
+                    'weight', pf.weight
+                  )
+                ),
+                '[]'::json
+              )
+              FROM product_filaments pf
+              WHERE pf.product_id = p.id
+            )
           )
         ) as products
       FROM orders o

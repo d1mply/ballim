@@ -37,7 +37,7 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
     { name: 'Filamentler', path: '/filamentler', icon: <CubeIcon /> },
     { name: 'Ödemeler', path: '/odemeler', icon: <ReceiptIcon /> },
     { name: 'Üretim Takip', path: '/uretim-takip', icon: <ClipboardListIcon /> },
-    { name: 'Stok Üretim Emri', path: '/stok-uretim-emri', icon: <CubeIcon /> },
+    { name: 'Stok Yönetimi', path: '/stok-uretim-emri', icon: <CubeIcon /> },
   ];
 
   // Müşteri için menü öğeleri

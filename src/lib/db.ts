@@ -281,6 +281,25 @@ export async function createTables() {
     success = false;
   }
 
+  // Stok Düşme Logları tablosu
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS stock_reductions (
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+        quantity INTEGER NOT NULL,
+        reason VARCHAR(100) NOT NULL,
+        notes TEXT,
+        reduction_date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Stock Reductions tablosu oluşturuldu veya zaten mevcut');
+  } catch (error) {
+    console.error('Stock Reductions tablosu oluşturulurken hata:', error);
+    success = false;
+  }
+
   // Filament Kullanım Geçmişi tablosu
   try {
     await query(`

@@ -46,6 +46,7 @@ export default function TeklifPage() {
   const [wholesalePricingMode, setWholesalePricingMode] = useState<'discount' | 'gram'>('discount');
   const [wholesaleDiscountRate, setWholesaleDiscountRate] = useState<number>(50);
   const [wholesaleGramPrice, setWholesaleGramPrice] = useState<number>(5);
+  const [kdvType, setKdvType] = useState<'plus' | 'included' | 'no-invoice'>('plus');
 
   // Veri yükleme
   useEffect(() => {
@@ -82,6 +83,42 @@ export default function TeklifPage() {
       }
     } catch (error) {
       console.error('Veri yüklenirken hata:', error);
+    }
+  };
+
+  // KDV hesaplama
+  const calculateKdv = (price: number) => {
+    const kdvRate = 0.20; // %20 KDV
+    
+    switch (kdvType) {
+      case 'plus':
+        // +KDV: Fiyata KDV ekle
+        return {
+          basePrice: price,
+          kdvAmount: price * kdvRate,
+          totalPrice: price * (1 + kdvRate)
+        };
+      case 'included':
+        // KDV Dahil: Fiyattan KDV çıkar
+        const basePrice = price / (1 + kdvRate);
+        return {
+          basePrice: basePrice,
+          kdvAmount: price - basePrice,
+          totalPrice: price
+        };
+      case 'no-invoice':
+        // Faturasız: KDV yok
+        return {
+          basePrice: price,
+          kdvAmount: 0,
+          totalPrice: price
+        };
+      default:
+        return {
+          basePrice: price,
+          kdvAmount: 0,
+          totalPrice: price
+        };
     }
   };
 
@@ -186,7 +223,7 @@ export default function TeklifPage() {
   // Ayar değişikliklerinde yeniden hesapla
   useEffect(() => {
     recalculateAll();
-  }, [wholesalePricingMode, wholesaleDiscountRate, wholesaleGramPrice]);
+  }, [wholesalePricingMode, wholesaleDiscountRate, wholesaleGramPrice, kdvType]);
 
   // Ürün silme
   const removeQuoteItem = (id: string) => {
@@ -197,7 +234,17 @@ export default function TeklifPage() {
   const getTotals = () => {
     const normalTotal = quoteItems.reduce((sum, item) => sum + item.normalPrice, 0);
     const wholesaleTotal = quoteItems.reduce((sum, item) => sum + item.wholesalePrice, 0);
-    return { normalTotal, wholesaleTotal };
+    
+    // KDV hesaplama
+    const kdvCalculation = calculateKdv(wholesaleTotal);
+    
+    return { 
+      normalTotal, 
+      wholesaleTotal,
+      basePrice: kdvCalculation.basePrice,
+      kdvAmount: kdvCalculation.kdvAmount,
+      totalWithKdv: kdvCalculation.totalPrice
+    };
   };
 
   // PDF export
@@ -435,6 +482,33 @@ export default function TeklifPage() {
         summaryBox.appendChild(normalBox);
         summaryBox.appendChild(discountBox);
         
+        // KDV Bilgisi
+        if (kdvType !== 'no-invoice') {
+          const kdvBox = document.createElement('div');
+          kdvBox.style.backgroundColor = '#fef3c7';
+          kdvBox.style.border = '2px solid #f59e0b';
+          kdvBox.style.borderRadius = '8px';
+          kdvBox.style.padding = '15px';
+          kdvBox.style.textAlign = 'center';
+          kdvBox.innerHTML = `
+            <div style="font-size: 14px; font-weight: bold; color: #d97706; margin-bottom: 5px;">
+              ${kdvType === 'plus' ? 'KDV TUTARI' : 'KDV DAHİL'}
+            </div>
+            <div style="font-size: 20px; font-weight: bold; color: #92400e;">
+              ${kdvAmount.toFixed(2)}₺
+            </div>
+            <div style="font-size: 12px; color: #92400e; margin-top: 5px;">
+              ${kdvType === 'plus' ? 'KDV Hariç: ' + basePrice.toFixed(2) + '₺' : 'KDV Dahil: ' + totalWithKdv.toFixed(2) + '₺'}
+            </div>
+            ${kdvType === 'plus' ? `
+            <div style="font-size: 16px; font-weight: bold; color: #d97706; margin-top: 8px; border-top: 1px solid #f59e0b; padding-top: 8px;">
+              TOPLAM: ${totalWithKdv.toFixed(2)}₺
+            </div>
+            ` : ''}
+          `;
+          summaryBox.appendChild(kdvBox);
+        }
+        
         const savingsBox = document.createElement('div');
         savingsBox.style.backgroundColor = '#fef3c7';
         savingsBox.style.border = '2px solid #f59e0b';
@@ -470,7 +544,7 @@ export default function TeklifPage() {
           <strong>ULUDAG3D</strong> - Profesyonel 3D Baskı Hizmetleri
         </div>
         <div>
-          Bu teklif 30 gün geçerlidir. • Fiyatlara KDV dahildir.
+          Bu teklif 30 gün geçerlidir.
         </div>
       `;
       printContent.appendChild(footer);
@@ -494,7 +568,7 @@ export default function TeklifPage() {
     }
   };
 
-  const { normalTotal, wholesaleTotal } = getTotals();
+  const { normalTotal, wholesaleTotal, basePrice, kdvAmount, totalWithKdv } = getTotals();
 
   return (
     <Layout>
@@ -550,6 +624,19 @@ export default function TeklifPage() {
                   <span className="ml-1 text-sm">₺/gr</span>
                 </div>
               )}
+
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium">KDV:</label>
+                <select
+                  value={kdvType}
+                  onChange={(e) => setKdvType(e.target.value as 'plus' | 'included' | 'no-invoice')}
+                  className="px-3 py-2 border rounded-lg text-sm"
+                >
+                  <option value="plus">+KDV</option>
+                  <option value="included">KDV Dahil</option>
+                  <option value="no-invoice">Faturasız</option>
+                </select>
+              </div>
 
               <button
                 onClick={addQuoteItem}
@@ -674,7 +761,7 @@ export default function TeklifPage() {
               <h3 className="text-xl font-semibold mb-4">Toplam Fiyatlar</h3>
               
               {wholesalePricingMode === 'discount' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
                     <h4 className="text-lg font-semibold text-blue-800 mb-2">Normal Fiyat</h4>
                     <div className="text-3xl font-bold text-blue-900">{normalTotal.toFixed(2)}₺</div>
@@ -685,11 +772,25 @@ export default function TeklifPage() {
                     <div className="text-3xl font-bold text-purple-900">{wholesaleTotal.toFixed(2)}₺</div>
                     <div className="text-sm text-purple-700 mt-2">%{wholesaleDiscountRate} iskonto uygulandı</div>
                   </div>
+                                     <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                     <h4 className="text-lg font-semibold text-green-800 mb-2">KDV Bilgisi</h4>
+                     <div className="text-2xl font-bold text-green-900">
+                       {kdvType === 'plus' ? '+KDV' : kdvType === 'included' ? 'KDV Dahil' : 'Faturasız'}
+                     </div>
+                     <div className="text-sm text-green-700 mt-2">
+                       {kdvType === 'plus' ? 'KDV eklenecek' : kdvType === 'included' ? 'KDV dahil' : 'KDV yok'}
+                     </div>
+                     {kdvType === 'plus' && (
+                       <div className="mt-2 text-lg font-bold text-green-800">
+                         Toplam: {totalWithKdv.toFixed(2)}₺
+                       </div>
+                     )}
+                   </div>
                 </div>
               )}
 
               {wholesalePricingMode === 'gram' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
                     <h4 className="text-lg font-semibold text-blue-800 mb-2">Adet Fiyatı</h4>
                     <div className="text-3xl font-bold text-blue-900">
@@ -710,6 +811,20 @@ export default function TeklifPage() {
                       {quoteItems.reduce((sum, item) => sum + item.quantity, 0)} adet toplam
                     </div>
                   </div>
+                                     <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 text-center">
+                     <h4 className="text-lg font-semibold text-orange-800 mb-2">KDV Bilgisi</h4>
+                     <div className="text-2xl font-bold text-orange-900">
+                       {kdvType === 'plus' ? '+KDV' : kdvType === 'included' ? 'KDV Dahil' : 'Faturasız'}
+                     </div>
+                     <div className="text-sm text-orange-700 mt-2">
+                       {kdvType === 'plus' ? 'KDV eklenecek' : kdvType === 'included' ? 'KDV dahil' : 'KDV yok'}
+                     </div>
+                     {kdvType === 'plus' && (
+                       <div className="mt-2 text-lg font-bold text-orange-800">
+                         Toplam: {totalWithKdv.toFixed(2)}₺
+                       </div>
+                     )}
+                   </div>
                 </div>
               )}
 

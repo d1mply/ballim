@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
+import FilamentSelectionModal from '../../components/FilamentSelectionModal';
 
 // WebSocket port tanımı (şimdilik kullanılmıyor)
 
@@ -26,6 +27,12 @@ interface OrderItem {
     capacity: number;
     stock_quantity: number;
     available_stock: number;
+    filaments?: {
+      type: string;
+      color: string;
+      brand: string;
+      weight: number;
+    }[];
   }[];
   production_quantity?: number;
   skip_production?: boolean;
@@ -214,6 +221,11 @@ export default function UretimTakipPage() {
   const [productionType, setProductionType] = useState<'tabla' | 'adet'>('tabla');
   const [tableCount, setTableCount] = useState<number>(1);
   const [skipProduction, setSkipProduction] = useState(false);
+  
+  // Filament bobin seçim modalı için state'ler
+  const [filamentSelectionModal, setFilamentSelectionModal] = useState(false);
+  const [selectedFilamentBobins, setSelectedFilamentBobins] = useState<{ [key: string]: number }[]>([]);
+  
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isPollingActive, setIsPollingActive] = useState(true);
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
@@ -259,9 +271,10 @@ export default function UretimTakipPage() {
         throw new Error(`API hatası: ${response.status} ${response.statusText}`);
       }
       
-      const data = await response.json();
-      console.log('🔍 API\'den gelen ham veriler:', data);
-      console.log('🔍 İlk sipariş örneği:', data[0]);
+             const data = await response.json();
+       console.log('🔍 API\'den gelen ham veriler:', data);
+       console.log('🔍 İlk sipariş örneği:', data[0]);
+       console.log('🔍 İlk sipariş filamentleri:', data[0]?.products?.[0]?.filaments);
       
       const formattedOrders: OrderItem[] = data.map((order: { id: string; orderCode: string; customerName: string; orderDate: string; status: string; products: { id?: string; code: string; name: string; quantity: number; capacity?: number; stock_quantity?: number }[]; production_quantity?: number; skip_production?: boolean }) => {
         console.log('🔄 Formatlanıyor:', {
@@ -276,7 +289,7 @@ export default function UretimTakipPage() {
           customer_name: order.customerName || 'Pazaryeri Müşterisi',
           order_date: order.orderDate,
           status: convertStatus(order.status),
-          products: order.products.map((product: { id?: string; code: string; name: string; quantity: number; capacity?: number; stock_quantity?: number; available_stock?: number }) => ({
+          products: order.products.map((product: { id?: string; code: string; name: string; quantity: number; capacity?: number; stock_quantity?: number; available_stock?: number; filaments?: any[] }) => ({
             id: product.id || '',
             product_id: product.code,
             product_code: product.code,
@@ -284,7 +297,8 @@ export default function UretimTakipPage() {
             quantity: product.quantity,
             capacity: product.capacity || 0,
             stock_quantity: product.stock_quantity || 0,
-            available_stock: product.available_stock || product.stock_quantity || 0
+            available_stock: product.available_stock || product.stock_quantity || 0,
+            filaments: product.filaments || []
           })),
           production_quantity: order.production_quantity || 0,
           skip_production: order.skip_production || false
@@ -415,8 +429,25 @@ export default function UretimTakipPage() {
 
   // Üretime alma fonksiyonu
   const handleStartProduction = (item: OrderItem) => {
+    console.log('🔍 handleStartProduction çağrıldı:', item);
+    console.log('🔍 Ürün filamentleri:', item.products[0]?.filaments);
+    console.log('🔍 Filament sayısı:', item.products[0]?.filaments?.length);
+    
     setSelectedOrderItem(item);
     
+    // Filament bilgisi varsa önce filament bobin seçim modalını aç
+    if (item.products[0]?.filaments && item.products[0].filaments.length > 0) {
+      console.log('✅ Filament bilgisi bulundu, modal açılıyor');
+      setFilamentSelectionModal(true);
+    } else {
+      console.log('❌ Filament bilgisi bulunamadı, direkt üretim modalı açılıyor');
+      // Filament bilgisi yoksa direkt üretim modalını aç
+      openProductionModal(item);
+    }
+  };
+
+  // Üretim modalını aç
+  const openProductionModal = (item: OrderItem) => {
     // Varsayılan değerleri ayarla
     const defaultCapacity = item.products[0]?.capacity || 0;
     const defaultQuantity = item.products[0]?.quantity || 0;
@@ -442,6 +473,13 @@ export default function UretimTakipPage() {
     }
   }, [productionType, tableCount, selectedOrderItem]);
 
+  // Filament bobin seçimi onaylandıktan sonra üretim modalını aç
+  const handleFilamentSelectionConfirm = (selectedBobins: { [key: string]: number }[]) => {
+    setSelectedFilamentBobins(selectedBobins);
+    setFilamentSelectionModal(false);
+    setProductionModal(true);
+  };
+
   // Üretim onaylama
   const confirmProduction = async () => {
     console.log('🚀 confirmProduction fonksiyonu başladı');
@@ -452,6 +490,7 @@ export default function UretimTakipPage() {
     }
 
     console.log('🔍 selectedOrderItem TAM içeriği:', JSON.stringify(selectedOrderItem, null, 2));
+    console.log('🔍 Seçilen filament bobinleri:', selectedFilamentBobins);
 
     // Gerekli alanları kontrol et
     const orderCode = selectedOrderItem.order_code || selectedOrderItem.id;
@@ -467,7 +506,8 @@ export default function UretimTakipPage() {
       status: 'Üretimde',
       productionQuantity: skipProduction ? 0 : productionQuantity,
       productionType: productionType, // 'tabla' veya 'adet'
-      skipProduction
+      skipProduction,
+      selectedFilamentBobins // Seçilen filament bobinleri
     };
 
     console.log('📋 FRONTEND: Gönderilecek veri TAM format:', JSON.stringify(requestData, null, 2));
@@ -475,7 +515,8 @@ export default function UretimTakipPage() {
       orderId: { value: requestData.orderId, type: typeof requestData.orderId },
       status: { value: requestData.status, type: typeof requestData.status },
       productionQuantity: { value: requestData.productionQuantity, type: typeof requestData.productionQuantity },
-      skipProduction: { value: requestData.skipProduction, type: typeof requestData.skipProduction }
+      skipProduction: { value: requestData.skipProduction, type: typeof requestData.skipProduction },
+      selectedFilamentBobins: { value: requestData.selectedFilamentBobins, type: typeof requestData.selectedFilamentBobins }
     });
 
     try {
@@ -510,6 +551,7 @@ export default function UretimTakipPage() {
       setProductionQuantity(0);
       setTableCount(1);
       setSkipProduction(false);
+      setSelectedFilamentBobins([]);
     } catch (error) {
       console.error('❌ Üretim başlatma hatası:', error);
       if (error instanceof Error) {
@@ -652,6 +694,28 @@ export default function UretimTakipPage() {
               <span className="font-medium">{selectedOrderItem.products[0]?.product_code}</span> - {selectedOrderItem.products[0]?.product_type}
             </p>
             
+            {/* Seçilen Filament Bobinleri */}
+            {selectedFilamentBobins.length > 0 && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <h4 className="font-medium text-blue-900 mb-2">Seçilen Filament Bobinleri:</h4>
+                <div className="space-y-1 text-sm">
+                  {selectedFilamentBobins.map((selection, index) => {
+                    const filamentKey = Object.keys(selection)[0];
+                    const bobbinId = selection[filamentKey];
+                    const [type, color] = filamentKey.split('-');
+                    const productFilament = selectedOrderItem.products[0]?.filaments?.find(f => f.type === type && f.color === color);
+                    
+                    return (
+                      <div key={index} className="flex justify-between text-blue-800">
+                        <span>{type} - {color} ({productFilament?.weight}g)</span>
+                        <span className="font-medium">Bobin ID: {bobbinId}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            
             <div className="mb-4">
               <p className="text-sm text-muted-foreground mb-1">
                 Sipariş miktarı: {selectedOrderItem.products[0]?.quantity || 0} adet
@@ -680,13 +744,13 @@ export default function UretimTakipPage() {
                 <label className="text-sm font-medium mb-1">Üretim Tipi</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    className={`py-2 px-3 border rounded-md ${productionType === 'tabla' ? 'bg-primary text-white' : 'bg-secondary'}`}
+                    className={`py-2 px-3 border rounded-md transition-colors ${productionType === 'tabla' ? 'bg-green-600 text-white border-green-700' : 'bg-gray-100 text-gray-700 border-gray-300'}`}
                     onClick={() => setProductionType('tabla')}
                   >
                     Tabla
                   </button>
                   <button
-                    className={`py-2 px-3 border rounded-md ${productionType === 'adet' ? 'bg-primary text-white' : 'bg-secondary'}`}
+                    className={`py-2 px-3 border rounded-md transition-colors ${productionType === 'adet' ? 'bg-green-600 text-white border-green-700' : 'bg-gray-100 text-gray-700 border-gray-300'}`}
                     onClick={() => setProductionType('adet')}
                   >
                     Adet
@@ -736,13 +800,13 @@ export default function UretimTakipPage() {
                 <label className="text-sm font-medium mb-1">Üretim Tercihi</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    className={`py-2 px-3 border rounded-md ${!skipProduction ? 'bg-primary text-white' : 'bg-secondary'}`}
+                    className={`py-2 px-3 border rounded-md transition-colors ${!skipProduction ? 'bg-green-600 text-white border-green-700' : 'bg-gray-100 text-gray-700 border-gray-300'}`}
                     onClick={() => setSkipProduction(false)}
                   >
                     Üretim Yap
                   </button>
                   <button
-                    className={`py-2 px-3 border rounded-md ${skipProduction ? 'bg-primary text-white' : 'bg-secondary'}`}
+                    className={`py-2 px-3 border rounded-md transition-colors ${skipProduction ? 'bg-green-600 text-white border-green-700' : 'bg-gray-100 text-gray-700 border-gray-300'}`}
                     onClick={() => setSkipProduction(true)}
                   >
                     Stoktan Kullan
@@ -760,12 +824,13 @@ export default function UretimTakipPage() {
                   setProductionQuantity(0);
                   setTableCount(1);
                   setSkipProduction(false);
+                  setSelectedFilamentBobins([]);
                 }}
               >
                 İptal
               </button>
               <button 
-                className="btn-primary"
+                className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium shadow-sm border-2 border-green-700"
                 onClick={confirmProduction}
                 disabled={!skipProduction && productionQuantity <= 0}
               >
@@ -774,6 +839,22 @@ export default function UretimTakipPage() {
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Filament Bobin Seçim Modalı */}
+      {filamentSelectionModal && selectedOrderItem && (
+        <FilamentSelectionModal
+          isOpen={filamentSelectionModal}
+          onClose={() => {
+            setFilamentSelectionModal(false);
+            setSelectedOrderItem(null);
+            setSelectedFilamentBobins([]);
+          }}
+          onConfirm={handleFilamentSelectionConfirm}
+          productFilaments={selectedOrderItem.products[0]?.filaments || []}
+          productName={selectedOrderItem.products[0]?.product_type || ''}
+          productCode={selectedOrderItem.products[0]?.product_code || ''}
+        />
       )}
     </Layout>
   );
