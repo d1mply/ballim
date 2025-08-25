@@ -126,24 +126,10 @@ const OrderCard = ({ item, onStartProduction, onStatusChange }: {
           </div>
 
           <div className="bg-gray-50 p-3 rounded-lg">
-            <div className="text-sm text-gray-600">Stok Durumu</div>
+            <div className="text-sm text-gray-600">Genel Stok</div>
             <div className="text-lg font-semibold mt-1">
-              {product.available_stock || product.stock_quantity} adet
-              {(product.available_stock || product.stock_quantity) === 0 && (
-                <span className="text-red-500 text-sm block">Stokta Yok</span>
-              )}
-              {(product.available_stock || product.stock_quantity) > 0 && (product.available_stock || product.stock_quantity) < product.quantity && (
-                <span className="text-orange-500 text-sm block">Yetersiz</span>
-              )}
-              {(product.available_stock || product.stock_quantity) >= product.quantity && (
-                <span className="text-green-500 text-sm block">Yeterli</span>
-              )}
+              {product.stock_quantity} adet
             </div>
-            {product.available_stock && product.available_stock !== product.stock_quantity && (
-              <div className="text-xs text-gray-500 mt-1">
-                Genel stok: {product.stock_quantity} adet
-              </div>
-            )}
           </div>
 
           <div className="bg-gray-50 p-3 rounded-lg">
