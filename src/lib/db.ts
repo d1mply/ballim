@@ -504,15 +504,11 @@ export async function createTables() {
 
 // Tabloları sadece bir kez oluştur - development modunda
 if (process.env.NODE_ENV === 'development') {
-  let tablesCreated = false;
-  if (!tablesCreated) {
-    createTables()
-      .then(() => {
-        tablesCreated = true;
-        console.log('Tablolar başarıyla oluşturuldu');
-      })
-      .catch(console.error);
-  }
+  createTables()
+    .then(() => {
+      console.log('Tablolar başarıyla oluşturuldu veya zaten mevcuttu');
+    })
+    .catch(console.error);
 }
 
 // db objesi - eski kodlar için uyumluluk
