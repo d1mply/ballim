@@ -1,29 +1,19 @@
 import { NextResponse } from 'next/server';
-import { createTables } from '../../../lib/db';
+import { createTables } from '@/lib/db';
 
-export async function POST() {
+export async function GET() {
   try {
-    console.log('Veritabanı tabloları oluşturuluyor...');
-    
+    console.log('API: createTables fonksiyonu çağrıldı.');
     const success = await createTables();
-    
     if (success) {
-      return NextResponse.json({
-        status: 'ok',
-        message: 'Tüm tablolar başarıyla oluşturuldu'
-      });
+      console.log('API: Tablolar başarıyla oluşturuldu veya zaten mevcuttu.');
+      return NextResponse.json({ message: 'Tablolar başarıyla oluşturuldu veya zaten mevcuttu.' }, { status: 200 });
     } else {
-      return NextResponse.json({
-        status: 'error',
-        message: 'Bazı tablolar oluşturulurken hata oluştu'
-      }, { status: 500 });
+      console.error('API: Tablolar oluşturulurken bir hata oluştu.');
+      return NextResponse.json({ error: 'Tablolar oluşturulurken bir hata oluştu.' }, { status: 500 });
     }
   } catch (error) {
-    console.error('Tablo oluşturma hatası:', error);
-    return NextResponse.json({
-      status: 'error',
-      message: 'Tablolar oluşturulurken hata oluştu',
-      error: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    console.error('API: db-setup endpoint hatası:', error);
+    return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
   }
 } 
