@@ -55,10 +55,14 @@ export async function GET(
           WHEN p.capacity IS NOT NULL THEN p.capacity
           ELSE 5  -- Varsayılan ağırlık 5gr
         END as capacity,
-        -- Ürün ağırlığını hesapla (kapasite * miktar)
+        CASE 
+          WHEN p.piece_gram IS NOT NULL AND p.piece_gram > 0 THEN p.piece_gram
+          ELSE 1 -- Varsayılan ağırlık 1gr (eğer ürünün gramajı tanımlı değilse)
+        END as piece_gram,
+        -- Ürün toplam ağırlığını hesapla (adet * birim gramaj)
         (CASE 
-          WHEN p.capacity IS NOT NULL THEN p.capacity
-          ELSE 5  -- Varsayılan ağırlık 5gr
+          WHEN p.piece_gram IS NOT NULL AND p.piece_gram > 0 THEN p.piece_gram
+          ELSE 1 -- Varsayılan ağırlık 1gr
         END * oi.quantity) as total_weight
       FROM order_items oi
       LEFT JOIN products p ON p.id = oi.product_id
@@ -97,7 +101,7 @@ export async function GET(
         quantity: parseInt(item.quantity),
         unit_price: parseFloat(item.unit_price),
         total_price: parseFloat(item.total_price),
-        capacity: parseInt(item.capacity || 0),
+        piece_gram: parseFloat(item.piece_gram || 0),
         total_weight: parseFloat(item.total_weight || 0)
       })),
       customerBalance,

@@ -22,8 +22,8 @@ interface ShippingLabelProps {
       quantity: number;
       unit_price: number;
       total_price: number;
-      capacity: number;
-             total_weight: number;
+      piece_gram: number;
+      total_weight: number;
     }>;
     customerBalance: number;
     companyInfo: {
@@ -251,7 +251,7 @@ export default function ShippingLabel({ orderData, onClose }: ShippingLabelProps
                           {item.product_name || 'Ürün Bilgisi Bulunamadı'}
                         </td>
                         <td style={{ border: '1px solid #d1d5db', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{item.quantity || 0}</td>
-                        <td style={{ border: '1px solid #d1d5db', padding: '8px', textAlign: 'center' }}>{item.capacity || 5}gr</td>
+                        <td style={{ border: '1px solid #d1d5db', padding: '8px', textAlign: 'center' }}>{item.piece_gram || 1}gr</td>
                         <td style={{ border: '1px solid #d1d5db', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{item.total_weight || 0}gr</td>
                         <td style={{ border: '1px solid #d1d5db', padding: '8px', textAlign: 'right' }}>{(item.unit_price || 0).toFixed(2)}₺</td>
                         <td style={{ border: '1px solid #d1d5db', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>{(item.total_price || 0).toFixed(2)}₺</td>
