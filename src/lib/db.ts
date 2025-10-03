@@ -212,6 +212,23 @@ export async function createTables() {
       )
     `);
     console.log('Orders tablosu oluşturuldu veya zaten mevcut');
+    
+    // Sipariş numarası için sequence'ler oluştur
+    try {
+      // Normal sipariş sequence
+      await query(`
+        CREATE SEQUENCE IF NOT EXISTS order_number_seq START WITH 1000 INCREMENT BY 1
+      `);
+      console.log('Sipariş numarası sequence oluşturuldu');
+      
+      // Stok üretim sequence
+      await query(`
+        CREATE SEQUENCE IF NOT EXISTS stock_order_number_seq START WITH 1000 INCREMENT BY 1
+      `);
+      console.log('Stok üretim numarası sequence oluşturuldu');
+    } catch (seqError) {
+      console.log('Sequence zaten mevcut veya oluşturuldu');
+    }
   } catch (error) {
     console.error('Orders tablosu oluşturulurken hata:', error);
     success = false;
@@ -233,11 +250,12 @@ export async function createTables() {
     `);
     console.log('Order Items tablosu oluşturuldu veya zaten mevcut');
     
-    // Mevcut tabloyu güncelle - product_code ve product_name alanlarını ekle
+    // Mevcut tabloyu güncelle - product_code, product_name ve status alanlarını ekle
     await query(`
       ALTER TABLE order_items 
       ADD COLUMN IF NOT EXISTS product_code VARCHAR(20),
-      ADD COLUMN IF NOT EXISTS product_name VARCHAR(100)
+      ADD COLUMN IF NOT EXISTS product_name VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'onay_bekliyor'
     `);
     console.log('Order Items tablosu güncellenmiş alanlar eklendi');
     
@@ -252,6 +270,14 @@ export async function createTables() {
         AND (oi.product_code IS NULL OR oi.product_code = '')
     `);
     console.log('Mevcut order_items kayıtları ürün bilgileriyle güncellendi');
+    
+    // Mevcut kayıtların status alanını güncelle (eğer NULL ise)
+    await query(`
+      UPDATE order_items 
+      SET status = 'onay_bekliyor'
+      WHERE status IS NULL
+    `);
+    console.log('Order Items status alanları güncellendi');
     
     // Silinmiş ürünlerin bilgilerini de güncelle (product_id NULL olanlar için varsayılan değerler)
     await query(`
@@ -273,12 +299,35 @@ export async function createTables() {
     await query(`
       CREATE TABLE IF NOT EXISTS inventory (
         id SERIAL PRIMARY KEY,
-        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+        product_id INTEGER UNIQUE REFERENCES products(id) ON DELETE CASCADE,
         quantity INTEGER NOT NULL DEFAULT 0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     console.log('Inventory tablosu oluşturuldu veya zaten mevcut');
+    
+    // Unique constraint ekle (tablo zaten mevcutsa)
+    try {
+      await query(`
+        ALTER TABLE inventory 
+        ADD CONSTRAINT inventory_product_id_key UNIQUE (product_id)
+      `);
+      console.log('Inventory tablosuna unique constraint eklendi');
+    } catch (constraintError) {
+      // Constraint zaten varsa hata almayı görmezden gel
+      console.log('Inventory unique constraint zaten mevcut veya eklendi');
+    }
+    
+    // created_at kolonunu ekle (var olan tablolar için)
+    try {
+      await query(`
+        ALTER TABLE inventory 
+        ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      `);
+      console.log('Inventory tablosuna created_at kolonu eklendi');
+    } catch (columnError) {
+      console.log('Inventory created_at kolonu zaten mevcut');
+    }
   } catch (error) {
     console.error('Inventory tablosu oluşturulurken hata:', error);
     success = false;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
+import { handleApiError, handleDatabaseError, validateFilamentData } from '../../../lib/errors';
 
 // Tüm filamentleri getir
 export async function GET() {
@@ -31,10 +32,10 @@ export async function GET() {
     
     return NextResponse.json(filaments);
   } catch (error) {
-    console.error('Filamentleri getirme hatası:', error);
+    const errorResponse = handleApiError(handleDatabaseError(error));
     return NextResponse.json(
-      { error: 'Filamentler getirilirken bir hata oluştu' },
-      { status: 500 }
+      { error: errorResponse.error },
+      { status: errorResponse.statusCode }
     );
   }
 }
@@ -44,34 +45,44 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
+    // Validation
+    const validatedData = validateFilamentData(body);
+    const { type, color, brand, totalWeight, remainingWeight } = validatedData;
+    
     const {
-      name,
-      type,
-      brand,
-      color,
-      location,
-      totalWeight,
-      remainingWeight,
-      quantity,
-      criticalStock,
-      tempRange,
-      cap,
-      pricePerGram
+      location = '',
+      quantity = 1,
+      criticalStock = 0,
+      tempRange = '',
+      cap = 0,
+      pricePerGram = 0
     } = body;
     
-    // İlk 3 harfini al ve büyük harfe çevir, filament kodu oluştur
-    const typePrefix = type.slice(0, 3).toUpperCase();
-    const colorPrefix = color.slice(0, 3).toUpperCase();
+    // Filament rulo formatı: PLA-AÇIKMAVI-001 (tip + renk + sıra)
+    const typeUpper = type.toUpperCase();
+    
+    // Renk kısaltması - boşlukları kaldır ve büyük harfe çevir
+    let colorShort = color.replace(/\s/g, '').toUpperCase(); // Boşlukları kaldır
     
     // Aynı tip ve renkte kaç filament var bul
+    console.log('Veritabanı sorgusu başlatılıyor...');
     const countResult = await query(`
       SELECT COUNT(*) 
       FROM filaments 
       WHERE type = $1 AND color = $2
     `, [type, color]);
     
+    console.log('Count sonucu:', countResult.rows[0]);
     const count = parseInt(countResult.rows[0].count) + 1;
-    const filamentCode = `${typePrefix}-${colorPrefix}-${count.toString().padStart(3, '0')}`;
+    const filamentCode = `${typeUpper}-${colorShort}-${count.toString().padStart(3, '0')}`;
+    
+    console.log('Renk kodu:', colorShort);
+    console.log('Oluşturulan kod:', filamentCode);
+    console.log('Kod uzunluğu:', filamentCode.length);
+    
+    // Name alanını otomatik oluştur (marka + renk)
+    const autoName = `${brand} ${color}`;
+    console.log('Otomatik name:', autoName);
     
     const result = await query(`
       INSERT INTO filaments (
@@ -82,7 +93,7 @@ export async function POST(request: NextRequest) {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `, [
-      filamentCode, name, type, brand, color, location,
+      filamentCode, autoName, type, brand, color, location,
       totalWeight, remainingWeight, quantity, criticalStock,
       tempRange, cap, pricePerGram
     ]);
@@ -109,10 +120,10 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json(newFilament, { status: 201 });
   } catch (error) {
-    console.error('Filament ekleme hatası:', error);
+    const errorResponse = handleApiError(error);
     return NextResponse.json(
-      { error: 'Filament eklenirken bir hata oluştu' },
-      { status: 500 }
+      { error: errorResponse.error },
+      { status: errorResponse.statusCode }
     );
   }
 }

@@ -159,7 +159,30 @@ export async function PUT(request: NextRequest) {
 
       console.log('✅ Sipariş durumu güncellendi');
 
-      // 3. Stok işlemleri (eğer skip edilmemişse)
+      // 3. Order_items tablosundaki ürün durumlarını da güncelle
+      console.log('🔄 Order_items durumları güncelleniyor...');
+      
+      // Durum çevirisi için mapping
+      const statusMapping: { [key: string]: string } = {
+        'Onay Bekliyor': 'onay_bekliyor',
+        'Üretimde': 'uretiliyor', 
+        'Üretildi': 'uretildi',
+        'Hazırlanıyor': 'hazirlaniyor',
+        'Hazırlandı': 'hazirlandi'
+      };
+      
+      const orderItemStatus = statusMapping[newStatus] || 'onay_bekliyor';
+      
+      // Order_items tablosundaki tüm ürünlerin durumunu güncelle
+      await query(`
+        UPDATE order_items 
+        SET status = $1
+        WHERE order_id = $2
+      `, [orderItemStatus, orderId]);
+      
+      console.log(`✅ Order_items durumları güncellendi: ${orderItemStatus}`);
+
+      // 4. Stok işlemleri (eğer skip edilmemişse)
       if (!skipProduction) {
         console.log('🔄 Stok işlemleri başlıyor...');
         console.log('📊 Stok işlemi parametreleri:', {
@@ -190,17 +213,34 @@ export async function PUT(request: NextRequest) {
             throw stockError; // Transaction'ı geri almak için hatayı yeniden fırlat
           }
           
-          // *** YENİ: FİLAMENT STOK İŞLEMLERİ ***
-          // "Hazırlandı" durumuna geçildiğinde filament stoku düşürülür
+          // *** YENİ: REZERVE STOK İŞLEMLERİ ***
+          // "Hazırlandı" durumuna geçildiğinde rezerve stoktan düş
           if (newStatus === 'Hazırlandı' || newStatus === 'hazirlandi') {
-            console.log('🎯 "Hazırlandı" durumu - Filament stok düşürme işlemi başlıyor...');
+            console.log('🎯 "Hazırlandı" durumu - Rezerve stok düşürme işlemi başlıyor...');
             
-            // Sipariş ürünlerini al
+            // Sipariş ürünlerini al ve rezerve stoktan düş
             const orderItems = await query(`
               SELECT oi.product_id, oi.quantity
               FROM order_items oi
               WHERE order_id = $1
             `, [orderId]);
+            
+            // Rezerve stok düşürme işlemi
+            for (const item of orderItems.rows) {
+              const productId = String(item.product_id);
+              const quantity = parseInt(item.quantity);
+              
+              console.log(`📦 REZERVE DÜŞÜRÜLÜYOR: ${productId} - ${quantity} adet rezerve düşürüldü`);
+              
+              // Rezerve stok düşürme - order_items tablosundaki status'u güncelle
+              await query(`
+                UPDATE order_items 
+                SET status = 'hazirlandi'
+                WHERE product_id = $1 AND order_id = $2
+              `, [productId, orderId]);
+              
+              console.log(`✅ REZERVE STOK DÜŞÜRÜLDÜ: ${productId} - ${quantity} adet`);
+            }
 
             // Her ürün için filament stok düşürme
             for (const item of orderItems.rows) {

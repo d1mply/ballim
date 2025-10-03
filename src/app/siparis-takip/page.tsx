@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
 import ShippingLabel from '../../components/ShippingLabel';
 
-// Sipariş tipi tanımla
+// Sipariş tipi tanımla - Basitleştirilmiş
 interface Order {
   id: string;
+  orderCode: string;
   customerName: string;
   orderDate: string;
   products: {
@@ -15,13 +17,22 @@ interface Order {
     code: string;
     name: string;
     quantity: number;
-    image?: string;
+    status: string;
   }[];
   totalAmount: number;
   status: string;
 }
 
+// Kullanıcı tipi
+interface User {
+  id: string;
+  name: string;
+  type: 'admin' | 'customer';
+}
+
 export default function SiparisTakipPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -29,24 +40,30 @@ export default function SiparisTakipPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isShippingLabelOpen, setIsShippingLabelOpen] = useState(false);
   const [shippingLabelData, setShippingLabelData] = useState<{ order: Order; customer: { name: string; address: string; phone: string } } | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ type: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // Kullanıcı bilgisini yükle - Layout ile aynı sistem
+  // Kullanıcı kontrolü
   useEffect(() => {
     const loggedUserJson = localStorage.getItem('loggedUser');
     if (loggedUserJson) {
-      const user = JSON.parse(loggedUserJson);
-      setCurrentUser(user);
+      try {
+        const userData = JSON.parse(loggedUserJson) as User;
+        setUser(userData);
+      } catch (error) {
+        console.error('Kullanıcı bilgisi yüklenirken hata:', error);
+        router.push('/');
+      }
+    } else {
+      router.push('/');
     }
-  }, []);
+  }, [router]);
 
-  // API'den sipariş verileri yükle
+  // API'den sipariş verileri yükle - Basitleştirilmiş
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        // 🔒 GÜVENLİK KONTROLÜ: Giriş yapılmış kullanıcı yoksa hiçbir şey gösterme
-        if (!currentUser) {
-          console.log('🚫 Giriş yapılmamış - sipariş verileri yüklenmiyor');
+        if (!user) {
           setOrders([]);
           return;
         }
@@ -54,63 +71,51 @@ export default function SiparisTakipPage() {
         // Müşteri tipine göre API URL'ini oluştur
         let apiUrl = '/api/orders';
         
-        if (currentUser.type === 'customer') {
-          // Müşteri ise sadece kendi siparişlerini getir
-          const customerId = currentUser.id;
-          apiUrl = `/api/orders?customerId=${customerId}`;
-          console.log('🔒 Müşteri izolasyonu: Sadece kendi siparişleri getiriliyor:', customerId);
-        } else if (currentUser.type === 'admin') {
-          console.log('👑 Admin: Tüm siparişler getiriliyor');
-        } else {
-          // Tanımlanmamış kullanıcı tipi
-          console.log('🚫 Tanımlanmamış kullanıcı tipi - erişim reddedildi');
-          setOrders([]);
-          return;
+        if (user.type === 'customer') {
+          apiUrl = `/api/orders?customerId=${user.id}`;
         }
         
         const response = await fetch(apiUrl);
         
         if (!response.ok) {
-          console.error('API Yanıt Detayları:', {
-            status: response.status,
-            statusText: response.statusText
-          });
-          const errorData = await response.text();
-          console.error('API Hata Detayı:', errorData);
           throw new Error(`API hatası: ${response.status} ${response.statusText}`);
         }
         
         const data = await response.json();
-        console.log('API Yanıtı:', data); // Debug için
         
         // Veri kontrolü ve dönüşümü
         if (Array.isArray(data)) {
           const formattedOrders = data.map(order => ({
             id: order.id || '',
-            customerName: order.customerName || '',
-            orderDate: order.orderDate || '',
+            orderCode: order.order_code || order.id || '',
+            customerName: order.customer_name || order.customerName || '',
+            orderDate: order.order_date || order.orderDate || '',
             products: Array.isArray(order.products) ? order.products : [],
-            totalAmount: typeof order.totalAmount === 'number' ? order.totalAmount : 0,
+            totalAmount: typeof order.total_amount === 'number' ? order.total_amount : (typeof order.totalAmount === 'number' ? order.totalAmount : 0),
             status: order.status || 'Belirsiz'
           }));
           setOrders(formattedOrders);
         } else {
-          console.warn('API yanıtı dizi formatında değil:', data);
           setOrders([]);
         }
       } catch (error) {
         console.error('Siparişleri getirme hatası:', error);
+        setError('Siparişler yüklenirken bir hata oluştu');
         setOrders([]);
+      } finally {
+        setIsLoading(false);
       }
     };
     
-    fetchOrders();
-  }, [currentUser]); // currentUser değiştiğinde yeniden fetch et
+    if (user) {
+      fetchOrders();
+    }
+  }, [user]);
   
-  // Arama ve filtreleme
+  // Arama ve filtreleme - Basitleştirilmiş
   const filteredOrders = orders.filter(order => {
     const searchMatch = 
-      order.id.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.orderCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
     
     const statusMatch = statusFilter === '' || order.status === statusFilter;
@@ -142,9 +147,62 @@ export default function SiparisTakipPage() {
     setIsDetailOpen(true);
   };
   
+  // Sipariş durumu güncelle - Basitleştirilmiş
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    try {
+      const response = await fetch('/api/orders/status', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: orderId,
+          status: newStatus,
+          productionQuantity: 0,
+          skipProduction: false
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Durum güncellenemedi');
+      }
+
+      // Siparişleri yenile
+      const apiUrl = user?.type === 'customer' ? `/api/orders?customerId=${user.id}` : '/api/orders';
+      const ordersResponse = await fetch(apiUrl);
+      if (ordersResponse.ok) {
+        const ordersData = await ordersResponse.json();
+        const formattedOrders = ordersData.map((order: any) => ({
+          id: order.id || '',
+          orderCode: order.order_code || order.id || '',
+          customerName: order.customer_name || order.customerName || '',
+          orderDate: order.order_date || order.orderDate || '',
+          products: Array.isArray(order.products) ? order.products : [],
+          totalAmount: typeof order.total_amount === 'number' ? order.total_amount : (typeof order.totalAmount === 'number' ? order.totalAmount : 0),
+          status: order.status || 'Belirsiz'
+        }));
+        setOrders(formattedOrders);
+      }
+
+      alert('Sipariş durumu başarıyla güncellendi');
+    } catch (error) {
+      console.error('Durum güncelleme hatası:', error);
+      alert('Durum güncellenirken bir hata oluştu!');
+    }
+  };
+
   // Sipariş sil
   const handleDeleteOrder = async (orderId: string) => {
-    if (window.confirm('Bu siparişi silmek istediğinizden emin misiniz?')) {
+    // Siparişin durumunu kontrol et
+    const order = orders.find(o => o.id === orderId);
+    const isHazirlandi = order?.status === 'Hazırlandı' || order?.status === 'hazirlandi';
+    
+    const confirmMessage = isHazirlandi 
+      ? 'Bu sipariş "Hazırlandı" durumunda. İptal edilirse üretilen ürünler stoka eklenecek. Emin misiniz?'
+      : 'Bu siparişi silmek istediğinizden emin misiniz?';
+    
+    if (window.confirm(confirmMessage)) {
       try {
         // Siparişi API'den sil
         const response = await fetch(`/api/orders?id=${orderId}`, {
@@ -155,6 +213,8 @@ export default function SiparisTakipPage() {
           throw new Error(`API hatası: ${response.status} ${response.statusText}`);
         }
         
+        const result = await response.json();
+        
         // State'i güncelle
         const updatedOrders = orders.filter(order => order.id !== orderId);
         setOrders(updatedOrders);
@@ -162,6 +222,9 @@ export default function SiparisTakipPage() {
         if (selectedOrder && selectedOrder.id === orderId) {
           setIsDetailOpen(false);
         }
+        
+        // Başarı mesajını göster
+        alert(result.message || 'Sipariş başarıyla silindi');
       } catch (error) {
         console.error('Sipariş silinirken hata:', error);
         alert('Sipariş silinirken bir hata oluştu!');
@@ -188,7 +251,7 @@ export default function SiparisTakipPage() {
   };
   
   // Giriş yapılmamışsa uyarı göster
-  if (!currentUser) {
+  if (!user) {
     return (
       <Layout>
         <div className="space-y-5 w-full">
@@ -212,6 +275,9 @@ export default function SiparisTakipPage() {
       </Layout>
     );
   }
+
+  if (isLoading) return <Layout><p>Yükleniyor...</p></Layout>;
+  if (error) return <Layout><p>Hata: {error}</p></Layout>;
 
   return (
     <Layout>
@@ -266,14 +332,29 @@ export default function SiparisTakipPage() {
               {filteredOrders.length > 0 ? (
                 filteredOrders.map((order) => (
                   <tr key={order.id}>
-                    <td className="font-medium">{order.id}</td>
+                    <td className="font-medium">{order.orderCode}</td>
                     <td>{order.customerName}</td>
                     <td>{order.orderDate}</td>
                     <td>{order.totalAmount}₺</td>
                     <td>
-                      <span className={`status-badge ${getStatusColor(order.status)}`}>
-                        {order.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`status-badge ${getStatusColor(order.status)}`}>
+                          {order.status}
+                        </span>
+                        {user?.type === 'admin' && (
+                          <select
+                            value={order.status}
+                            onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                            className="text-xs px-2 py-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                          >
+                            <option value="Onay Bekliyor">Onay Bekliyor</option>
+                            <option value="Üretimde">Üretimde</option>
+                            <option value="Üretildi">Üretildi</option>
+                            <option value="Hazırlanıyor">Hazırlanıyor</option>
+                            <option value="Hazırlandı">Hazırlandı</option>
+                          </select>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <div className="flex gap-2 justify-end">
@@ -285,7 +366,7 @@ export default function SiparisTakipPage() {
                           Detaylar
                         </button>
                         {/* Yazdır butonu sadece admin için */}
-                        {currentUser?.type === 'admin' && (
+                        {user?.type === 'admin' && (
                           <button 
                             onClick={() => handlePrintShippingLabel(order.id)}
                             className="action-btn action-btn-primary"
@@ -322,7 +403,7 @@ export default function SiparisTakipPage() {
         <div className="modal">
           <div className="modal-content max-w-2xl">
             <div className="modal-header">
-              <h2 className="text-lg font-semibold">Sipariş Detayı - {selectedOrder.id}</h2>
+              <h2 className="text-lg font-semibold">Sipariş Detayı - {selectedOrder.orderCode}</h2>
               <button onClick={() => setIsDetailOpen(false)} className="text-muted-foreground hover:text-foreground">
                 &times;
               </button>

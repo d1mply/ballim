@@ -3,17 +3,17 @@ import { query } from '@/lib/db';
 
 export async function GET() {
   try {
-    // Orders tablosunun şemasını kontrol et
+    // Inventory tablosunun şemasını kontrol et
     const schemaResult = await query(`
       SELECT column_name, data_type, is_nullable, column_default
       FROM information_schema.columns 
-      WHERE table_name = 'orders' 
+      WHERE table_name = 'inventory' 
       ORDER BY ordinal_position;
     `);
 
-    // Bir sipariş örneği al
+    // Bir inventory örneği al
     const sampleOrder = await query(`
-      SELECT * FROM orders LIMIT 1;
+      SELECT * FROM inventory LIMIT 1;
     `);
 
     return NextResponse.json({

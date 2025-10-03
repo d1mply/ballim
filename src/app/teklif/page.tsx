@@ -42,6 +42,9 @@ export default function TeklifPage() {
   const [priceRanges, setPriceRanges] = useState<PriceRange[]>([]);
   const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
   
+  // Teklif bilgileri
+  const [quoteNumber, setQuoteNumber] = useState<string>(`TK-${Date.now().toString().slice(-6)}`);
+  
   // Ayarlar
   const [wholesalePricingMode, setWholesalePricingMode] = useState<'discount' | 'gram'>('discount');
   const [wholesaleDiscountRate, setWholesaleDiscountRate] = useState<number>(50);
@@ -248,9 +251,9 @@ export default function TeklifPage() {
   };
 
   // PDF export
-  const exportToPDF = async () => {
+  const exportToPDF = async (isProforma = false) => {
     try {
-      const { normalTotal, wholesaleTotal } = getTotals();
+      const { normalTotal, wholesaleTotal, basePrice, kdvAmount, totalWithKdv } = getTotals();
       
       const printContent = document.createElement('div');
       printContent.style.padding = '30px';
@@ -299,7 +302,7 @@ export default function TeklifPage() {
       date.style.marginBottom = '5px';
       
       const quoteNo = document.createElement('div');
-      quoteNo.textContent = `Teklif No: TK-${Date.now().toString().slice(-6)}`;
+      quoteNo.textContent = isProforma ? `Proforma No: ${quoteNumber}` : `Teklif No: ${quoteNumber}`;
       quoteNo.style.fontSize = '14px';
       quoteNo.style.color = '#374151';
       
@@ -425,6 +428,11 @@ export default function TeklifPage() {
       totalsSection.style.paddingTop = '20px';
       
       if (wholesalePricingMode === 'gram') {
+        const summaryBox = document.createElement('div');
+        summaryBox.style.display = 'grid';
+        summaryBox.style.gridTemplateColumns = '1fr 1fr';
+        summaryBox.style.gap = '15px';
+        
         const totalBox = document.createElement('div');
         totalBox.style.backgroundColor = '#f0fdf4';
         totalBox.style.border = '2px solid #16a34a';
@@ -436,13 +444,44 @@ export default function TeklifPage() {
             TOPLAM FİYAT
           </div>
           <div style="font-size: 32px; font-weight: bold; color: #166534;">
-            ${wholesaleTotal.toFixed(2)}₺
+            ${kdvType === 'plus' ? totalWithKdv.toFixed(2) : wholesaleTotal.toFixed(2)}₺
           </div>
           <div style="font-size: 14px; color: #16a34a; margin-top: 8px;">
             Gram Başı Fiyat: ${wholesaleGramPrice}₺/gr
           </div>
         `;
-        totalsSection.appendChild(totalBox);
+        
+        // KDV Bilgisi - Gram modunda da göster
+        if (kdvType !== 'no-invoice') {
+          const kdvBox = document.createElement('div');
+          kdvBox.style.backgroundColor = '#fef3c7';
+          kdvBox.style.border = '2px solid #f59e0b';
+          kdvBox.style.borderRadius = '8px';
+          kdvBox.style.padding = '20px';
+          kdvBox.style.textAlign = 'center';
+          kdvBox.innerHTML = `
+            <div style="font-size: 16px; font-weight: bold; color: #d97706; margin-bottom: 8px;">
+              ${kdvType === 'plus' ? 'KDV TUTARI' : 'KDV DAHİL'}
+            </div>
+            <div style="font-size: 24px; font-weight: bold; color: #92400e;">
+              ${kdvAmount.toFixed(2)}₺
+            </div>
+            <div style="font-size: 12px; color: #92400e; margin-top: 5px;">
+              ${kdvType === 'plus' ? 'KDV Hariç: ' + basePrice.toFixed(2) + '₺' : 'KDV Dahil: ' + totalWithKdv.toFixed(2) + '₺'}
+            </div>
+            ${kdvType === 'plus' ? `
+            <div style="font-size: 16px; font-weight: bold; color: #d97706; margin-top: 8px; border-top: 1px solid #f59e0b; padding-top: 8px;">
+              TOPLAM: ${totalWithKdv.toFixed(2)}₺
+            </div>
+            ` : ''}
+          `;
+          summaryBox.appendChild(totalBox);
+          summaryBox.appendChild(kdvBox);
+        } else {
+          summaryBox.appendChild(totalBox);
+        }
+        
+        totalsSection.appendChild(summaryBox);
       } else {
         const summaryBox = document.createElement('div');
         summaryBox.style.display = 'grid';
@@ -475,7 +514,7 @@ export default function TeklifPage() {
             İSKONTOLU TOPLAM
           </div>
           <div style="font-size: 24px; font-weight: bold; color: #166534;">
-            ${wholesaleTotal.toFixed(2)}₺
+            ${kdvType === 'plus' ? totalWithKdv.toFixed(2) : wholesaleTotal.toFixed(2)}₺
           </div>
         `;
         
@@ -539,27 +578,87 @@ export default function TeklifPage() {
       footer.style.textAlign = 'center';
       footer.style.fontSize = '12px';
       footer.style.color = '#6b7280';
+      
       footer.innerHTML = `
         <div style="margin-bottom: 10px;">
           <strong>ULUDAG3D</strong> - Profesyonel 3D Baskı Hizmetleri
         </div>
         <div>
-          Bu teklif 30 gün geçerlidir.
+          ${isProforma ? 'Bu proforma 30 gün geçerlidir.' : 'Bu teklif 30 gün geçerlidir.'}
         </div>
       `;
+      
       printContent.appendChild(footer);
+      
+      // Proforma için imza ve kaşe ekleme
+      if (isProforma) {
+        const signatureSection = document.createElement('div');
+        signatureSection.style.marginTop = '30px';
+        signatureSection.style.display = 'flex';
+        signatureSection.style.justifyContent = 'space-between';
+        signatureSection.style.alignItems = 'center';
+        
+        // Uyarı metinleri (sol taraf)
+        const warningText = document.createElement('div');
+        warningText.style.flex = '1';
+        warningText.style.textAlign = 'left';
+        warningText.innerHTML = `
+          <div style="color: #dc2626; font-weight: bold; font-size: 14px; margin-bottom: 5px;">
+            ⚠️ Bu belge fatura yerine geçmez
+          </div>
+          <div style="color: #6b7280; font-size: 12px;">
+            Bu proforma 30 gün geçerlidir.
+          </div>
+        `;
+        
+        // İmza ve kaşe görseli (sağ taraf)
+        const signatureBox = document.createElement('div');
+        signatureBox.style.width = '300px';
+        signatureBox.style.height = '150px';
+        signatureBox.style.textAlign = 'center';
+        signatureBox.style.display = 'flex';
+        signatureBox.style.alignItems = 'center';
+        signatureBox.style.justifyContent = 'center';
+        
+        // İmza ve kaşe görseli ekleme
+        const signatureImg = document.createElement('img');
+        signatureImg.src = '/signatures/stamp-with-signature.png';
+        signatureImg.style.maxWidth = '100%';
+        signatureImg.style.maxHeight = '100%';
+        signatureImg.style.objectFit = 'contain';
+        signatureImg.onerror = () => {
+          signatureBox.innerHTML = '<div style="color: #6b7280; font-size: 14px;">İmza ve Kaşe</div>';
+        };
+        
+        signatureBox.appendChild(signatureImg);
+        signatureSection.appendChild(warningText);
+        signatureSection.appendChild(signatureBox);
+        printContent.appendChild(signatureSection);
+      }
       
       document.body.appendChild(printContent);
       
-      const canvas = await html2canvas(printContent);
+      const canvas = await html2canvas(printContent, {
+        scale: 3, // Yüksek çözünürlük için 3x scale
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        width: printContent.scrollWidth,
+        height: printContent.scrollHeight,
+        scrollX: 0,
+        scrollY: 0
+      });
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/png', 1.0); // Maksimum kalite
       
       const imgWidth = 210;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-      pdf.save(`teklif_${new Date().toLocaleDateString('tr-TR').replace(/\./g, '-')}.pdf`);
+      const fileName = isProforma 
+        ? `proforma_${new Date().toLocaleDateString('tr-TR').replace(/\./g, '-')}.pdf`
+        : `teklif_${new Date().toLocaleDateString('tr-TR').replace(/\./g, '-')}.pdf`;
+      pdf.save(fileName);
       
       document.body.removeChild(printContent);
     } catch (error) {
@@ -583,6 +682,18 @@ export default function TeklifPage() {
           {/* Ayarlar */}
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <div className="flex flex-wrap items-center gap-4">
+              {/* Teklif Numarası */}
+              <div>
+                <label className="text-sm font-medium mr-2">Teklif No:</label>
+                <input
+                  type="text"
+                  value={quoteNumber}
+                  onChange={(e) => setQuoteNumber(e.target.value)}
+                  className="w-32 px-3 py-1 border rounded-lg text-center font-medium"
+                  placeholder="TK-001"
+                />
+              </div>
+              
               <div>
                 <label className="text-sm font-medium mr-2">Toptancı Fiyatlama:</label>
                 <select
@@ -646,12 +757,20 @@ export default function TeklifPage() {
               </button>
 
               {quoteItems.length > 0 && (
-                <button
-                  onClick={exportToPDF}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-                >
-                  📄 PDF İndir
-                </button>
+                <>
+                  <button
+                    onClick={() => exportToPDF(false)}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                  >
+                    📄 PDF İndir
+                  </button>
+                  <button
+                    onClick={() => exportToPDF(true)}
+                    className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+                  >
+                    📋 Proforma Fatura
+                  </button>
+                </>
               )}
             </div>
           </div>

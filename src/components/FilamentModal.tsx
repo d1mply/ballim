@@ -12,7 +12,7 @@ type FilamentModalProps = {
 export interface FilamentData {
   id?: string;
   code: string;
-  name: string;
+  name: string; // API uyumluluğu için geçici olarak bırakıyoruz
   type: string;
   brand: string;
   color: string;
@@ -96,34 +96,19 @@ export default function FilamentModal({
         
         <form onSubmit={handleSubmit} className="modal-body">
           <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium mb-1">
-                  Filament Adı*
-                </label>
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="type" className="block text-sm font-medium mb-1">
-                  Filament Tipi*
-                </label>
-                <input
-                  id="type"
-                  name="type"
-                  type="text"
-                  value={formData.type}
-                  onChange={handleChange}
-                  placeholder="Örn: PLA, PETG, ABS, TPU"
-                  required
-                />
-              </div>
+            <div>
+              <label htmlFor="type" className="block text-sm font-medium mb-1">
+                Filament Tipi*
+              </label>
+              <input
+                id="type"
+                name="type"
+                type="text"
+                value={formData.type}
+                onChange={handleChange}
+                placeholder="Örn: PLA, PETG, ABS, TPU"
+                required
+              />
             </div>
             
             <div className="grid grid-cols-2 gap-4">

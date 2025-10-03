@@ -3,17 +3,18 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  HomeIcon, 
-  PackageIcon, 
-  ShoppingCartIcon, 
-  ClipboardListIcon, 
-  UsersIcon, 
-  CreditCardIcon, 
-  CubeIcon, 
-  ReceiptIcon,
-  TruckIcon,
-  CalculatorIcon
-} from '../utils/Icons';
+  Home as HomeIcon, 
+  Package as PackageIcon, 
+  ShoppingCart as ShoppingCartIcon, 
+  ClipboardList as ClipboardListIcon, 
+  Users as UsersIcon, 
+  CreditCard as CreditCardIcon, 
+  Box as CubeIcon, 
+  Receipt as ReceiptIcon,
+  Truck as TruckIcon,
+  Calculator as CalculatorIcon,
+  Warehouse as WarehouseIcon
+} from 'lucide-react';
 
 type SidebarProps = {
   isOpen?: boolean;
@@ -29,6 +30,7 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
     { name: 'Ana Sayfa', path: '/admin-dashboard', icon: <HomeIcon /> },
     { name: 'Teklif Hesaplama', path: '/teklif', icon: <CalculatorIcon /> },
     { name: 'Ürünler', path: '/urunler', icon: <PackageIcon /> },
+    { name: 'Stok Yönetimi', path: '/stok-yonetimi', icon: <WarehouseIcon /> },
     { name: 'Stok ve Sipariş', path: '/stok-siparis', icon: <ShoppingCartIcon /> },
     { name: 'Pazaryeri Siparişleri', path: '/pazaryeri-siparisleri', icon: <TruckIcon /> },
     { name: 'Sipariş Takip', path: '/siparis-takip', icon: <ClipboardListIcon /> },
@@ -37,7 +39,6 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
     { name: 'Filamentler', path: '/filamentler', icon: <CubeIcon /> },
     { name: 'Ödemeler', path: '/odemeler', icon: <ReceiptIcon /> },
     { name: 'Üretim Takip', path: '/uretim-takip', icon: <ClipboardListIcon /> },
-    { name: 'Stok Yönetimi', path: '/stok-uretim-emri', icon: <CubeIcon /> },
   ];
 
   // Müşteri için menü öğeleri

@@ -10,6 +10,10 @@ import { LoggedInUser } from '../page';
 // Stock item tipini tanımla
 interface StockItem extends ProductData {
   stockAmount: number;
+  availableStock: number;
+  reservedStock: number;
+  totalStock: number;
+  stockDisplay: string;
   stockStatus: string;
 }
 
@@ -23,7 +27,7 @@ export default function StokSiparisPage() {
   const [products, setProducts] = useState<StockItem[]>([]);
   const [cartItems, setCartItems] = useState<StockItem[]>([]);
   const [cartPrices, setCartPrices] = useState<{[key: string]: number}>({});
-  const [kdvRate] = useState(20);
+  const [kdvRate, setKdvRate] = useState(20);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('Tüm Ürünler');
   const [productTypes, setProductTypes] = useState<string[]>([]);
@@ -41,6 +45,15 @@ export default function StokSiparisPage() {
   // API'den ürün verilerini al
   useEffect(() => {
     fetchProducts();
+  }, []);
+
+  // Her 5 saniyede bir stok verilerini yenile (otomatik güncelleme)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchProducts();
+    }, 5000); // 5 saniye
+
+    return () => clearInterval(interval);
   }, []);
 
   // Sepet fiyatlarını hesapla
@@ -81,14 +94,21 @@ export default function StokSiparisPage() {
       
       const products = await response.json();
       
-      // Stok bilgilerini ekle
-      const stockItemsWithAmount = products.map((product: ProductData) => {
-        // Stok bilgisi API'den geliyorsa doğrudan kullan
-        const stockAmount = product.stockQuantity || 0;
+      // Stok bilgilerini ekle - rezerve stok sistemi ile
+      const stockItemsWithAmount = products.map((product: any) => {
+        const availableStock = product.availableStock || 0;
+        const reservedStock = product.reservedStock || 0;
+        const totalStock = product.totalStock || 0;
+        const stockDisplay = product.stockDisplay || 'Stokta Yok';
+        
         return {
           ...product,
-          stockAmount,
-          stockStatus: stockAmount > 0 ? 'Stokta var' : 'Stokta yok'
+          stockAmount: availableStock, // Geriye uyumluluk için
+          availableStock,
+          reservedStock,
+          totalStock,
+          stockDisplay,
+          stockStatus: availableStock > 0 ? 'Stokta var' : reservedStock > 0 ? 'Rezerve' : 'Stokta yok'
         } as StockItem;
       });
       
@@ -116,10 +136,47 @@ export default function StokSiparisPage() {
     }
   });
   
+  // Stok durumu kontrolü - rezerve stok sistemi ile
+  const getStockStatus = (availableStock: number, reservedStock: number, orderedAmount: number) => {
+    if (availableStock > 0) {
+      return { 
+        status: `Stok ${availableStock} (${reservedStock} rezerve)`, 
+        color: 'text-green-600', 
+        bgColor: 'bg-green-50' 
+      };
+    } else if (reservedStock > 0) {
+      return { 
+        status: `Stok 0 (${reservedStock} rezerve)`, 
+        color: 'text-yellow-600', 
+        bgColor: 'bg-yellow-50' 
+      };
+    } else {
+      return { 
+        status: 'Stokta Yok', 
+        color: 'text-red-600', 
+        bgColor: 'bg-red-50' 
+      };
+    }
+  };
+
   // Sepete ürün ekleme
   const addToCart = (item: StockItem) => {
     // Sadece müşteri hesapları için sepete ekleme yapılabilir
     if (currentUser?.type !== 'customer') return;
+
+    // Stok yetersizliği kontrolü - rezerve stok sistemi ile
+    const orderedQuantity = 1; // Varsayılan miktar
+    if (item.availableStock < orderedQuantity) {
+      const proceed = confirm(
+        `ℹ️ Stok Bilgisi\n\n` +
+        `Ürün: ${item.code} - ${item.productType}\n` +
+        `Mevcut Stok: ${item.availableStock} adet\n` +
+        `Rezerve: ${item.reservedStock} adet\n` +
+        `Sipariş: ${orderedQuantity} adet\n\n` +
+        `Bu ürün rezerve edilecek ve üretim planına alınacak. Sipariş vermek istiyor musunuz?`
+      );
+      if (!proceed) return;
+    }
 
     setCartItems(prevItems => {
       const existingItem = prevItems.find(i => i.id === item.id);
@@ -149,6 +206,20 @@ export default function StokSiparisPage() {
 
     if (newQuantity < 1) return;
     
+    // Stok yetersizliği kontrolü - rezerve stok sistemi ile
+    const item = cartItems[index];
+    if (item && item.availableStock < newQuantity) {
+      const proceed = confirm(
+        `ℹ️ Stok Bilgisi\n\n` +
+        `Ürün: ${item.code} - ${item.productType}\n` +
+        `Mevcut Stok: ${item.availableStock} adet\n` +
+        `Rezerve: ${item.reservedStock} adet\n` +
+        `Sipariş: ${newQuantity} adet\n\n` +
+        `Bu ürün rezerve edilecek ve üretim planına alınacak. Sipariş vermek istiyor musunuz?`
+      );
+      if (!proceed) return;
+    }
+    
     setCartItems(prevItems => 
       prevItems.map((item, i) => 
         i === index 
@@ -161,8 +232,11 @@ export default function StokSiparisPage() {
   
   // Ürün fiyatını hesapla (normal müşteri vs toptancı)
   const getItemPrice = async (item: StockItem, quantity: number = 1) => {
+    // Varsayılan fiyat - eğer fiyat hesaplama başarısız olursa
+    const defaultPrice = 10; // Varsayılan fiyat
+
     if (currentUser?.type !== 'customer') {
-      return 0;
+      return defaultPrice;
     }
 
     const requestData = {
@@ -183,16 +257,16 @@ export default function StokSiparisPage() {
 
       if (response.ok) {
         const priceData = await response.json();
-        return priceData.totalPrice || 0;
+        return priceData.totalPrice || defaultPrice;
       } else {
         const errorText = await response.text();
         console.error('API hatası:', response.status, errorText);
+        return defaultPrice;
       }
     } catch (error) {
       console.error('Fiyat hesaplama hatası:', error);
+      return defaultPrice;
     }
-
-    return 0;
   };
 
   // Ürünün filament fiyatını bul (eski sistem - normal müşteriler için)
@@ -218,11 +292,31 @@ export default function StokSiparisPage() {
   
   // Sipariş oluşturma
   const createOrder = async () => {
-    // Sadece müşteri hesapları için sipariş oluşturulabilir
-    if (currentUser?.type !== 'customer') return;
+    // Admin de sipariş oluşturabilir (stok üretimi için)
+    if (!currentUser) return;
 
     console.log('🚀 createOrder fonksiyonu başladı');
     if (cartItems.length === 0) return;
+    
+    // Genel stok kontrolü - rezerve stok sistemi ile
+    const insufficientStockItems = cartItems.filter(item => 
+      item.availableStock < (item.quantity || 1)
+    );
+    
+    if (insufficientStockItems.length > 0) {
+      const warningMessage = insufficientStockItems.map(item => 
+        `• ${item.code}: Mevcut ${item.availableStock} adet, Rezerve ${item.reservedStock} adet, Sipariş ${item.quantity} adet`
+      ).join('\n');
+      
+      const proceed = confirm(
+        `ℹ️ Stok Bilgisi\n\n` +
+        `Aşağıdaki ürünlerde stok yetersizliği var:\n\n` +
+        `${warningMessage}\n\n` +
+        `Bu ürünler rezerve edilecek ve üretim planına alınacak. Sipariş vermek istiyor musunuz?`
+      );
+      
+      if (!proceed) return;
+    }
     
     try {
       // Sipariş ürünlerini hazırla
@@ -250,12 +344,9 @@ export default function StokSiparisPage() {
       const totalAmount = truncate2(subtotal + kdvAmountLocal);
       
       const orderData = {
-        customerId: currentUser?.type === 'customer' ? currentUser.id : null,
-        totalAmount,
-        status: 'Onay Bekliyor',
-        paymentStatus: 'Ödeme Bekliyor',
-        notes: '',
-        items: orderItems
+        customerId: currentUser?.id || 1, // Varsayılan müşteri ID
+        products: orderItems, // API'de 'products' bekleniyor
+        orderType: 'normal'
       };
 
       console.log('📋 Gönderilen sipariş verisi:', orderData);
@@ -384,12 +475,17 @@ export default function StokSiparisPage() {
                       <td className="py-3 px-4">{item.dimensionX}x{item.dimensionY}x{item.dimensionZ} mm</td>
                       <td className="py-3 px-4">{item.capacity} adet</td>
                       <td className="py-3 px-4">
-                        <span className={`inline-flex items-center gap-1.5 ${
-                          item.stockAmount > 0 ? 'text-success' : 'text-destructive'
-                        }`}>
-                          {item.stockAmount > 0 ? 'Stokta var' : 'Stokta yok'}
-                          <span className="font-medium">({item.stockAmount} adet)</span>
-                        </span>
+                        {(() => {
+                          const stockStatus = getStockStatus(item.availableStock, item.reservedStock, 1);
+                          return (
+                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${stockStatus.bgColor} ${stockStatus.color}`}>
+                              <div className={`w-2 h-2 rounded-full ${
+                                item.availableStock > 0 ? 'bg-green-500' : item.reservedStock > 0 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}></div>
+                              {stockStatus.status}
+                            </div>
+                          );
+                        })()}
                       </td>
                       {currentUser?.type === 'customer' && (
                         <td className="py-3 px-4">
@@ -440,12 +536,17 @@ export default function StokSiparisPage() {
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${
-                      item.stockAmount > 0 ? 'text-success' : 'text-destructive'
-                    }`}>
-                      {item.stockAmount > 0 ? 'Stokta var' : 'Stokta yok'}
-                      <span>({item.stockAmount} adet)</span>
-                    </span>
+                    {(() => {
+                      const stockStatus = getStockStatus(item.availableStock, item.reservedStock, 1);
+                      return (
+                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${stockStatus.bgColor} ${stockStatus.color}`}>
+                            <div className={`w-2 h-2 rounded-full ${
+                              item.availableStock > 0 ? 'bg-green-500' : item.reservedStock > 0 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`}></div>
+                          {stockStatus.status}
+                        </div>
+                      );
+                    })()}
                     
                     {currentUser?.type === 'customer' && (
                       <button
@@ -516,6 +617,19 @@ export default function StokSiparisPage() {
                           <div className="flex-1 min-w-0">
                             <h4 className="font-medium text-gray-900 truncate">{item.code}</h4>
                             <p className="text-sm text-gray-500 mb-2">{item.productType}</p>
+
+                            {/* Stok Durumu */}
+                            {(() => {
+                              const stockStatus = getStockStatus(item.availableStock, item.reservedStock, item.quantity || 1);
+                              return (
+                                <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium mb-2 ${stockStatus.bgColor} ${stockStatus.color}`}>
+                                  <div className={`w-1.5 h-1.5 rounded-full ${
+                                    item.availableStock > 0 ? 'bg-green-500' : item.reservedStock > 0 ? 'bg-yellow-500' : 'bg-red-500'
+                                  }`}></div>
+                                  {stockStatus.status}
+                                </div>
+                              );
+                            })()}
 
                             <p className="text-sm font-medium text-blue-600">
                               {(() => {

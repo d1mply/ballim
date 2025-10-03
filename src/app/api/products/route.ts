@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
+import { getStockStatus } from '../../../lib/stock';
 
 // Tüm ürünleri getir
 export async function GET() {
   try {
-    // Filament detaylarını ve basitleştirilmiş stok durumunu getir
+    // Ürünleri ve filament detaylarını getir
     const result = await query(`
       SELECT p.*, 
         (SELECT json_agg(json_build_object(
@@ -15,15 +16,13 @@ export async function GET() {
           'weight', pf.weight
         ))
         FROM product_filaments pf
-        WHERE pf.product_id = p.id) as filaments,
-        COALESCE(i.quantity, 0) as stock_quantity
+        WHERE pf.product_id = p.id) as filaments
       FROM products p
-      LEFT JOIN inventory i ON i.product_id = p.id
       ORDER BY p.product_code
     `);
     
-    // Snake case alanları camelCase'e dönüştür ve yapıyı frontend ile uyumlu hale getir
-    const products = result.rows.map(product => {
+    // Her ürün için stok durumunu al ve yapıyı frontend ile uyumlu hale getir
+    const products = await Promise.all(result.rows.map(async (product) => {
       const { 
         id,
         product_code, 
@@ -41,9 +40,11 @@ export async function GET() {
         notes,
         created_at, 
         updated_at, 
-        stock_quantity,
         filaments
       } = product;
+      
+      // Yeni stok sistemi ile stok durumunu al
+      const stockStatus = await getStockStatus(id);
       
       return {
         id,
@@ -60,12 +61,17 @@ export async function GET() {
         pieceGram: piece_gram || 0,
         filePath: file_path,
         notes: notes || '',
-        stockQuantity: parseInt(stock_quantity) || 0,
+        stockQuantity: stockStatus.availableStock, // Geriye uyumluluk için
+        availableStock: stockStatus.availableStock,
+        reservedStock: stockStatus.reservedStock,
+        totalStock: stockStatus.totalStock,
+        stockDisplay: stockStatus.stockDisplay,
+        stockColor: stockStatus.stockColor, // Yeni stok rengi eklendi
         createdAt: created_at,
         updatedAt: updated_at,
         filaments: Array.isArray(filaments) ? filaments : []
       };
-    });
+    }));
     
     return NextResponse.json(products);
   } catch (error) {
@@ -77,16 +83,14 @@ export async function GET() {
   }
 }
 
-// Yeni ürün ekle
+// Yeni ürün oluştur
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    console.log("Gelen ürün verileri:", body);
-    
     const {
-      code,
+      productCode,
       productType,
-      image,
+      imagePath,
       barcode,
       capacity,
       dimensionX,
@@ -97,467 +101,99 @@ export async function POST(request: NextRequest) {
       pieceGram,
       filePath,
       notes,
+      unitPrice,
       filaments
     } = body;
-    
-    // Ürün kodunu kontrolü ve benzersizlik sağlama
-    let productCode = code;
-    
-    // Manuel girilen kodun benzersizliğini kontrol et
-    if (productCode) {
-      const existingProduct = await query(`
-        SELECT id FROM products WHERE product_code = $1
-      `, [productCode]);
-      
-      if (existingProduct.rows.length > 0) {
-        // Kod çakışması var - alternatif kodlar öner
-        const suggestions = [];
-        for (let i = 1; i <= 5; i++) {
-          const altCode = `${productCode}-${i}`;
-          const checkAlt = await query(`
-            SELECT id FROM products WHERE product_code = $1
-          `, [altCode]);
-          
-          if (checkAlt.rows.length === 0) {
-            suggestions.push(altCode);
-          }
-        }
-        
-        return NextResponse.json({
-          error: 'Bu ürün kodu zaten kullanılıyor',
-          suggestions: suggestions.slice(0, 3),
-          conflictCode: productCode
-        }, { status: 409 });
-      }
-    } else {
-      // Otomatik kod üretimi - güvenli yöntem
-      let attempts = 0;
-      const maxAttempts = 100;
-      
-      do {
-        // Son ürün kodunu bul ve +1 ekle
-        const lastCodeResult = await query(`
-          SELECT product_code FROM products 
-          WHERE product_code ~ '^AA[0-9]+$' 
-          ORDER BY CAST(SUBSTRING(product_code FROM 3) AS INTEGER) DESC 
-          LIMIT 1
-        `);
-        
-        let nextNumber = 1;
-        if (lastCodeResult.rows.length > 0) {
-          const lastCode = lastCodeResult.rows[0].product_code;
-          const lastNumber = parseInt(lastCode.substring(2));
-          nextNumber = lastNumber + 1;
-        }
-        
-        productCode = `AA${nextNumber.toString().padStart(3, '0')}`;
-        
-        // Bu kodun kullanılmadığını doğrula
-        const existingCheck = await query(`
-          SELECT id FROM products WHERE product_code = $1
-        `, [productCode]);
-        
-        if (existingCheck.rows.length === 0) {
-          break; // Benzersiz kod bulundu
-        }
-        
-        attempts++;
-      } while (attempts < maxAttempts);
-      
-      if (attempts >= maxAttempts) {
-        return NextResponse.json({
-          error: 'Benzersiz ürün kodu oluşturulamadı'
-        }, { status: 500 });
-      }
-    }
-    
-    // Ana ürün kaydını oluştur
-    const productResult = await query(`
-      INSERT INTO products (
-        product_code, product_type, image_path, barcode, capacity,
-        dimension_x, dimension_y, dimension_z, print_time,
-        total_gram, piece_gram, file_path, notes
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-      RETURNING *
-    `, [
-      productCode, 
-      productType, 
-      image, 
-      barcode || null,
-      capacity || 0,
-      dimensionX || 0, 
-      dimensionY || 0, 
-      dimensionZ || 0, 
-      printTime || 0,
-      totalGram || 0, 
-      pieceGram || 0, 
-      filePath || '', 
-      notes || ''
-    ]);
-    
-    const productId = productResult.rows[0].id;
-    
-    // Filamentleri ekle
-    if (filaments && filaments.length > 0) {
-      for (const filament of filaments) {
-        // Filament tipi boş olanları atla
-        if (!filament.type || filament.type.trim() === '') {
-          console.warn('Boş filament tipi atlandı:', filament);
-          continue;
-        }
-        
-        await query(`
-          INSERT INTO product_filaments (
-            product_id, filament_type, filament_color, 
-            filament_density, weight
-          )
-          VALUES ($1, $2, $3, $4, $5)
-        `, [
-          productId, 
-          filament.type,
-          filament.color || '',
-          filament.brand || '', // brand değerini filament_density alanında tutuyoruz
-          filament.weight || 0
-        ]);
-      }
-    }
-    
-    // Stokta varsayılan olarak 0 adet olarak kaydet
-    await query(`
-      INSERT INTO inventory (product_id, quantity)
-      VALUES ($1, 0)
-    `, [productId]);
-    
-    // Tüm detaylarıyla birlikte ürünü döndür
-    const completeProductResult = await query(`
-      SELECT p.*, 
-        (SELECT json_agg(json_build_object(
-          'id', pf.id,
-          'type', pf.filament_type,
-          'color', pf.filament_color,
-          'brand', pf.filament_density,
-          'weight', pf.weight
-        ))
-        FROM product_filaments pf
-        WHERE pf.product_id = p.id) as filaments,
-        COALESCE(i.quantity, 0) as stock_quantity
-      FROM products p
-      LEFT JOIN inventory i ON i.product_id = p.id
-      WHERE p.id = $1
-    `, [productId]);
-    
-    // Frontend yapısına uygun formata dönüştür
-    const { 
-      id,
-      product_code, 
-      product_type, 
-      image_path, 
-      barcode: bc,
-      dimension_x, 
-      dimension_y, 
-      dimension_z, 
-      print_time, 
-      total_gram, 
-      piece_gram, 
-      file_path, 
-      stock_quantity
-    } = completeProductResult.rows[0];
-    
-    const formattedProduct = {
-      id,
-      code: product_code,
-      productType: product_type,
-      image: image_path,
-      barcode: bc || '',
-      capacity: capacity || 0,
-      dimensionX: dimension_x || 0,
-      dimensionY: dimension_y || 0,
-      dimensionZ: dimension_z || 0,
-      printTime: print_time || 0,
-      totalGram: total_gram || 0,
-      pieceGram: piece_gram || 0,
-      filePath: file_path,
-      notes: notes || '',
-      stockQuantity: stock_quantity || 0,
-      filaments: completeProductResult.rows[0].filaments || []
-    };
-    
-    return NextResponse.json(formattedProduct, { status: 201 });
-  } catch (error) {
-    console.error('Ürün ekleme hatası:', error);
-    return NextResponse.json(
-      { error: 'Ürün eklenirken bir hata oluştu', details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    );
-  }
-}
 
-// Ürün güncelle
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json();
-    console.log("Güncelleme için gelen veriler:", JSON.stringify(body, null, 2));
-    
-    const { id, filaments, image, code, productType, barcode: bcUpdate, ...restData } = body;
-    
-    if (!id) {
-      console.error("Ürün ID eksik:", body);
+    // Gerekli alanları kontrol et
+    if (!productCode || !productType) {
       return NextResponse.json(
-        { error: 'Ürün ID gerekli' },
+        { error: 'Ürün kodu ve tipi gerekli' },
         { status: 400 }
       );
     }
-    
-    console.log("Ürün ID:", id);
-    console.log("Filamentler:", filaments);
-    console.log("Geri kalan veriler:", restData);
-    
-    // Frontend'den gelen verileri veritabanı formatına dönüştür
-    const updateData: Record<string, string | number | boolean | null> = {
-      product_code: code,
-      product_type: productType,
-      image_path: image,
-      barcode: bcUpdate,
-      ...restData
-    };
 
-    // stock_quantity'yi updateData'dan çıkar çünkü bu products tablosuna ait bir alan değil
-    delete updateData.stockQuantity;
-    
-    console.log("Update data (ham):", updateData);
-    
-    // Güncelleme sorgusunu dinamik olarak oluştur
-    const snakeCaseMapping: Record<string, string> = {
-      capacity: 'capacity',
-      dimensionX: 'dimension_x',
-      dimensionY: 'dimension_y',
-      dimensionZ: 'dimension_z',
-      printTime: 'print_time',
-      totalGram: 'total_gram',
-      pieceGram: 'piece_gram',
-      filePath: 'file_path',
-      notes: 'notes'
-    };
-    
-    // CamelCase anahtarları snake_case'e dönüştür
-    const updateFields: Record<string, string | number | boolean> = {};
-    
-    Object.keys(updateData).forEach(key => {
-      if (updateData[key] !== undefined) {
-        const snakeKey = snakeCaseMapping[key] || key.replace(/([A-Z])/g, '_$1').toLowerCase();
-        updateFields[snakeKey] = updateData[key];
-        console.log(`Mapping: ${key} -> ${snakeKey} = ${updateData[key]}`);
-      }
-    });
-    
-    console.log("Dönüştürülmüş updateFields:", updateFields);
-    
-    // Sorgu parametrelerini hazırla
-    const keys = Object.keys(updateFields);
-    console.log("Güncellenecek alanlar:", keys);
-    
-    if (keys.length === 0) {
-      // Eğer güncellenecek alan yoksa, sadece filamentleri güncelle
-      console.log("Güncellenecek alan bulunamadı, sadece filamentler güncelleniyor.");
-    } else {
-      try {
-        // Sorgu oluştur
-        const setClause = keys.map((key, index) => `${key} = $${index + 2}`).join(', ');
-        const values = [id, ...Object.values(updateFields)];
-        
-        console.log("Güncelleme sorgusu:", `UPDATE products SET ${setClause} WHERE id = $1`);
-        console.log("Değerler:", values);
-        
-        const result = await query(`
-          UPDATE products
-          SET ${setClause}
-          WHERE id = $1
-          RETURNING *
-        `, values);
-        
-        console.log("Güncelleme sonucu:", result.rowCount, "satır etkilendi");
-        
-        if (result.rowCount === 0) {
-          console.error("Ürün bulunamadı, ID:", id);
-          return NextResponse.json(
-            { error: 'Ürün bulunamadı' },
-            { status: 404 }
-          );
-        }
-      } catch (updateError) {
-        console.error("Ana ürün güncelleme hatası:", updateError);
-        throw updateError;
-      }
-    }
-    
-    // Filamentleri güncelle
-    if (filaments && filaments.length > 0) {
-      console.log("Filament güncelleme başlıyor, toplam:", filaments.length);
-      
-      try {
-        // Önce mevcut filamentleri sil
-        console.log("Mevcut filamentler siliniyor...");
-        const deleteResult = await query(`
-          DELETE FROM product_filaments
-          WHERE product_id = $1
-        `, [id]);
-        
-        console.log("Silinen filament sayısı:", deleteResult.rowCount);
-        
-        // Yeni filamentleri ekle - sadece geçerli olanları
-        let addedCount = 0;
-        for (const filament of filaments) {
-          // Filament tipi boş olanları atla
-          if (!filament.type || filament.type.trim() === '') {
-            console.warn('Güncelleme sırasında boş filament tipi atlandı:', filament);
-            continue;
-          }
-          
-          console.log(`Filament ekleniyor: ${filament.type} - ${filament.color} - ${filament.brand} - ${filament.weight}g`);
-          
-          await query(`
-            INSERT INTO product_filaments (
-              product_id, filament_type, filament_color, 
-              filament_density, weight
-            )
-            VALUES ($1, $2, $3, $4, $5)
-          `, [
-            id, 
-            filament.type,
-            filament.color || '',
-            filament.brand || '', // brand değerini filament_density alanında tutuyoruz
-            filament.weight || 0
-          ]);
-          
-          addedCount++;
-        }
-        
-        console.log("Eklenen filament sayısı:", addedCount);
-      } catch (filamentError) {
-        console.error("Filament güncelleme hatası:", filamentError);
-        throw filamentError;
-      }
-    } else {
-      console.log("Filament güncellemesi yapılmayacak (boş veya undefined)");
-    }
-    
-    // Güncellenmiş ürünü getir
-    const updatedProductResult = await query(`
-      SELECT p.*, 
-        (SELECT json_agg(json_build_object(
-          'id', pf.id,
-          'type', pf.filament_type,
-          'color', pf.filament_color,
-          'brand', pf.filament_density,
-          'weight', pf.weight
-        ))
-        FROM product_filaments pf
-        WHERE pf.product_id = p.id) as filaments,
-        COALESCE(i.quantity, 0) as stock_quantity
-      FROM products p
-      LEFT JOIN inventory i ON i.product_id = p.id
-      WHERE p.id = $1
-    `, [id]);
-    
-    if (updatedProductResult.rows.length === 0) {
+    // Ürün kodunun benzersizliğini kontrol et
+    const existingProduct = await query(
+      'SELECT id FROM products WHERE product_code = $1',
+      [productCode]
+    );
+
+    if (existingProduct.rows.length > 0) {
       return NextResponse.json(
-        { error: 'Güncellenmiş ürün bulunamadı' },
-        { status: 404 }
+        { error: 'Bu ürün kodu zaten kullanılıyor' },
+        { status: 400 }
       );
     }
-    
-    // Frontend yapısına uygun formata dönüştür
-    const { 
-      product_code, 
-      product_type, 
-      image_path, 
-      barcode: bc2,
-      capacity,
-      dimension_x, 
-      dimension_y, 
-      dimension_z, 
-      print_time, 
-      total_gram, 
-      piece_gram, 
-      file_path, 
-      notes,
-      created_at, 
-      updated_at, 
-      stock_quantity 
-    } = updatedProductResult.rows[0];
-    
-    const formattedProduct = {
-      id,
-      code: product_code,
-      productType: product_type,
-      image: image_path,
-      barcode: bc2 || '',
-      capacity: capacity || 0,
-      dimensionX: dimension_x || 0,
-      dimensionY: dimension_y || 0,
-      dimensionZ: dimension_z || 0,
-      printTime: print_time || 0,
-      totalGram: total_gram || 0,
-      pieceGram: piece_gram || 0,
-      filePath: file_path,
-      notes: notes || '',
-      stockQuantity: parseInt(stock_quantity) || 0,
-      createdAt: created_at,
-      updatedAt: updated_at,
-      filaments: updatedProductResult.rows[0].filaments || []
-    };
-    
-    return NextResponse.json(formattedProduct);
+
+    // Transaction başlat
+    await query('BEGIN');
+
+    try {
+      // Ürünü oluştur
+      const productResult = await query(`
+        INSERT INTO products (
+          product_code, product_type, image_path, barcode, capacity,
+          dimension_x, dimension_y, dimension_z, print_time, total_gram,
+          piece_gram, file_path, notes, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        RETURNING *
+      `, [
+        productCode, productType, imagePath || null, barcode || null, capacity || 0,
+        dimensionX || 0, dimensionY || 0, dimensionZ || 0, printTime || 0, totalGram || 0,
+        pieceGram || 0, filePath || null, notes || null
+      ]);
+
+      const newProduct = productResult.rows[0];
+
+      // Filamentleri ekle
+      if (filaments && Array.isArray(filaments) && filaments.length > 0) {
+        for (const filament of filaments) {
+          await query(`
+            INSERT INTO product_filaments (
+              product_id, filament_type, filament_color, filament_density, weight
+            ) VALUES ($1, $2, $3, $4, $5)
+          `, [
+            newProduct.id,
+            filament.type,
+            filament.color,
+            filament.brand || '',
+            filament.weight || 0
+          ]);
+        }
+      }
+
+      // Stok tablosuna başlangıç kaydı ekle
+      await query(`
+        INSERT INTO inventory (product_id, quantity, updated_at)
+        VALUES ($1, 0, CURRENT_TIMESTAMP)
+      `, [newProduct.id]);
+
+      await query('COMMIT');
+
+      return NextResponse.json({
+        success: true,
+        message: 'Ürün başarıyla oluşturuldu',
+        product: newProduct
+      });
+
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+
   } catch (error) {
-    console.error('Ürün güncelleme hatası - Ana catch bloğu:', error);
-    console.error('Hata stack:', error instanceof Error ? error.stack : 'Stack bulunamadı');
-    console.error('Hata mesajı:', error instanceof Error ? error.message : String(error));
-    
+    console.error('Ürün oluşturma hatası:', error);
+    console.error('Hata detayları:', {
+      message: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return NextResponse.json(
       { 
-        error: 'Ürün güncellenirken bir hata oluştu', 
-        details: error instanceof Error ? error.message : String(error),
-        type: error instanceof Error ? error.constructor.name : typeof error
+        error: 'Ürün oluşturulurken bir hata oluştu',
+        details: error instanceof Error ? error.message : 'Bilinmeyen hata'
       },
       { status: 500 }
     );
   }
 }
-
-// Ürün sil
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Ürün ID gerekli' },
-        { status: 400 }
-      );
-    }
-    
-    // Cascade ayarlandığı için ürün silindi
-    const result = await query(`
-      DELETE FROM products
-      WHERE id = $1
-      RETURNING *
-    `, [id]);
-    
-    if (result.rowCount === 0) {
-      return NextResponse.json(
-        { error: 'Ürün bulunamadı' },
-        { status: 404 }
-      );
-    }
-    
-    return NextResponse.json({ message: 'Ürün başarıyla silindi' });
-  } catch (error) {
-    console.error('Ürün silme hatası:', error);
-    return NextResponse.json(
-      { error: 'Ürün silinirken bir hata oluştu' },
-      { status: 500 }
-    );
-  }
-} 

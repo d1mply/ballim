@@ -185,12 +185,30 @@ export default function UrunlerPage() {
         // Yeni ekleme - POST isteği
         console.log("POST isteği gönderiliyor:", JSON.stringify(productData, null, 2));
         
+        // Frontend'den API'ye veri mapping'i
+        const apiData = {
+          productCode: productData.code,
+          productType: productData.productType,
+          imagePath: productData.image,
+          barcode: productData.barcode,
+          capacity: productData.capacity,
+          dimensionX: productData.dimensionX,
+          dimensionY: productData.dimensionY,
+          dimensionZ: productData.dimensionZ,
+          printTime: productData.printTime,
+          totalGram: productData.totalGram,
+          pieceGram: productData.pieceGram,
+          filePath: productData.filePath,
+          notes: productData.notes,
+          filaments: productData.filaments
+        };
+
         const response = await fetch('/api/products', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(productData),
+          body: JSON.stringify(apiData),
         });
         
         console.log("POST isteği cevabı:", response.status, response.statusText);

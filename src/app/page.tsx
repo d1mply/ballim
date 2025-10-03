@@ -26,6 +26,15 @@ export default function HomePage() {
   // Arka plan görselleri
   const desktopBg = '/login-bg-desktop.webp';
   const mobileBg = '/login-bg-mobile.webp';
+  
+  // Katalog listesi
+  const catalogs = [
+    { name: 'Book Nook Katalog', file: 'Book Nook Katalog.pdf', description: 'Kitap köşesi tasarımları' },
+    { name: 'F1 Katalog', file: 'F1 KATALOG.pdf', description: 'Formula 1 ürünleri' },
+    { name: 'Uludağ Anahtarlık 1', file: 'ULUDAG ANAHTARLIK KATOLOG1.pdf', description: 'Anahtarlık koleksiyonu' },
+    { name: 'Uludağ Anahtarlık 2', file: 'ULUDAG ANAHTARLIK KATOLOG2.pdf', description: 'Anahtarlık koleksiyonu' },
+    { name: 'Uludağ Anahtarlık 3', file: 'ULUDAG ANAHTARLIK KATOLOG3.pdf', description: 'Anahtarlık koleksiyonu' }
+  ];
 
   // Halihazırda oturum açılmış mı kontrol et
   useEffect(() => {
@@ -184,6 +193,53 @@ export default function HomePage() {
           
           <div className="mt-4 text-center text-xs md:text-sm text-white/70">
             <p>Müşteri hesabınız ile giriş yapın</p>
+          </div>
+          
+          {/* Kataloglarımız */}
+          <div className="mt-8 pt-6 border-t border-white/30">
+            <h3 className="text-white font-bold text-lg mb-6 text-center tracking-wide">📖 Kataloglarımız</h3>
+            
+            {/* Mobil: Horizontal Scroll */}
+            <div className="md:hidden overflow-x-auto pb-4">
+              <div className="flex space-x-4 min-w-max px-1">
+                {catalogs.map((catalog, index) => (
+                  <a
+                    key={index}
+                    href={`/kataloglar/${catalog.file}`}
+                    target="_blank"
+                    className="group bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-lg rounded-xl border border-white/30 p-4 min-w-[180px] hover:from-white/25 hover:to-white/10 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-500/30 transition-colors">
+                        <span className="text-blue-300 text-xl">📄</span>
+                      </div>
+                      <h4 className="text-white font-semibold text-sm mb-2 leading-tight">{catalog.name}</h4>
+                      <p className="text-white/70 text-xs leading-relaxed">{catalog.description}</p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+            
+            {/* Masaüstü: Grid Layout */}
+            <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-4">
+              {catalogs.map((catalog, index) => (
+                <a
+                  key={index}
+                  href={`/kataloglar/${catalog.file}`}
+                  target="_blank"
+                  className="group bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-lg rounded-xl border border-white/30 p-6 hover:from-white/25 hover:to-white/10 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                >
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-500/30 transition-colors">
+                      <span className="text-blue-300 text-2xl">📄</span>
+                    </div>
+                    <h4 className="text-white font-semibold text-base mb-3">{catalog.name}</h4>
+                    <p className="text-white/70 text-sm leading-relaxed">{catalog.description}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
           </div>
           </div>
         </div>
