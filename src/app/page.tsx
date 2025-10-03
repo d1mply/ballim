@@ -139,8 +139,74 @@ export default function HomePage() {
         {/* Overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/55 to-black/50" />
 
-        {/* Sağ üstte login kutusu (mobilde ortalanır) */}
-        <div className="relative z-10 flex min-h-screen p-4 md:p-6 lg:p-10 items-start justify-center md:justify-end pointer-events-none">
+        {/* Ana içerik alanı */}
+        <div className="relative z-10 flex min-h-screen p-4 md:p-6 lg:p-10 items-start justify-between pointer-events-none">
+          
+          {/* Sol taraf - Kataloglar ve Satış Noktaları (3D yazıcıların olduğu alan) */}
+          <div className="hidden lg:block pointer-events-auto w-1/2 pr-8 space-y-6">
+            
+            {/* Kataloglar */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/30 p-8 shadow-2xl">
+              <h3 className="text-white font-bold text-2xl mb-6 text-center tracking-wide flex items-center justify-center gap-3">
+                <span className="text-3xl">📖</span>
+                Kataloglarımız
+              </h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                {catalogs.map((catalog, index) => (
+                  <a
+                    key={index}
+                    href={`/kataloglar/${catalog.file}`}
+                    target="_blank"
+                    className="group bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-lg rounded-xl border border-white/40 p-4 hover:from-white/30 hover:to-white/20 transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:scale-105 hover:-translate-y-1"
+                  >
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500/30 to-purple-500/30 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:from-blue-500/40 group-hover:to-purple-500/40 transition-all duration-300 shadow-lg">
+                        <span className="text-white text-xl">📄</span>
+                      </div>
+                      <h4 className="text-white font-bold text-sm mb-2 group-hover:text-blue-200 transition-colors leading-tight">{catalog.name}</h4>
+                      <p className="text-white/80 text-xs leading-relaxed group-hover:text-white/90 transition-colors">{catalog.description}</p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+            
+            {/* Satış Noktaları */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/30 p-6 shadow-2xl">
+              <h3 className="text-white font-bold text-xl mb-4 text-center tracking-wide flex items-center justify-center gap-2">
+                <span className="text-2xl">🏪</span>
+                Satış Noktalarımız
+              </h3>
+              
+              <div className="flex flex-wrap gap-3 justify-center">
+                {salesPoints.map((point, index) => {
+                  let displayName = resolvedNames[point.url || ''] || point.name;
+                  // Google Haritalar/Maps gibi başlıklar geldiyse kendi ismimizi kullan
+                  if (displayName && /google\s*(maps|haritalar)/i.test(displayName)) {
+                    displayName = point.name;
+                  }
+                  return (
+                    <a
+                      key={index}
+                      href={point.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-400/30 text-green-200 px-4 py-2 rounded-full text-sm font-medium hover:from-green-500/30 hover:to-emerald-500/30 hover:border-green-400/50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg"
+                    >
+                      {displayName}
+                    </a>
+                  );
+                })}
+              </div>
+              
+              <p className="text-white/60 text-center mt-3 text-sm">
+                {salesPoints.length}+ iş ortağı
+              </p>
+            </div>
+          </div>
+          
+          {/* Sağ taraf - Login kutusu */}
           <div className="pointer-events-auto bg-neutral-900/85 text-white backdrop-blur-sm border border-white/10 rounded-xl p-5 md:p-7 w-full max-w-md shadow-2xl">
           <div className="text-center mb-6">
             <h1 className="text-3xl font-extrabold tracking-tight text-white drop-shadow">Ballim</h1>
@@ -195,86 +261,68 @@ export default function HomePage() {
             <p>Müşteri hesabınız ile giriş yapın</p>
           </div>
           
-          {/* Kataloglarımız */}
-          <div className="mt-8 pt-6 border-t border-white/30">
-            <h3 className="text-white font-bold text-lg mb-6 text-center tracking-wide">📖 Kataloglarımız</h3>
+          {/* Mobil için kataloglar ve satış noktaları - alt kısımda */}
+          <div className="lg:hidden mt-8 pt-6 border-t border-white/30 space-y-6">
             
-            {/* Mobil: Horizontal Scroll */}
-            <div className="md:hidden overflow-x-auto pb-4">
-              <div className="flex space-x-4 min-w-max px-1">
-                {catalogs.map((catalog, index) => (
-                  <a
-                    key={index}
-                    href={`/kataloglar/${catalog.file}`}
-                    target="_blank"
-                    className="group bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-lg rounded-xl border border-white/30 p-4 min-w-[180px] hover:from-white/25 hover:to-white/10 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    <div className="text-center">
-                      <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-500/30 transition-colors">
-                        <span className="text-blue-300 text-xl">📄</span>
+            {/* Kataloglar */}
+            <div>
+              <h3 className="text-white font-bold text-lg mb-4 text-center tracking-wide">📖 Kataloglarımız</h3>
+              
+              <div className="overflow-x-auto pb-4">
+                <div className="flex space-x-4 min-w-max px-1">
+                  {catalogs.map((catalog, index) => (
+                    <a
+                      key={index}
+                      href={`/kataloglar/${catalog.file}`}
+                      target="_blank"
+                      className="group bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-lg rounded-xl border border-white/30 p-4 min-w-[160px] hover:from-white/25 hover:to-white/10 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                    >
+                      <div className="text-center">
+                        <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-2 group-hover:bg-blue-500/30 transition-colors">
+                          <span className="text-blue-300 text-lg">📄</span>
+                        </div>
+                        <h4 className="text-white font-semibold text-xs mb-1 leading-tight">{catalog.name}</h4>
+                        <p className="text-white/70 text-xs leading-relaxed">{catalog.description}</p>
                       </div>
-                      <h4 className="text-white font-semibold text-sm mb-2 leading-tight">{catalog.name}</h4>
-                      <p className="text-white/70 text-xs leading-relaxed">{catalog.description}</p>
-                    </div>
-                  </a>
-                ))}
+                    </a>
+                  ))}
+                </div>
               </div>
             </div>
             
-            {/* Masaüstü: Grid Layout */}
-            <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-4">
-              {catalogs.map((catalog, index) => (
-                <a
-                  key={index}
-                  href={`/kataloglar/${catalog.file}`}
-                  target="_blank"
-                  className="group bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-lg rounded-xl border border-white/30 p-6 hover:from-white/25 hover:to-white/10 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                >
-                  <div className="text-center">
-                    <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-500/30 transition-colors">
-                      <span className="text-blue-300 text-2xl">📄</span>
-                    </div>
-                    <h4 className="text-white font-semibold text-base mb-3">{catalog.name}</h4>
-                    <p className="text-white/70 text-sm leading-relaxed">{catalog.description}</p>
-                  </div>
-                </a>
-              ))}
+            {/* Satış Noktaları */}
+            <div>
+              <h3 className="text-white font-bold text-lg mb-4 text-center tracking-wide">🏪 Satış Noktalarımız</h3>
+              
+              <div className="flex flex-wrap gap-2 justify-center">
+                {salesPoints.map((point, index) => {
+                  let displayName = resolvedNames[point.url || ''] || point.name;
+                  // Google Haritalar/Maps gibi başlıklar geldiyse kendi ismimizi kullan
+                  if (displayName && /google\s*(maps|haritalar)/i.test(displayName)) {
+                    displayName = point.name;
+                  }
+                  return (
+                    <a
+                      key={index}
+                      href={point.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-400/30 text-green-200 px-3 py-2 rounded-full text-xs font-medium hover:from-green-500/30 hover:to-emerald-500/30 hover:border-green-400/50 transition-all duration-300 transform hover:scale-105"
+                    >
+                      {displayName}
+                    </a>
+                  );
+                })}
+              </div>
+              
+              <p className="text-white/60 text-center mt-3 text-xs">
+                {salesPoints.length}+ iş ortağı
+              </p>
             </div>
           </div>
           </div>
         </div>
 
-        {/* Satış Noktalarımız */}
-        <div className="pointer-events-none absolute bottom-3 left-3 right-3 md:left-8 md:right-auto md:max-w-3xl z-10">
-          <div className="bg-black/40 text-white backdrop-blur rounded-xl border border-white/10 p-3 md:p-4 shadow-lg">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base md:text-lg font-semibold">Satış Noktalarımız</h2>
-              <span className="text-xs md:text-sm opacity-80">{salesPoints.length}+ iş ortağı</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 md:gap-3">
-              {salesPoints.map((sp, idx) => {
-                let displayName = (sp.url && resolvedNames[sp.url]) ? resolvedNames[sp.url] : sp.name;
-                // Google Haritalar/Maps gibi başlıklar geldiyse kendi ismimizi kullan
-                if (displayName && /google\s*(maps|haritalar)/i.test(displayName)) {
-                  displayName = sp.name;
-                }
-                return (
-                  <a
-                    key={`${sp.name}-${idx}`}
-                    href={sp.url || '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={displayName}
-                    title={displayName}
-                    className="pointer-events-auto flex items-center text-xs md:text-sm px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg border border-white/10 truncate transition-colors"
-                  >
-                    <span className="truncate">{displayName}{sp.city ? ` - ${sp.city}` : ''}</span>
-                  </a>
-                );
-              })}
-            </div>
-          </div>
-        </div>
       </div>
     </Layout>
   );
