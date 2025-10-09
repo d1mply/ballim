@@ -178,33 +178,34 @@ INSERT INTO customers (customer_code, name, phone, email, customer_type, custome
 VALUES ('STOK-001', 'STOK', '0000000000', 'stok@ballim.com', 'Kurumsal', 'normal', 'stok', 'stok123')
 ON CONFLICT (username) DO NOTHING;
 
--- 16. Bazı örnek filament verileri ekle
-INSERT INTO filaments (filament_code, name, type, brand, color, location, total_weight, remaining_weight, quantity, critical_stock, temp_range, cap, price_per_gram) VALUES
-('pla-beyaz-001', 'PLA Beyaz', 'PLA', 'Generic', 'Beyaz', 'Raf A', 1000, 1000, 1, 200, '190-220', '0.4', 0.02),
-('pla-siyah-002', 'PLA Siyah', 'PLA', 'Generic', 'Siyah', 'Raf A', 1000, 800, 1, 200, '190-220', '0.4', 0.02),
-('pla-kirmizi-003', 'PLA Kırmızı', 'PLA', 'Generic', 'Kırmızı', 'Raf B', 1000, 1000, 1, 200, '190-220', '0.4', 0.02)
-ON CONFLICT (filament_code) DO NOTHING;
-
--- 17. Bazı örnek ürün verileri ekle
+-- 16. Bazı örnek ürün verileri ekle (ÖNCELİKLE ÜRÜNLER!)
 INSERT INTO products (product_code, product_type, capacity, total_gram, piece_gram, notes) VALUES
 ('book-nook-001', 'Book Nook', 10, 100, 10, 'Kitap köşesi tasarımı'),
 ('f1-model-002', 'F1 Model', 5, 50, 10, 'Formula 1 modeli'),
 ('anahtarlik-003', 'Anahtarlık', 20, 40, 2, 'Uludağ anahtarlık')
 ON CONFLICT (product_code) DO NOTHING;
 
--- 18. Ürün filament ilişkileri ekle
-INSERT INTO product_filaments (product_id, filament_type, filament_color, filament_density, weight) VALUES
-(1, 'PLA', 'Beyaz', '1.24', 10),
-(1, 'PLA', 'Siyah', '1.24', 5),
-(2, 'PLA', 'Kırmızı', '1.24', 10),
-(3, 'PLA', 'Beyaz', '1.24', 2)
+-- 17. Bazı örnek filament verileri ekle
+INSERT INTO filaments (filament_code, name, type, brand, color, location, total_weight, remaining_weight, quantity, critical_stock, temp_range, cap, price_per_gram) VALUES
+('pla-beyaz-001', 'PLA Beyaz', 'PLA', 'Generic', 'Beyaz', 'Raf A', 1000, 1000, 1, 200, '190-220', '0.4', 0.02),
+('pla-siyah-002', 'PLA Siyah', 'PLA', 'Generic', 'Siyah', 'Raf A', 1000, 800, 1, 200, '190-220', '0.4', 0.02),
+('pla-kirmizi-003', 'PLA Kırmızı', 'PLA', 'Generic', 'Kırmızı', 'Raf B', 1000, 1000, 1, 200, '190-220', '0.4', 0.02)
+ON CONFLICT (filament_code) DO NOTHING;
+
+-- 18. Ürün filament ilişkileri ekle (ürün ID'leri var olduğunda)
+INSERT INTO product_filaments (product_id, filament_type, filament_color, filament_density, weight) 
+SELECT p.id, 'PLA', 'Beyaz', '1.24', 10 FROM products p WHERE p.product_code = 'book-nook-001'
+UNION ALL
+SELECT p.id, 'PLA', 'Siyah', '1.24', 5 FROM products p WHERE p.product_code = 'book-nook-001'
+UNION ALL
+SELECT p.id, 'PLA', 'Kırmızı', '1.24', 10 FROM products p WHERE p.product_code = 'f1-model-002'
+UNION ALL
+SELECT p.id, 'PLA', 'Beyaz', '1.24', 2 FROM products p WHERE p.product_code = 'anahtarlik-003'
 ON CONFLICT DO NOTHING;
 
--- 19. Başlangıç stok verileri ekle
-INSERT INTO inventory (product_id, quantity) VALUES
-(1, 0),
-(2, 0),
-(3, 0)
+-- 19. Başlangıç stok verileri ekle (dinamik product_id)
+INSERT INTO inventory (product_id, quantity) 
+SELECT id, 0 FROM products WHERE product_code IN ('book-nook-001', 'f1-model-002', 'anahtarlik-003')
 ON CONFLICT (product_id) DO NOTHING;
 
 -- 20. Toptan satış fiyat aralıkları ekle
