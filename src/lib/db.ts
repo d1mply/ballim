@@ -6,14 +6,8 @@ export const pool = new Pool(
   // DATABASE_URL'in direkt kullanılmasını sağlıyorum, fazladan SSL parametresi eklenmesini engelliyorum.
   // process.env.DATABASE_URL.includes('?') ? '&sslmode=require' : '?sslmode=require'
   process.env.DATABASE_URL ? {
-    connectionString: process.env.DATABASE_URL ? process.env.DATABASE_URL : undefined,
-    // Render'da DATABASE_URL varsa onu kullan, yoksa individual env variables kullan
-    // DATABASE_URL'in direkt kullanılmasını sağlıyorum, fazladan SSL parametresi eklenmesini engelliyorum.
-    // process.env.DATABASE_URL.includes('?') ? '&sslmode=require' : '?sslmode=require'
-    ssl: {
-      rejectUnauthorized: false
-    },
-    // Connection pool optimization
+    connectionString: process.env.DATABASE_URL,
+    ssl: false,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
