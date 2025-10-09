@@ -542,6 +542,19 @@ export async function createTables() {
     success = false;
   }
 
+  // Sistem müşterisi oluştur (stok üretimleri için)
+  try {
+    await query(`
+      INSERT INTO customers (customer_code, name, phone, email, customer_type, customer_category, username, password) 
+      VALUES ('STOK-001', 'STOK', '0000000000', 'stok@ballim.com', 'Kurumsal', 'normal', 'stok', 'stok123')
+      ON CONFLICT (username) DO NOTHING
+    `);
+    console.log('Sistem müşterisi (STOK) oluşturuldu veya zaten mevcut');
+  } catch (error) {
+    console.error('Sistem müşterisi oluşturulurken hata:', error);
+    success = false;
+  }
+
   if (success) {
     console.log('Tüm tablolar başarıyla oluşturuldu veya zaten mevcuttu');
   } else {

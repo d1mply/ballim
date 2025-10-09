@@ -174,8 +174,8 @@ ADD COLUMN IF NOT EXISTS customer_category VARCHAR(20) DEFAULT 'normal',
 ADD COLUMN IF NOT EXISTS discount_rate FLOAT DEFAULT 0;
 
 -- 15. Sistem müşterisi oluştur (stok üretimleri için)
-INSERT INTO customers (name, email, customer_type, customer_category, username, password) 
-VALUES ('STOK', 'stok@ballim.com', 'Kurumsal', 'normal', 'stok', 'stok123')
+INSERT INTO customers (customer_code, name, phone, email, customer_type, customer_category, username, password) 
+VALUES ('STOK-001', 'STOK', '0000000000', 'stok@ballim.com', 'Kurumsal', 'normal', 'stok', 'stok123')
 ON CONFLICT (username) DO NOTHING;
 
 -- 16. Bazı örnek filament verileri ekle
