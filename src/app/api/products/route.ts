@@ -77,7 +77,11 @@ export async function GET() {
   } catch (error) {
     console.error('Ürünleri getirme hatası:', error);
     return NextResponse.json(
-      { error: 'Ürünler getirilirken bir hata oluştu' },
+      { 
+        error: 'Ürünler getirilirken bir hata oluştu',
+        details: error instanceof Error ? error.message : 'Bilinmeyen hata',
+        stack: error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     );
   }
