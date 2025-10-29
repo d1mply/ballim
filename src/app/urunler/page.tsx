@@ -245,7 +245,7 @@ export default function UrunlerPage() {
     if (confirmDelete) {
       try {
         // API'den sil - DELETE isteği
-        const response = await fetch(`/api/products?id=${productId}`, {
+        const response = await fetch(`/api/products/${productId}`, {
           method: 'DELETE',
         });
         

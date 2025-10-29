@@ -86,3 +86,64 @@ export async function GET(
     );
   }
 }
+
+// Ürünü sil
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const productId = parseInt(params.id) || params.id;
+    console.log('Ürün silme işlemi başlatıldı:', { productId, originalId: params.id });
+
+    // Önce ürünün bağlı siparişleri kontrol et
+    const orderCheck = await query(`
+      SELECT COUNT(*) as order_count
+      FROM order_items oi
+      WHERE oi.product_id = $1
+    `, [productId]);
+
+    console.log('Sipariş kontrolü sonucu:', orderCheck.rows[0]);
+
+    if (parseInt(orderCheck.rows[0].order_count) > 0) {
+      console.log('Ürün siparişlerde kullanılıyor, silme engellendi');
+      return NextResponse.json(
+        { error: 'Bu ürün siparişlerde kullanıldığı için silinemez' },
+        { status: 400 }
+      );
+    }
+
+    // Ürünü sil (CASCADE ile product_filaments ve inventory otomatik silinir)
+    console.log('Ürün siliniyor...');
+    const result = await query(`
+      DELETE FROM products 
+      WHERE id = $1 OR product_code = $1
+    `, [productId]);
+
+    console.log('Silme sonucu:', { rowCount: result.rowCount });
+
+    if (result.rowCount === 0) {
+      return NextResponse.json(
+        { error: 'Ürün bulunamadı' },
+        { status: 404 }
+      );
+    }
+
+    console.log('Ürün başarıyla silindi');
+    return NextResponse.json(
+      { message: 'Ürün başarıyla silindi' },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('Ürün silme hatası:', error);
+    console.error('Hata detayları:', {
+      message: error.message,
+      stack: error.stack,
+      productId: params?.id
+    });
+    return NextResponse.json(
+      { error: 'Ürün silinirken bir hata oluştu', details: error.message },
+      { status: 500 }
+    );
+  }
+}
