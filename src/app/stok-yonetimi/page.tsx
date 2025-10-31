@@ -146,7 +146,7 @@ export default function StokYonetimiPage() {
           customerId: null, // Stok üretimi için müşteri yok
           customerName: 'STOK', // Müşteri adı olarak STOK göster
           products: [{
-            productId: selectedProduct.id,
+            productId: selectedProduct.id, 
             quantity: quantity,
             unitPrice: 0 // Stok üretimi için fiyat 0
           }],

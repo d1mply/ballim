@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
+import { parseIntSafe } from '@/lib/validation';
 import { handleApiError, handleDatabaseError, validateFilamentData } from '../../../lib/errors';
 
 // Tüm filamentleri getir
@@ -226,7 +227,9 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const idStr = searchParams.get('id');
+    const force = (searchParams.get('force') || 'false').toLowerCase() === 'true';
+    const id = parseIntSafe(idStr, 'Filament ID');
     
     if (!id) {
       return NextResponse.json(
@@ -234,7 +237,47 @@ export async function DELETE(request: NextRequest) {
         { status: 400 }
       );
     }
-    
+    // İlişkili kayıt kontrolü: ürün bağları veya kullanım geçmişi varsa silmeyi engelle (Senaryo4)
+    const relations = await query(
+      `SELECT 
+          (SELECT COUNT(*) FROM product_filaments pf 
+             WHERE pf.filament_type = f.type AND pf.filament_color = f.color) AS product_links,
+          (SELECT COUNT(*) FROM filament_usage fu WHERE fu.filament_id = f.id) AS usage_logs
+       FROM filaments f WHERE f.id = $1`,
+      [id]
+    );
+
+    const productLinks = parseInt(relations.rows[0]?.product_links || '0', 10);
+    const usageLogs = parseInt(relations.rows[0]?.usage_logs || '0', 10);
+    if (productLinks > 0 || usageLogs > 0) {
+      // Force yalnızca ürün ilişkisi yoksa ve sadece kullanım geçmişi varsa izinli
+      if (force && productLinks === 0 && usageLogs > 0) {
+        await query('BEGIN');
+        try {
+          await query('DELETE FROM filament_usage WHERE filament_id = $1', [id]);
+          const delRes = await query('DELETE FROM filaments WHERE id = $1 RETURNING *', [id]);
+          await query('COMMIT');
+          if (delRes.rowCount === 0) {
+            return NextResponse.json({ error: 'Filament bulunamadı' }, { status: 404 });
+          }
+          return NextResponse.json({ message: 'Filament ve kullanım geçmişi silindi', deletedId: id });
+        } catch (e) {
+          await query('ROLLBACK');
+          throw e;
+        }
+      }
+
+      return NextResponse.json(
+        { 
+          error: `Bu filament silinemedi. İlişkili ürün sayısı: ${productLinks}, kullanım geçmişi: ${usageLogs}.`,
+          productLinks,
+          usageLogs,
+          resolvable: productLinks === 0 && usageLogs > 0
+        },
+        { status: 400 }
+      );
+    }
+
     const result = await query(`
       DELETE FROM filaments
       WHERE id = $1

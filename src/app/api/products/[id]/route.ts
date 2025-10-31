@@ -4,10 +4,11 @@ import { query } from '../../../../lib/db';
 // Belirli bir ürünü getir
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const productId = params.id;
+    const { id } = await params;
+    const productId = id;
 
     // Ürün ve filament detaylarını getir - rezerve stok sistemi ile
     const result = await query(`
@@ -90,25 +91,33 @@ export async function GET(
 // Ürünü sil
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  let id: string;
   try {
-    const productId = parseInt(params.id) || params.id;
-    console.log('Ürün silme işlemi başlatıldı:', { productId, originalId: params.id });
+    const resolvedParams = await params;
+    id = resolvedParams.id;
+    const productId = parseInt(id) || id;
+    console.log('Ürün silme işlemi başlatıldı:', { productId, originalId: id });
 
-    // Önce ürünün bağlı siparişleri kontrol et
+    // Önce ürünün aktif siparişlerde kullanılıp kullanılmadığını kontrol et
+    // Yalnızca üretim/teslim öncesi durumları engelleriz
     const orderCheck = await query(`
-      SELECT COUNT(*) as order_count
+      SELECT COUNT(*) AS order_count
       FROM order_items oi
-      WHERE oi.product_id = $1
-    `, [productId]);
+      WHERE (oi.product_id = $1::integer OR oi.product_id = (
+               SELECT id FROM products WHERE product_code = $2
+             ))
+        AND oi.status IN ('onay_bekliyor','uretiliyor','uretildi','hazirlaniyor')
+    `, [productId, id]);
 
     console.log('Sipariş kontrolü sonucu:', orderCheck.rows[0]);
 
-    if (parseInt(orderCheck.rows[0].order_count) > 0) {
-      console.log('Ürün siparişlerde kullanılıyor, silme engellendi');
+    const activeOrderCount = parseInt(orderCheck.rows[0].order_count);
+    if (activeOrderCount > 0) {
+      console.log('Ürün aktif siparişlerde kullanılıyor, silme engellendi');
       return NextResponse.json(
-        { error: 'Bu ürün siparişlerde kullanıldığı için silinemez' },
+        { error: `Bu ürün aktif siparişlerde (${activeOrderCount}) kullanıldığı için silinemez. Lütfen ilgili siparişleri tamamlayın veya iptal edin.` },
         { status: 400 }
       );
     }
@@ -117,8 +126,9 @@ export async function DELETE(
     console.log('Ürün siliniyor...');
     const result = await query(`
       DELETE FROM products 
-      WHERE id = $1 OR product_code = $1
-    `, [productId]);
+      WHERE id = $1::integer OR product_code = $2
+      RETURNING id
+    `, [productId, id]);
 
     console.log('Silme sonucu:', { rowCount: result.rowCount });
 
@@ -134,15 +144,15 @@ export async function DELETE(
       { message: 'Ürün başarıyla silindi' },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ürün silme hatası:', error);
     console.error('Hata detayları:', {
-      message: error.message,
-      stack: error.stack,
-      productId: params?.id
+      message: error?.message || 'Bilinmeyen hata',
+      stack: error?.stack,
+      productId: id || 'Bilinmiyor'
     });
     return NextResponse.json(
-      { error: 'Ürün silinirken bir hata oluştu', details: error.message },
+      { error: 'Ürün silinirken bir hata oluştu', details: error?.message || 'Bilinmeyen hata' },
       { status: 500 }
     );
   }

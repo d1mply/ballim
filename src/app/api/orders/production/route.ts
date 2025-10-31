@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
+import { cacheGet, cacheSet } from '@/lib/cache';
 
 // Üretim için siparişleri getir - Basitleştirilmiş
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')));
+    const offset = (page - 1) * limit;
+
+    const cacheKey = `prod_orders:${page}:${limit}`;
+    const cached = cacheGet<any>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
+    const countRes = await query(`
+      SELECT COUNT(DISTINCT o.id) AS cnt
+      FROM orders o
+      WHERE o.status IN ('Onay Bekliyor', 'Üretimde', 'Üretildi', 'Hazırlanıyor', 'Hazırlandı')
+    `);
+    const totalCount = parseInt(countRes.rows[0]?.cnt || '0', 10);
+
     const result = await query(`
       SELECT 
         o.id,
@@ -60,12 +79,23 @@ export async function GET() {
       WHERE o.status IN ('Onay Bekliyor', 'Üretimde', 'Üretildi', 'Hazırlanıyor', 'Hazırlandı')
       GROUP BY o.id, o.order_code, o.customer_id, o.status, o.total_amount, o.order_date, c.name, o.notes
       ORDER BY o.created_at DESC
-      LIMIT 50
-    `);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
 
     console.log('📊 Üretim siparişleri:', result.rows.length, 'sipariş bulundu');
-    
-    return NextResponse.json(result.rows);
+
+    const payload = {
+      data: result.rows,
+      meta: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.max(1, Math.ceil(totalCount / limit))
+      }
+    };
+
+    cacheSet(cacheKey, payload, 30_000);
+    return NextResponse.json(payload);
   } catch (error) {
     console.error('Üretim siparişleri getirme hatası:', error);
     return NextResponse.json(

@@ -1,4 +1,5 @@
 import { query } from './db';
+import { logStockEvent } from './audit';
 
 // Stok operasyonları
 export enum StockOperation {
@@ -163,6 +164,8 @@ export async function processStockOperation(
     }
     
     await query('COMMIT');
+    // Audit log
+    await logStockEvent(productId, operation, quantity);
     
     // Yeni stok durumunu al
     const newStock = await getStockStatus(productId);

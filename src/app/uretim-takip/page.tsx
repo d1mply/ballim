@@ -48,10 +48,12 @@ export default function UretimTakipPage() {
   const fetchOrders = async () => {
     try {
       setIsLoading(true);
-      const response = await apiGet<OrderItem[]>('/api/orders/production');
+      const response = await apiGet<any>('/api/orders/production');
       
       if (response.success && response.data) {
-        const formattedOrders = response.data.map((order: any) => ({
+        const raw = response.data;
+        const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+        const formattedOrders = list.map((order: any) => ({
           id: order.id,
           orderCode: order.order_code || order.id,
           customerName: order.customer_name || 'Pazaryeri Müşterisi',
@@ -71,9 +73,9 @@ export default function UretimTakipPage() {
             filaments: Array.isArray(p.filaments) ? p.filaments : []
           })) : []
         }));
-        
-        setOrders(formattedOrders);
-        setFilteredOrders(formattedOrders);
+      
+      setOrders(formattedOrders);
+      setFilteredOrders(formattedOrders);
       } else {
         setError(response.error || 'Siparişler yüklenemedi');
       }
@@ -82,7 +84,7 @@ export default function UretimTakipPage() {
       setError('Siparişler yüklenirken bir hata oluştu');
     } finally {
       setIsLoading(false);
-    }
+      }
   };
 
   // Siparişleri yükle
@@ -130,7 +132,7 @@ export default function UretimTakipPage() {
   // Üretim onaylandı
   const handleProductionConfirm = async (formData: ProductionFormData) => {
     if (!selectedOrderItem || !selectedProduct) return;
-    
+
     try {
       const targetStatus = formData.skipProduction ? 'Hazırlandı' : 'Üretimde';
       
@@ -182,7 +184,7 @@ export default function UretimTakipPage() {
           
           {/* Filtre */}
           <div className="flex gap-2">
-            <select
+            <select 
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -203,20 +205,20 @@ export default function UretimTakipPage() {
             </button>
           </div>
         </div>
-
+        
         {/* Hata mesajı */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
             <p className="text-red-800">{error}</p>
           </div>
         )}
-
+      
         {/* Yükleme durumu */}
         {isLoading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
             <p className="mt-4 text-gray-600">Siparişler yükleniyor...</p>
-          </div>
+                      </div>
         ) : (
           <>
             {/* Sipariş sayısı */}
@@ -224,8 +226,8 @@ export default function UretimTakipPage() {
               <p className="text-gray-600">
                 Toplam {filteredOrders.length} sipariş gösteriliyor
               </p>
-            </div>
-
+              </div>
+              
             {/* Sipariş listesi */}
             {filteredOrders.length === 0 ? (
               <div className="text-center py-12">
@@ -236,9 +238,9 @@ export default function UretimTakipPage() {
                     ? 'Henüz hiç sipariş bulunmuyor.' 
                     : 'Bu durumda sipariş bulunmuyor.'
                   }
-                </p>
-              </div>
-            ) : (
+                  </p>
+                </div>
+              ) : (
               <div className="grid gap-6">
                 {filteredOrders.map((order) => (
                   <OrderCard
@@ -251,8 +253,8 @@ export default function UretimTakipPage() {
               </div>
             )}
           </>
-        )}
-
+      )}
+      
         {/* Modal */}
         <ProductionModal
           isOpen={productionModal}
@@ -268,4 +270,4 @@ export default function UretimTakipPage() {
       </div>
     </Layout>
   );
-}
+} 

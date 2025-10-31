@@ -83,9 +83,10 @@ export default function SiparisTakipPage() {
         
         const data = await response.json();
         
-        // Veri kontrolü ve dönüşümü
-        if (Array.isArray(data)) {
-          const formattedOrders = data.map(order => ({
+        // Veri kontrolü ve dönüşümü (dizi veya {data, meta})
+        const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+        if (Array.isArray(list)) {
+          const formattedOrders = list.map((order: any) => ({
             id: order.id || '',
             orderCode: order.order_code || order.id || '',
             customerName: order.customer_name || order.customerName || '',
@@ -173,7 +174,8 @@ export default function SiparisTakipPage() {
       const ordersResponse = await fetch(apiUrl);
       if (ordersResponse.ok) {
         const ordersData = await ordersResponse.json();
-        const formattedOrders = ordersData.map((order: any) => ({
+        const list = Array.isArray(ordersData) ? ordersData : (Array.isArray(ordersData?.data) ? ordersData.data : []);
+        const formattedOrders = list.map((order: any) => ({
           id: order.id || '',
           orderCode: order.order_code || order.id || '',
           customerName: order.customer_name || order.customerName || '',

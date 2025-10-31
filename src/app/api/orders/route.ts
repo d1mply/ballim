@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
+import { parseIntSafe } from '@/lib/validation';
+import { logOrderEvent } from '@/lib/audit';
 
 // Siparişleri getir - Basitleştirilmiş ve müşteri izolasyonu ile
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const customerId = searchParams.get('customerId');
-    
-    let queryText = `
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')));
+    const offset = (page - 1) * limit;
+
+    // Toplam kayıt sayısı
+    const countParams: any[] = [];
+    let countQuery = `SELECT COUNT(DISTINCT o.id) AS cnt FROM orders o`;
+    if (customerId) {
+      countQuery += ` WHERE o.customer_id = $1`;
+      countParams.push(customerId);
+    }
+    const countRes = await query(countQuery, countParams);
+    const totalCount = parseInt(countRes.rows[0]?.cnt || '0', 10);
+
+    // Liste sorgusu (N+1 azaltılmış, ürünler json_agg ile)
+    const listParams: any[] = [];
+    let listQuery = `
       SELECT 
         o.id,
         o.order_code,
@@ -23,7 +40,7 @@ export async function GET(request: NextRequest) {
               'code', oi.product_code,
               'name', oi.product_name,
               'quantity', oi.quantity,
-              'status', oi.status
+              'status', COALESCE(oi.status, 'onay_bekliyor')
             )
           ) FILTER (WHERE oi.id IS NOT NULL),
           '[]'::json
@@ -32,21 +49,26 @@ export async function GET(request: NextRequest) {
       LEFT JOIN customers c ON c.id = o.customer_id
       LEFT JOIN order_items oi ON oi.order_id = o.id
     `;
-    
-    const queryParams = [];
-    
-    // Müşteri izolasyonu
     if (customerId) {
-      queryText += ` WHERE o.customer_id = $1`;
-      queryParams.push(customerId);
+      listQuery += ` WHERE o.customer_id = $1`;
+      listParams.push(customerId);
     }
-    
-    queryText += ` GROUP BY o.id, o.order_code, o.customer_id, o.status, o.total_amount, o.order_date, c.name
-                   ORDER BY o.created_at DESC LIMIT 50`;
-    
-    const result = await query(queryText, queryParams);
+    listParams.push(limit);
+    listParams.push(offset);
+    listQuery += ` GROUP BY o.id, o.order_code, o.customer_id, o.status, o.total_amount, o.order_date, c.name
+                   ORDER BY o.created_at DESC LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`;
 
-    return NextResponse.json(result.rows);
+    const result = await query(listQuery, listParams);
+
+    return NextResponse.json({
+      data: result.rows,
+      meta: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.max(1, Math.ceil(totalCount / limit))
+      }
+    });
   } catch (error) {
     console.error('Siparişleri getirme hatası:', error);
     return NextResponse.json(
@@ -87,7 +109,7 @@ export async function POST(request: NextRequest) {
       const seqResult = await query(`SELECT nextval('${sequenceName}') as order_number`);
       const orderNumber = seqResult.rows[0].order_number;
       orderCode = `${prefix}-${orderNumber}`;
-      console.log('📝 Sipariş kodu oluşturuldu:', orderCode);
+    console.log('📝 Sipariş kodu oluşturuldu:', orderCode);
     } catch (seqError) {
       // Sequence yoksa fallback: timestamp kullan
       console.warn('⚠️ Sequence bulunamadı, timestamp kullanılıyor:', seqError);
@@ -200,7 +222,8 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const orderId = searchParams.get('id');
+    const orderIdStr = searchParams.get('id');
+    const orderId = parseIntSafe(orderIdStr, 'Sipariş ID');
 
     if (!orderId) {
       return NextResponse.json(
@@ -209,18 +232,70 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Sipariş ürünlerini sil
+    // Siparişi ve ürünlerini getir
+    const orderResult = await query(
+      `SELECT id, status FROM orders WHERE id = $1`,
+      [orderId]
+    );
+
+    if (orderResult.rowCount === 0) {
+      return NextResponse.json(
+        { error: 'Sipariş bulunamadı' },
+        { status: 404 }
+      );
+    }
+
+    const itemsResult = await query(
+      `SELECT product_id, quantity, status FROM order_items WHERE order_id = $1`,
+      [orderId]
+    );
+
+    // Üretim aşamasındaki siparişlerin silinmesini engelle (Senaryo3)
+    const blockedStatuses = new Set(['uretiliyor', 'uretildi', 'hazirlaniyor']);
+    if (itemsResult.rows.some((r: any) => blockedStatuses.has((r.status || '').toLowerCase()))) {
+      return NextResponse.json(
+        { error: 'Bu sipariş üretim sürecinde olduğu için silinemez. Lütfen önce süreci tamamlayın veya iptal edin.' },
+        { status: 400 }
+      );
+    }
+
+    // Transaction
+    await query('BEGIN');
+
+    // Senaryo1 ve Senaryo2: Rezerveyi sıfırla, hazırlandı olanların stoklarını geri ekle
+    // Not: Filament asla geri alınmaz
+    for (const item of itemsResult.rows) {
+      const status = (item.status || '').toLowerCase();
+      if (status === 'hazirlandi') {
+        await query(
+          `INSERT INTO inventory (product_id, quantity, updated_at)
+           VALUES ($1, $2, CURRENT_TIMESTAMP)
+           ON CONFLICT (product_id) DO UPDATE SET
+             quantity = inventory.quantity + EXCLUDED.quantity,
+             updated_at = CURRENT_TIMESTAMP`,
+          [item.product_id, item.quantity]
+        );
+      }
+    }
+
+    // order_items sil (Senaryo2: rezerve otomatik 0'a düşer)
     await query('DELETE FROM order_items WHERE order_id = $1', [orderId]);
     
     // Siparişi sil
     await query('DELETE FROM orders WHERE id = $1', [orderId]);
 
+    await query('COMMIT');
+    await logOrderEvent(orderId, 'ORDER_DELETED', {
+      restoredStockForReadyItems: itemsResult.rows.filter((r: any) => (r.status || '').toLowerCase() === 'hazirlandi').length
+    });
+
     return NextResponse.json({
       success: true,
-      message: 'Sipariş başarıyla silindi'
+      message: 'Sipariş silindi. Rezerve sıfırlandı, hazır olan ürünler stoğa iade edildi. Filament geri alınmadı.'
     });
 
   } catch (error) {
+    await query('ROLLBACK').catch(() => undefined);
     console.error('Sipariş silme hatası:', error);
     return NextResponse.json(
       { error: 'Sipariş silinirken bir hata oluştu' },

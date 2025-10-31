@@ -12,6 +12,8 @@ import {
   SECURITY_CONFIG
 } from '../../../lib/security';
 import bcrypt from 'bcrypt';
+import { signJWT } from '@/lib/jwt';
+import { logAuthEvent } from '@/lib/audit';
 
 // Kullanıcı girişi
 export async function POST(request: NextRequest) {
@@ -237,24 +239,32 @@ export async function POST(request: NextRequest) {
     }
     
     if (isValid && userData) {
-      // Başarılı giriş
+      // Başarılı giriş → JWT üret ve HttpOnly cookie olarak ayarla
+      const token = signJWT({
+        sub: String(userData.id),
+        username: userData.username,
+        role: userData.type,
+      }, Math.floor(SECURITY_CONFIG.SESSION_MAX_AGE / 1000));
+
       const response = NextResponse.json({ 
         success: true, 
-        user: userData 
+        user: userData
       });
-      
-      // Güvenli session cookie
-      response.cookies.set('auth-token', JSON.stringify(userData), {
+
+      response.cookies.set('auth-token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: SECURITY_CONFIG.SESSION_MAX_AGE,
+        sameSite: 'lax',
+        maxAge: Math.floor(SECURITY_CONFIG.SESSION_MAX_AGE / 1000),
         path: '/'
       });
-      
+
+      // Audit
+      await logAuthEvent(String(userData.id), 'LOGIN_SUCCESS', clientIP, userAgent);
       return response;
     } else {
       // Başarısız giriş - generic error message (bilgi sızdırma önleme)
+      await logAuthEvent(null, 'LOGIN_FAILED', clientIP, userAgent);
       return NextResponse.json({ 
         error: 'Kullanıcı adı veya şifre hatalı' 
       }, { status: 401 });

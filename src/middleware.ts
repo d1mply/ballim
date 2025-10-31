@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { verifyJWT } from '@/lib/jwt';
 
 // 🛡️ LAMER KORUMA SİSTEMİ - DAHA AGRESİF!
 export function middleware(request: NextRequest) {
@@ -184,7 +185,7 @@ export function middleware(request: NextRequest) {
     return new NextResponse('Request Too Large', { status: 413 });
   }
   
-  // 🚫 LAMER KONTROL 8: Admin sayfaları koruması
+  // 🚫 LAMER KONTROL 8: Admin sayfaları koruması + JWT kontrolü
   if (url.pathname.startsWith('/admin-dashboard') || 
       url.pathname.startsWith('/api/admin') ||
       url.pathname.includes('admin')) {
@@ -196,6 +197,13 @@ export function middleware(request: NextRequest) {
     if (url.pathname.startsWith('/api/') && !acceptHeader.includes('application/json')) {
       console.log(`🚫 LAMER BLOCKED: ${clientIP} - Invalid accept header for API: ${acceptHeader}`);
       return new NextResponse('Not Acceptable', { status: 406 });
+    }
+
+    // JWT doğrulama: admin alanlarına erişim için auth-token gerekli
+    const token = request.cookies.get('auth-token')?.value;
+    const verify = token ? verifyJWT(token) : { valid: false };
+    if (!verify.valid || (verify.payload?.role !== 'admin' && url.pathname.includes('admin'))) {
+      return NextResponse.redirect(new URL('/', request.url));
     }
   }
   

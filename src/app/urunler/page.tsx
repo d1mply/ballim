@@ -249,17 +249,20 @@ export default function UrunlerPage() {
           method: 'DELETE',
         });
         
+        const data = await response.json();
+        
         if (!response.ok) {
-          throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+          throw new Error(data.error || `API hatası: ${response.status} ${response.statusText}`);
         }
         
         // State'i güncelle
         setProductsList(prevList => prevList.filter(item => item.id !== productId));
         
-        console.log('Ürün silindi');
+        console.log('Ürün silindi:', data.message);
+        alert('Ürün başarıyla silindi!');
       } catch (error) {
         console.error('Ürün silinirken hata:', error);
-        alert('Ürün silinirken bir hata oluştu!');
+        alert(`Ürün silinirken bir hata oluştu: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   };

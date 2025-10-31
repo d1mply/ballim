@@ -41,6 +41,11 @@ export default function FilamentlerPage() {
     price: ''
   });
   const [editingPriceRange, setEditingPriceRange] = useState<PriceRange | null>(null);
+  // Geçmiş modal state'leri
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyItems, setHistoryItems] = useState<any[]>([]);
+  const [historyFor, setHistoryFor] = useState<{ id: string; code: string } | null>(null);
   
   // Veritabanından filament verilerini yükle
   useEffect(() => {
@@ -327,17 +332,33 @@ export default function FilamentlerPage() {
           method: 'DELETE',
         });
         
+        const data = await response.json().catch(() => null);
         if (!response.ok) {
-          throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+          // Yalnızca kullanım geçmişi nedeniyle engellendiyse force silme teklifi yap
+          if (data?.resolvable && data?.productLinks === 0 && (data?.usageLogs || 0) > 0) {
+            const confirmForce = window.confirm(`Bu filamentin kullanım geçmişi var (${data.usageLogs} kayıt). Geçmişi de silerek filamentin tamamını kaldırmak ister misiniz? Bu işlem geri alınamaz.`);
+            if (confirmForce) {
+              const forceRes = await fetch(`/api/filaments?id=${filamentId}&force=true`, { method: 'DELETE' });
+              const forceData = await forceRes.json().catch(() => null);
+              if (!forceRes.ok) {
+                throw new Error(forceData?.error || `API hatası: ${forceRes.status} ${forceRes.statusText}`);
+              }
+              setFilamentsList(prevList => prevList.filter(item => String(item.id) !== String(filamentId)));
+              alert('Filament ve kullanım geçmişi silindi');
+              return;
+            }
+          }
+          throw new Error(data?.error || `API hatası: ${response.status} ${response.statusText}`);
         }
         
         // State'i güncelle
-        setFilamentsList(prevList => prevList.filter(item => item.id !== filamentId));
+        setFilamentsList(prevList => prevList.filter(item => String(item.id) !== String(filamentId)));
         
-        console.log('Filament silindi');
+        console.log('Filament silindi', data);
+        alert('Filament başarıyla silindi');
       } catch (error) {
         console.error('Filament silinirken hata:', error);
-        alert('Filament silinirken bir hata oluştu!');
+        alert(`Filament silinirken bir hata oluştu: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   };
@@ -346,6 +367,27 @@ export default function FilamentlerPage() {
   const handleAddStock = (filament: FilamentData) => {
     setSelectedFilamentForStock(filament);
     setIsStockModalOpen(true);
+  };
+
+  // Geçmişi yükle ve modalı aç
+  const handleShowHistory = async (filament: FilamentData) => {
+    try {
+      setHistoryFor({ id: String(filament.id), code: filament.code });
+      setIsHistoryOpen(true);
+      setHistoryLoading(true);
+      const res = await fetch(`/api/filament-usage?filamentId=${filament.id}&limit=100`);
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e?.error || `API hatası: ${res.status}`);
+      }
+      const rows = await res.json();
+      setHistoryItems(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      console.error('Geçmiş yüklenirken hata:', err);
+      alert('Geçmiş yüklenirken bir hata oluştu');
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   // Stok ekleme işlemi
@@ -673,6 +715,13 @@ export default function FilamentlerPage() {
                             ➕
                           </button>
                           <button 
+                            onClick={() => handleShowHistory(filament)}
+                            className="action-btn"
+                            title="Geçmiş"
+                          >
+                            🕘
+                          </button>
+                          <button 
                             onClick={() => handleEditFilament(filament)}
                             className="action-btn action-btn-edit"
                             title="Düzenle"
@@ -720,6 +769,57 @@ export default function FilamentlerPage() {
         onSave={handleSaveStock}
         filament={selectedFilamentForStock}
       />
+
+      {/* Geçmiş Modalı */}
+      {isHistoryOpen && (
+        <div className="modal">
+          <div className="modal-content max-w-3xl">
+            <div className="modal-header">
+              <h2 className="text-lg font-semibold">Kullanım Geçmişi {historyFor ? `- ${historyFor.code}` : ''}</h2>
+              <button onClick={() => setIsHistoryOpen(false)} className="text-muted-foreground hover:text-foreground">&times;</button>
+            </div>
+            <div className="modal-body">
+              {historyLoading ? (
+                <div className="py-8 text-center">Yükleniyor...</div>
+              ) : (
+                <div className="overflow-x-auto border rounded-md">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-sm">Tarih</th>
+                        <th className="px-3 py-2 text-left text-sm">Kullanılan (g)</th>
+                        <th className="px-3 py-2 text-left text-sm">Önce/ Sonra (g)</th>
+                        <th className="px-3 py-2 text-left text-sm">Ürün</th>
+                        <th className="px-3 py-2 text-left text-sm">Sipariş</th>
+                        <th className="px-3 py-2 text-left text-sm">Açıklama</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyItems.length === 0 ? (
+                        <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Kayıt yok</td></tr>
+                      ) : (
+                        historyItems.map((it, idx) => (
+                          <tr key={idx} className="border-t">
+                            <td className="px-3 py-2 text-sm">{new Date(it.usage_date || it.created_at).toLocaleString('tr-TR')}</td>
+                            <td className="px-3 py-2 text-sm">{it.amount}</td>
+                            <td className="px-3 py-2 text-sm">{it.before_weight ?? '-'} / {it.after_weight ?? '-'}</td>
+                            <td className="px-3 py-2 text-sm">{it.product_code || '-'}</td>
+                            <td className="px-3 py-2 text-sm">{it.order_code || '-'}</td>
+                            <td className="px-3 py-2 text-sm">{it.description || '-'}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer mt-4">
+              <button onClick={() => setIsHistoryOpen(false)} className="btn-primary">Kapat</button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 } 
