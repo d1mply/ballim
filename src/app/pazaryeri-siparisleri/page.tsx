@@ -129,7 +129,8 @@ export default function PazaryeriSiparisleriPage() {
       if (!response.ok) throw new Error('Siparişler yüklenemedi');
       
       const data = await response.json();
-      setSiparisler(data);
+      const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+      setSiparisler(list);
     } catch (error) {
       console.error('Pazaryeri siparişleri yüklenirken hata:', error);
       // Hata durumunda boş array
@@ -241,7 +242,7 @@ export default function PazaryeriSiparisleriPage() {
   };
 
   // Seçilen ürün bilgisi
-  const selectedProduct = products.find(p => p.id === formData.productId);
+  const selectedProduct = products.find(p => String(p.id) === String(formData.productId));
 
   // Filtrelenmiş siparişler
   const filteredSiparisler = siparisler.filter(siparis => {
