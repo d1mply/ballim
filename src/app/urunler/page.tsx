@@ -17,16 +17,27 @@ interface LoggedInUser {
 export default function UrunlerPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [productsList, setProductsList] = useState<ProductData[]>([]);
+  const [packagesList, setPackagesList] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductData | null>(null);
+  const [selectedPackage, setSelectedPackage] = useState<any | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [showFilters, setShowFilters] = useState(false);
+  const [showPackages, setShowPackages] = useState(true); // Paketleri göster/gizle
 
   const [user, setUser] = useState<LoggedInUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Paket oluşturma modal state'leri
+  const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
+  const [packageName, setPackageName] = useState('');
+  const [packagePrice, setPackagePrice] = useState(0);
+  const [packageDescription, setPackageDescription] = useState('');
+  const [packageItems, setPackageItems] = useState<Array<{ productId: string; quantity: number }>>([]);
+  const [isPackageSubmitting, setIsPackageSubmitting] = useState(false);
 
   
   // Kullanıcı bilgisini yükle
@@ -76,6 +87,25 @@ export default function UrunlerPage() {
     fetchProducts();
   }, []);
 
+  // Paketleri yükle
+  useEffect(() => {
+    const fetchPackages = async () => {
+      try {
+        const response = await fetch('/api/packages?includeItems=true');
+        if (!response.ok) {
+          throw new Error('Paketler yüklenemedi');
+        }
+        const data = await response.json();
+        setPackagesList(data);
+      } catch (error) {
+        console.error('Paketleri yükleme hatası:', error);
+        setPackagesList([]);
+      }
+    };
+    
+    fetchPackages();
+  }, []);
+
 
   
   // Arama fonksiyonu
@@ -87,6 +117,16 @@ export default function UrunlerPage() {
       ((product.code && product.code.toLowerCase().includes(searchLower)) ||
       (product.productType && product.productType.toLowerCase().includes(searchLower))) &&
       categoryMatch
+    );
+  });
+
+  // Paketleri filtrele
+  const filteredPackages = packagesList.filter((pkg) => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      (pkg.name && pkg.name.toLowerCase().includes(searchLower)) ||
+      (pkg.package_code && pkg.package_code.toLowerCase().includes(searchLower)) ||
+      (pkg.description && pkg.description.toLowerCase().includes(searchLower))
     );
   });
 
@@ -296,12 +336,20 @@ export default function UrunlerPage() {
             </div>
             
             {user?.type === 'admin' && (
-              <button 
-                onClick={handleAddProduct}
-                className="btn-primary flex items-center gap-2"
-              >
-                <Icons.PlusIcon /> Yeni Ürün
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleAddProduct}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <Icons.PlusIcon /> Yeni Ürün
+                </button>
+                <button
+                  onClick={() => setIsPackageModalOpen(true)}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <Icons.Plus /> Paket Oluştur
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -396,13 +444,25 @@ export default function UrunlerPage() {
         </div>
         
         <div className="mb-2 py-1 border-b border-border flex justify-between items-center text-sm">
-          <span>{filteredProducts.length} ürün bulundu</span>
+          <div className="flex items-center gap-4">
+            <span>{filteredProducts.length} ürün{showPackages ? `, ${filteredPackages.length} paket` : ''} bulundu</span>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showPackages}
+                onChange={(e) => setShowPackages(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <span>Paketleri göster</span>
+            </label>
+          </div>
           {searchTerm && <span>Arama: &quot;{searchTerm}&quot;</span>}
           {categoryFilter && <span>Kategori: {categoryFilter}</span>}
         </div>
         
         {viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {/* Ürünler */}
             {filteredProducts.map((product) => (
               <div key={product.id} className="bg-card rounded-lg shadow-sm border border-border p-4">
                 <div className="relative aspect-square mb-4 bg-secondary rounded-md overflow-hidden">
@@ -469,6 +529,45 @@ export default function UrunlerPage() {
                 </div>
               </div>
             ))}
+            {/* Paketler */}
+            {showPackages && filteredPackages.map((pkg) => (
+              <div key={`package-${pkg.id}`} className="bg-card rounded-lg shadow-sm border-2 border-blue-300 border-dashed p-4">
+                <div className="relative aspect-square mb-4 bg-blue-50 rounded-md overflow-hidden flex items-center justify-center">
+                  <div className="text-center text-blue-600">
+                    <Icons.PackageIcon className="w-16 h-16 mx-auto mb-2" />
+                    <span className="text-xs font-semibold">PAKET</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-medium">{pkg.package_code}</h3>
+                      <p className="text-sm text-muted-foreground">{pkg.name}</p>
+                      {pkg.description && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{pkg.description}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedPackage(pkg)}
+                        className="p-1 hover:text-primary"
+                        title="Detayları Göster"
+                      >
+                        <Icons.EyeIcon />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="text-sm">
+                    <p className="font-semibold text-primary">Fiyat: {pkg.price}₺</p>
+                    <p className="text-xs text-muted-foreground">
+                      {pkg.items?.length || 0} ürün içeriyor
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -484,6 +583,7 @@ export default function UrunlerPage() {
                 </tr>
               </thead>
               <tbody>
+                {/* Ürünler */}
                 {filteredProducts.map((product) => (
                   <tr key={product.id} className="border-b border-border">
                     <td className="p-2">{product.code}</td>
@@ -529,6 +629,32 @@ export default function UrunlerPage() {
                     </td>
                   </tr>
                 ))}
+                {/* Paketler */}
+                {showPackages && filteredPackages.map((pkg) => (
+                  <tr key={`package-${pkg.id}`} className="border-b border-border bg-blue-50/30">
+                    <td className="p-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono">{pkg.package_code}</span>
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">PAKET</span>
+                      </div>
+                    </td>
+                    <td className="p-2">{pkg.name}</td>
+                    <td className="p-2">-</td>
+                    <td className="p-2">{pkg.items?.length || 0} ürün</td>
+                    <td className="p-2">-</td>
+                    <td className="p-2">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedPackage(pkg)}
+                          className="p-1 hover:text-primary"
+                          title="Detayları Göster"
+                        >
+                          <Icons.EyeIcon />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -546,6 +672,292 @@ export default function UrunlerPage() {
           onSave={handleSaveProduct}
           product={selectedProduct}
         />
+      )}
+      
+      {/* Paket Detay Modalı */}
+      {selectedPackage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold">Paket Detayları</h2>
+                <button
+                  onClick={() => setSelectedPackage(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <Icons.XIcon className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedPackage.name}</h3>
+                  <p className="text-sm text-muted-foreground font-mono">{selectedPackage.package_code}</p>
+                </div>
+
+                {selectedPackage.description && (
+                  <div>
+                    <p className="text-sm text-gray-700">{selectedPackage.description}</p>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-xl font-bold text-primary">Fiyat: {selectedPackage.price}₺</p>
+                </div>
+
+                <div className="border-t border-gray-200 pt-4">
+                  <h4 className="font-semibold mb-3">Paket İçeriği:</h4>
+                  <div className="space-y-2">
+                    {selectedPackage.items?.map((item: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <span className="font-medium">{item.productCode}</span>
+                          <span className="text-sm text-muted-foreground ml-2">{item.productType}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm font-medium">{item.quantity} adet</span>
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            item.availableStock >= item.quantity 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            Stok: {item.availableStock}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-6 pt-6 border-t border-gray-200">
+                <button
+                  onClick={() => setSelectedPackage(null)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Kapat
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Paket Oluştur Modalı */}
+      {isPackageModalOpen && user?.type === 'admin' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold">Yeni Paket Oluştur</h2>
+                <button
+                  onClick={() => {
+                    setIsPackageModalOpen(false);
+                    setPackageName('');
+                    setPackagePrice(0);
+                    setPackageDescription('');
+                    setPackageItems([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  disabled={isPackageSubmitting}
+                >
+                  <Icons.XIcon className="w-6 h-6" />
+                </button>
+              </div>
+
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (!packageName || packagePrice <= 0 || packageItems.length === 0) {
+                  alert('Lütfen paket adı, fiyat ve en az bir ürün ekleyin.');
+                  return;
+                }
+
+                setIsPackageSubmitting(true);
+                try {
+                  const response = await fetch('/api/packages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      name: packageName,
+                      description: packageDescription,
+                      price: packagePrice,
+                      items: packageItems.map(item => ({
+                        productId: parseInt(item.productId, 10),
+                        quantity: item.quantity
+                      }))
+                    }),
+                  });
+
+                  if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Paket oluşturulamadı');
+                  }
+
+                  const result = await response.json();
+                  alert(`Paket başarıyla oluşturuldu! (${result.package?.package_code || 'PAK-XXX'})`);
+                  
+                  // Paketleri yeniden yükle
+                  const packagesResponse = await fetch('/api/packages?includeItems=true');
+                  if (packagesResponse.ok) {
+                    const packagesData = await packagesResponse.json();
+                    setPackagesList(packagesData);
+                  }
+                  
+                  setIsPackageModalOpen(false);
+                  setPackageName('');
+                  setPackagePrice(0);
+                  setPackageDescription('');
+                  setPackageItems([]);
+                } catch (error) {
+                  console.error('Paket oluşturma hatası:', error);
+                  alert(`Hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
+                } finally {
+                  setIsPackageSubmitting(false);
+                }
+              }}>
+                <div className="space-y-4">
+                  {/* Paket Adı */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Paket Adı *</label>
+                    <input
+                      type="text"
+                      value={packageName}
+                      onChange={(e) => setPackageName(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="Örn: Anahtarlık Standı Seti"
+                      required
+                      disabled={isPackageSubmitting}
+                    />
+                  </div>
+
+                  {/* Paket Fiyatı */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Paket Fiyatı (₺) *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={packagePrice || ''}
+                      onChange={(e) => setPackagePrice(parseFloat(e.target.value) || 0)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="750"
+                      required
+                      disabled={isPackageSubmitting}
+                    />
+                  </div>
+
+                  {/* Paket Açıklaması */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Açıklama (Opsiyonel)</label>
+                    <textarea
+                      value={packageDescription}
+                      onChange={(e) => setPackageDescription(e.target.value)}
+                      rows={3}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      placeholder="Paket hakkında açıklama..."
+                      disabled={isPackageSubmitting}
+                    />
+                  </div>
+
+                  {/* Ürün Ekleme */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Paket İçindeki Ürünler *</label>
+                    <div className="space-y-3">
+                      {packageItems.map((item, index) => {
+                        const product = productsList.find(p => p.id === item.productId);
+                        return (
+                          <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                            <select
+                              value={item.productId}
+                              onChange={(e) => {
+                                const newItems = [...packageItems];
+                                newItems[index].productId = e.target.value;
+                                setPackageItems(newItems);
+                              }}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                              disabled={isPackageSubmitting}
+                              required
+                            >
+                              <option value="">Ürün seçin...</option>
+                              {productsList.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.code} - {p.productType}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const newItems = [...packageItems];
+                                newItems[index].quantity = parseInt(e.target.value) || 1;
+                                setPackageItems(newItems);
+                              }}
+                              className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                              placeholder="Adet"
+                              disabled={isPackageSubmitting}
+                              required
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPackageItems(packageItems.filter((_, i) => i !== index));
+                              }}
+                              className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              disabled={isPackageSubmitting}
+                            >
+                              <Icons.TrashIcon className="w-5 h-5" />
+                            </button>
+                            {product && (
+                              <span className="text-sm text-gray-600">
+                                Stok: {product.availableStock || 0}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => setPackageItems([...packageItems, { productId: '', quantity: 1 }])}
+                        className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-gray-600 hover:text-primary"
+                        disabled={isPackageSubmitting}
+                      >
+                        <Icons.Plus className="w-5 h-5 inline mr-2" />
+                        Ürün Ekle
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Butonlar */}
+                <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPackageModalOpen(false);
+                      setPackageName('');
+                      setPackagePrice(0);
+                      setPackageDescription('');
+                      setPackageItems([]);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    disabled={isPackageSubmitting}
+                  >
+                    İptal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPackageSubmitting || !packageName || packagePrice <= 0 || packageItems.length === 0}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isPackageSubmitting ? 'Oluşturuluyor...' : 'Paket Oluştur'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
       
       {/* Ürün Detay Modalı */}

@@ -235,6 +235,7 @@ export async function createTables() {
         id SERIAL PRIMARY KEY,
         order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
         product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        package_id INTEGER REFERENCES product_packages(id) ON DELETE SET NULL,
         product_code VARCHAR(20),
         product_name VARCHAR(100),
         quantity INTEGER NOT NULL,
@@ -244,12 +245,13 @@ export async function createTables() {
     `);
     console.log('Order Items tablosu oluşturuldu veya zaten mevcut');
     
-    // Mevcut tabloyu güncelle - product_code, product_name ve status alanlarını ekle
+    // Mevcut tabloyu güncelle - product_code, product_name, status ve package_id alanlarını ekle
     await query(`
       ALTER TABLE order_items 
       ADD COLUMN IF NOT EXISTS product_code VARCHAR(20),
       ADD COLUMN IF NOT EXISTS product_name VARCHAR(100),
-      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'onay_bekliyor'
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'onay_bekliyor',
+      ADD COLUMN IF NOT EXISTS package_id INTEGER REFERENCES product_packages(id) ON DELETE SET NULL
     `);
     console.log('Order Items tablosu güncellenmiş alanlar eklendi');
     
@@ -533,6 +535,44 @@ export async function createTables() {
     }
   } catch (error) {
     console.error('Varsayılan gram aralığı fiyatları eklenirken hata:', error);
+    success = false;
+  }
+
+  // Paketler tablosu
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS product_packages (
+        id SERIAL PRIMARY KEY,
+        package_code VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        price FLOAT NOT NULL,
+        image_path TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Product Packages tablosu oluşturuldu veya zaten mevcut');
+  } catch (error) {
+    console.error('Product Packages tablosu oluşturulurken hata:', error);
+    success = false;
+  }
+
+  // Paket içindeki ürünler tablosu
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS package_items (
+        id SERIAL PRIMARY KEY,
+        package_id INTEGER REFERENCES product_packages(id) ON DELETE CASCADE,
+        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+        quantity INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Package Items tablosu oluşturuldu veya zaten mevcut');
+  } catch (error) {
+    console.error('Package Items tablosu oluşturulurken hata:', error);
     success = false;
   }
 

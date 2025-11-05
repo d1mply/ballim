@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
 import { LoggedInUser } from '../page';
+import PaymentReceipt from '../../components/PaymentReceipt';
 
 // Ödeme tipi
 interface Odeme {
@@ -57,6 +58,8 @@ export default function OdemelerPage() {
     endDate: '',
   });
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [receiptData, setReceiptData] = useState<any | null>(null);
   
   // Form verisi
   const [formData, setFormData] = useState({
@@ -292,6 +295,24 @@ export default function OdemelerPage() {
     }
   };
   
+  // Ödeme makbuzu yazdır
+  const handlePrintReceipt = async (paymentId: string) => {
+    try {
+      const response = await fetch(`/api/payments/${paymentId}/receipt`);
+      
+      if (!response.ok) {
+        throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setReceiptData(data);
+      setIsReceiptOpen(true);
+    } catch (error) {
+      console.error('Ödeme makbuzu verileri alınırken hata:', error);
+      alert('Ödeme makbuzu oluşturulurken bir hata oluştu!');
+    }
+  };
+
   // Ödeme sil
   const handleDeleteOdeme = async (id: string) => {
     if (!confirm('Bu ödemeyi silmek istediğinize emin misiniz?')) {
@@ -613,18 +634,29 @@ export default function OdemelerPage() {
                           {odeme.aciklama || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => handleEditOdeme(odeme)}
-                            className="text-indigo-600 hover:text-indigo-900 mr-4"
-                          >
-                            <Icons.EditIcon className="h-5 w-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteOdeme(odeme.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <Icons.TrashIcon className="h-5 w-5" />
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handlePrintReceipt(odeme.id)}
+                              className="text-green-600 hover:text-green-900"
+                              title="Ödeme Makbuzu"
+                            >
+                              <Icons.EyeIcon className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => handleEditOdeme(odeme)}
+                              className="text-indigo-600 hover:text-indigo-900"
+                              title="Düzenle"
+                            >
+                              <Icons.EditIcon className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteOdeme(odeme.id)}
+                              className="text-red-600 hover:text-red-900"
+                              title="Sil"
+                            >
+                              <Icons.TrashIcon className="h-5 w-5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -810,6 +842,17 @@ export default function OdemelerPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Ödeme Makbuzu Modalı */}
+      {isReceiptOpen && receiptData && (
+        <PaymentReceipt
+          paymentData={receiptData}
+          onClose={() => {
+            setIsReceiptOpen(false);
+            setReceiptData(null);
+          }}
+        />
       )}
     </Layout>
   );

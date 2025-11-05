@@ -138,46 +138,78 @@ export async function POST(request: NextRequest) {
       
       let totalAmount = 0;
 
-      // Sipariş ürünlerini ekle
+      // Sipariş ürünlerini ekle (paket ve normal ürün desteği)
       console.log('🛍️ Sipariş ürünleri ekleniyor...');
       for (const product of products) {
-        const { productId, quantity, unitPrice } = product;
-        console.log(`📦 Ürün işleniyor: ${productId}, Miktar: ${quantity}, Fiyat: ${unitPrice}`);
+        const { productId, packageId, quantity, unitPrice, isPackage } = product;
+        console.log(`📦 Ürün işleniyor: ${isPackage ? 'PAKET' : 'ÜRÜN'}, ID: ${packageId || productId}, Miktar: ${quantity}, Fiyat: ${unitPrice}`);
         
-        // Ürün bilgilerini al
-        const productResult = await query(`
-          SELECT product_code, product_type
-          FROM products 
-          WHERE id = $1
-        `, [productId]);
-
-        if (productResult.rows.length === 0) {
-          throw new Error(`Ürün bulunamadı: ${productId}`);
-        }
-
-        const productInfo = productResult.rows[0];
         const finalUnitPrice = unitPrice || 0;
         const itemTotal = quantity * finalUnitPrice;
         totalAmount += itemTotal;
 
-        console.log(`💰 Ürün fiyatı: ${finalUnitPrice}, Toplam: ${itemTotal}`);
+        // Paket ise
+        if (isPackage && packageId) {
+          // Paket bilgilerini al
+          const packageResult = await query(`
+            SELECT package_code, name
+            FROM product_packages 
+            WHERE id = $1
+          `, [packageId]);
 
-        // Order item ekle
-        await query(`
-          INSERT INTO order_items (
-            order_id, product_id, product_code, product_name, 
-            quantity, unit_price, status, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, 'onay_bekliyor', CURRENT_TIMESTAMP)
-        `, [
-          order.id,
-          productId,
-          productInfo.product_code,
-          productInfo.product_type,
-          quantity,
-          finalUnitPrice
-        ]);
-        
-        console.log(`✅ Ürün eklendi: ${productInfo.product_code}`);
+          if (packageResult.rows.length === 0) {
+            throw new Error(`Paket bulunamadı: ${packageId}`);
+          }
+
+          const packageInfo = packageResult.rows[0];
+          
+          // Order item ekle (paket)
+          await query(`
+            INSERT INTO order_items (
+              order_id, product_id, package_id, product_code, product_name, 
+              quantity, unit_price, status, created_at
+            ) VALUES ($1, NULL, $2, $3, $4, $5, $6, 'onay_bekliyor', CURRENT_TIMESTAMP)
+          `, [
+            order.id,
+            packageId,
+            packageInfo.package_code,
+            packageInfo.name,
+            quantity,
+            finalUnitPrice
+          ]);
+          
+          console.log(`✅ Paket eklendi: ${packageInfo.package_code}`);
+        } else {
+          // Normal ürün ise
+          const productResult = await query(`
+            SELECT product_code, product_type
+            FROM products 
+            WHERE id = $1
+          `, [productId]);
+
+          if (productResult.rows.length === 0) {
+            throw new Error(`Ürün bulunamadı: ${productId}`);
+          }
+
+          const productInfo = productResult.rows[0];
+
+          // Order item ekle (normal ürün)
+          await query(`
+            INSERT INTO order_items (
+              order_id, product_id, package_id, product_code, product_name, 
+              quantity, unit_price, status, created_at
+            ) VALUES ($1, $2, NULL, $3, $4, $5, $6, 'onay_bekliyor', CURRENT_TIMESTAMP)
+          `, [
+            order.id,
+            productId,
+            productInfo.product_code,
+            productInfo.product_type,
+            quantity,
+            finalUnitPrice
+          ]);
+          
+          console.log(`✅ Ürün eklendi: ${productInfo.product_code}`);
+        }
       }
 
       // Toplam tutarı güncelle

@@ -13,7 +13,8 @@ import {
   Receipt as ReceiptIcon,
   Truck as TruckIcon,
   Calculator as CalculatorIcon,
-  Warehouse as WarehouseIcon
+  Warehouse as WarehouseIcon,
+  PackageCheck as PackageCheckIcon
 } from 'lucide-react';
 
 type SidebarProps = {
@@ -31,6 +32,7 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
     { name: 'Teklif Hesaplama', path: '/teklif', icon: <CalculatorIcon /> },
     { name: 'Ürünler', path: '/urunler', icon: <PackageIcon /> },
     { name: 'Stok Yönetimi', path: '/stok-yonetimi', icon: <WarehouseIcon /> },
+    { name: 'Stok Üretim', path: '/stok-uretim', icon: <PackageCheckIcon /> },
     { name: 'Stok ve Sipariş', path: '/stok-siparis', icon: <ShoppingCartIcon /> },
     { name: 'Pazaryeri Siparişleri', path: '/pazaryeri-siparisleri', icon: <TruckIcon /> },
     { name: 'Sipariş Takip', path: '/siparis-takip', icon: <ClipboardListIcon /> },

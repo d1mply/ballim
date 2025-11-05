@@ -56,16 +56,18 @@ export async function PUT(request: NextRequest) {
       
       const orderItemStatus = statusMapping[newStatus] || 'onay_bekliyor';
       
-      // Mevcut ürün durumunu al
+      // Mevcut ürün durumunu al (paket kontrolü ile)
       const currentItem = await query(`
-        SELECT product_id, quantity, status
+        SELECT product_id, package_id, quantity, status
         FROM order_items
         WHERE order_id = $1 AND id = $2
       `, [dbOrderId, prodId]);
       
       const currentStatus = currentItem.rows[0]?.status || 'onay_bekliyor';
       const productDbId = currentItem.rows[0]?.product_id;
+      const packageDbId = currentItem.rows[0]?.package_id;
       const itemQuantity = currentItem.rows[0]?.quantity || 0;
+      const isPackage = packageDbId !== null;
       
       await query(`
         UPDATE order_items 
@@ -262,41 +264,77 @@ export async function PUT(request: NextRequest) {
           
           console.log(`ℹ️ REZERVE STOK: Status 'hazirlandi' olduğu için rezerve hesaplamasından çıkar`);
         } else {
-          // Üretim yapıldı - Stok üretimi mi, müşteri siparişi mi kontrol et
-          const isStockOrder = orderCode.startsWith('STK-');
-          const prodQty = productionQuantity || itemQuantity;
-          
-          let netChange;
-          if (isStockOrder) {
-            // Stok üretimi - Sadece üretilen miktar stoka eklenir (teslim yok)
-            netChange = prodQty;
-            console.log('🏭 STOK ÜRETİMİ:');
-            console.log(`   - Üretilen: ${prodQty} adet`);
-            console.log(`   - Teslim: 0 adet (stok için üretim)`);
-            console.log(`   - Net değişim: +${netChange} adet`);
-          } else {
-            // Müşteri siparişi - Üretilen - Teslim edilen
-            netChange = prodQty - itemQuantity;
-            console.log('🏭 MÜŞTERİ SİPARİŞİ:');
-            console.log(`   - Üretilen: ${prodQty} adet`);
-            console.log(`   - Teslim: ${itemQuantity} adet`);
-            console.log(`   - Net değişim: ${netChange > 0 ? '+' : ''}${netChange} adet`);
-          }
-          
-          // Net değişimi stoka uygula
-          if (netChange !== 0) {
-            await query(`
-              INSERT INTO inventory (product_id, quantity, updated_at)
-              VALUES ($1, $2, CURRENT_TIMESTAMP)
-              ON CONFLICT (product_id) 
-              DO UPDATE SET 
-                quantity = inventory.quantity + $2,
-                updated_at = CURRENT_TIMESTAMP
-            `, [productDbId, netChange]);
+          // Üretim yapıldı - Paket mi normal ürün mü kontrol et
+          if (isPackage && packageDbId) {
+            // PAKET: Paket içindeki ürünlerin stoktan düşülmesi
+            console.log('📦 PAKET ÜRETİMİ TAMAMLANDI:');
+            console.log(`   - Paket ID: ${packageDbId}`);
+            console.log(`   - Paket Adedi: ${itemQuantity}`);
             
-            console.log(`✅ STOK GÜNCELLENDİ: Net ${netChange > 0 ? '+' : ''}${netChange} adet`);
-          } else {
-            console.log(`✅ STOK DEĞİŞMEDİ: Üretim = Sipariş (${prodQty} adet)`);
+            // Paket içindeki ürünleri al
+            const packageItems = await query(`
+              SELECT product_id, quantity
+              FROM package_items
+              WHERE package_id = $1
+            `, [packageDbId]);
+            
+            // Her paket için içindeki ürünleri stoktan düş
+            for (let i = 0; i < itemQuantity; i++) {
+              for (const pkgItem of packageItems.rows) {
+                const productId = pkgItem.product_id;
+                const quantityPerPackage = pkgItem.quantity;
+                
+                console.log(`   - Ürün ${productId}: ${quantityPerPackage} adet stoktan düşülüyor`);
+                
+                // Stoktan düş
+                await query(`
+                  UPDATE inventory 
+                  SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP
+                  WHERE product_id = $2
+                `, [quantityPerPackage, productId]);
+                
+                console.log(`   ✅ Ürün ${productId} stoktan ${quantityPerPackage} adet düşüldü`);
+              }
+            }
+            
+            console.log(`✅ PAKET STOK DÜŞÜRME TAMAMLANDI: ${itemQuantity} paket işlendi`);
+          } else if (productDbId) {
+            // NORMAL ÜRÜN: Normal stok işlemi
+            const isStockOrder = orderCode.startsWith('STK-');
+            const prodQty = productionQuantity || itemQuantity;
+            
+            let netChange;
+            if (isStockOrder) {
+              // Stok üretimi - Sadece üretilen miktar stoka eklenir (teslim yok)
+              netChange = prodQty;
+              console.log('🏭 STOK ÜRETİMİ:');
+              console.log(`   - Üretilen: ${prodQty} adet`);
+              console.log(`   - Teslim: 0 adet (stok için üretim)`);
+              console.log(`   - Net değişim: +${netChange} adet`);
+            } else {
+              // Müşteri siparişi - Üretilen - Teslim edilen
+              netChange = prodQty - itemQuantity;
+              console.log('🏭 MÜŞTERİ SİPARİŞİ:');
+              console.log(`   - Üretilen: ${prodQty} adet`);
+              console.log(`   - Teslim: ${itemQuantity} adet`);
+              console.log(`   - Net değişim: ${netChange > 0 ? '+' : ''}${netChange} adet`);
+            }
+            
+            // Net değişimi stoka uygula
+            if (netChange !== 0) {
+              await query(`
+                INSERT INTO inventory (product_id, quantity, updated_at)
+                VALUES ($1, $2, CURRENT_TIMESTAMP)
+                ON CONFLICT (product_id) 
+                DO UPDATE SET 
+                  quantity = inventory.quantity + $2,
+                  updated_at = CURRENT_TIMESTAMP
+              `, [productDbId, netChange]);
+              
+              console.log(`✅ STOK GÜNCELLENDİ: Net ${netChange > 0 ? '+' : ''}${netChange} adet`);
+            } else {
+              console.log(`✅ STOK DEĞİŞMEDİ: Üretim = Sipariş (${prodQty} adet)`);
+            }
           }
         }
       }

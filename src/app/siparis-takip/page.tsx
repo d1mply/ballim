@@ -39,7 +39,7 @@ export default function SiparisTakipPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isShippingLabelOpen, setIsShippingLabelOpen] = useState(false);
-  const [shippingLabelData, setShippingLabelData] = useState<{ order: Order; customer: { name: string; address: string; phone: string } } | null>(null);
+  const [shippingLabelData, setShippingLabelData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   

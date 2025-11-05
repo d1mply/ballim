@@ -31,6 +31,11 @@ export default function StokSiparisPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('Tüm Ürünler');
   const [productTypes, setProductTypes] = useState<string[]>([]);
+  
+  // Paketler için state'ler
+  const [activeTab, setActiveTab] = useState<'products' | 'packages'>('products');
+  const [packages, setPackages] = useState<any[]>([]);
+  const [isLoadingPackages, setIsLoadingPackages] = useState(false);
 
 
   
@@ -46,6 +51,31 @@ export default function StokSiparisPage() {
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  // Paketleri yükle
+  const fetchPackages = async () => {
+    try {
+      setIsLoadingPackages(true);
+      const response = await fetch('/api/packages?includeItems=true');
+      if (!response.ok) {
+        throw new Error('Paketler yüklenemedi');
+      }
+      const data = await response.json();
+      setPackages(data);
+    } catch (error) {
+      console.error('Paketleri yükleme hatası:', error);
+      setPackages([]);
+    } finally {
+      setIsLoadingPackages(false);
+    }
+  };
+
+  // Paketleri yükle
+  useEffect(() => {
+    if (activeTab === 'packages') {
+      fetchPackages();
+    }
+  }, [activeTab]);
 
   // Her 5 saniyede bir stok verilerini yenile (otomatik güncelleme)
   useEffect(() => {
@@ -319,23 +349,39 @@ export default function StokSiparisPage() {
     }
     
     try {
-      // Sipariş ürünlerini hazırla
+      // Sipariş ürünlerini hazırla (paket ve normal ürün desteği)
       const orderItems = await Promise.all(cartItems.map(async (item) => {
+        // Paket ise
+        if (item.isPackage && item.packageId) {
+          return {
+            packageId: item.packageId,
+            productId: null,
+            quantity: item.quantity || 1,
+            unitPrice: item.price || 0,
+            isPackage: true
+          };
+        }
+        
+        // Normal ürün ise
         const totalPrice = await getItemPrice(item, item.quantity || 1);
         return {
           productId: item.id,
+          packageId: null,
           quantity: item.quantity || 1,
           unitPrice: totalPrice,
-          filamentType: item.filaments?.[0]?.type || 'PLA'
+          filamentType: item.filaments?.[0]?.type || 'PLA',
+          isPackage: false
         };
       }));
       
       console.log('📦 Sipariş ürünleri hazırlandı:', orderItems);
       
-      // Toplam tutarı hesapla (orderItems'dan al)
+      // Toplam tutarı hesapla (orderItems'dan al - paket ve normal ürünler için)
       const subtotal = truncate2(
         orderItems.reduce((total, item) => {
-          return total + (item.unitPrice || 0);
+          // Paket ise quantity * unitPrice
+          // Normal ürün ise zaten unitPrice hesaplanmış
+          return total + ((item.unitPrice || 0) * (item.quantity || 1));
         }, 0)
       );
       
@@ -405,40 +451,73 @@ export default function StokSiparisPage() {
         <div className="flex-1">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
             <h1 className="text-2xl font-bold">Stok ve Sipariş</h1>
-            <button
-              onClick={() => window.location.reload()}
-              className="flex items-center justify-center gap-2 py-2 px-3 text-sm bg-secondary hover:bg-secondary/80 rounded-md transition-colors w-full sm:w-auto"
-            >
-              <Icons.RefreshIcon className="w-4 h-4" />
-              Yenile
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-4 mb-6">
-            <div className="search-container">
-              <Icons.SearchIcon className="search-icon" />
-              <input
-                type="text"
-                placeholder="Ürün kodu veya türü ile ara..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full"
-              />
+            <div className="flex gap-2">
+              {/* Tabs */}
+              <div className="flex gap-2 bg-secondary rounded-lg p-1">
+                <button
+                  onClick={() => setActiveTab('products')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === 'products'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Ürünler
+                </button>
+                <button
+                  onClick={() => setActiveTab('packages')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === 'packages'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Paketler
+                </button>
+              </div>
+              <button
+                onClick={() => {
+                  if (activeTab === 'products') {
+                    window.location.reload();
+                  } else {
+                    fetchPackages();
+                  }
+                }}
+                className="flex items-center justify-center gap-2 py-2 px-3 text-sm bg-secondary hover:bg-secondary/80 rounded-md transition-colors w-full sm:w-auto"
+              >
+                <Icons.RefreshIcon className="w-4 h-4" />
+                Yenile
+              </button>
             </div>
-            <select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 w-full"
-            >
-              <option>Tüm Ürünler</option>
-              {productTypes.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
           </div>
 
-          {/* Desktop Tablo */}
-          <div className="hidden lg:block bg-card border border-border rounded-lg overflow-hidden">
+          {activeTab === 'products' ? (
+            <>
+              <div className="flex flex-col gap-4 mb-6">
+                <div className="search-container">
+                  <Icons.SearchIcon className="search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Ürün kodu veya türü ile ara..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 w-full"
+                >
+                  <option>Tüm Ürünler</option>
+                  {productTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Desktop Tablo */}
+              <div className="hidden lg:block bg-card border border-border rounded-lg overflow-hidden">
             <table className="w-full">
               <thead className="bg-muted text-left">
                 <tr>
@@ -566,6 +645,106 @@ export default function StokSiparisPage() {
               </div>
             )}
           </div>
+            </>
+          ) : (
+          /* Paketler Sekmesi */
+          <div className="space-y-4">
+            {isLoadingPackages ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-2 text-muted-foreground">Paketler yükleniyor...</p>
+              </div>
+            ) : packages.length === 0 ? (
+              <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+                Henüz paket oluşturulmamış.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {packages.map((pkg) => {
+                  // Paket stok kontrolü - içindeki ürünlerin en düşük stokunu kontrol et
+                  const minStock = pkg.items?.length > 0 
+                    ? Math.min(...pkg.items.map((item: any) => item.availableStock || 0))
+                    : 0;
+                  const hasStock = minStock > 0;
+                  const stockStatus = hasStock ? 'Stokta Var' : 'Stokta Yok';
+                  const stockColor = hasStock ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50';
+
+                  return (
+                    <div key={pkg.id} className="bg-card rounded-lg border border-border p-4">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold">{pkg.name}</h3>
+                            <span className="text-sm font-mono text-muted-foreground">{pkg.package_code}</span>
+                          </div>
+                          {pkg.description && (
+                            <p className="text-sm text-muted-foreground mb-2">{pkg.description}</p>
+                          )}
+                          <div className="flex items-center gap-4">
+                            <span className="text-xl font-bold text-primary">{pkg.price}₺</span>
+                            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${stockColor}`}>
+                              <div className={`w-2 h-2 rounded-full ${hasStock ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                              {stockStatus}
+                            </span>
+                          </div>
+                        </div>
+                        {currentUser?.type === 'customer' && (
+                          <button
+                            onClick={() => {
+                              // Paketi sepete ekle
+                              const packageItem = {
+                                id: `package-${pkg.id}`,
+                                code: pkg.package_code,
+                                productType: pkg.name,
+                                quantity: 1,
+                                isPackage: true,
+                                packageId: pkg.id,
+                                price: pkg.price
+                              } as any;
+                              
+                              // Sepete paket ekleme mantığı - cartItems'a ekle
+                              setCartItems([...cartItems, packageItem]);
+                              alert(`${pkg.name} sepete eklendi!`);
+                            }}
+                            className="flex items-center gap-1.5 py-2 px-4 text-sm bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors"
+                          >
+                            <Icons.ShoppingCartIcon className="w-4 h-4" />
+                            Sepete Ekle
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Paket içindeki ürünler */}
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <h4 className="text-sm font-semibold mb-3">Paket İçeriği:</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {pkg.items?.map((item: any, idx: number) => (
+                            <div key={idx} className="flex items-center justify-between p-2 bg-muted rounded-lg">
+                              <div>
+                                <span className="font-medium text-sm">{item.productCode}</span>
+                                <span className="text-xs text-muted-foreground ml-2">{item.productType}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{item.quantity} adet</span>
+                                <span className={`text-xs px-2 py-1 rounded ${
+                                  item.availableStock >= item.quantity 
+                                    ? 'bg-green-100 text-green-700' 
+                                    : 'bg-red-100 text-red-700'
+                                }`}>
+                                  Stok: {item.availableStock}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         </div>
 
         {/* Sağ taraf - Sepet (sadece müşteri hesapları için) */}
@@ -617,14 +796,19 @@ export default function StokSiparisPage() {
                           <div className="flex-1 min-w-0">
                             <h4 className="font-medium text-gray-900 truncate">{item.code}</h4>
                             <p className="text-sm text-gray-500 mb-2">{item.productType}</p>
+                            {item.isPackage && (
+                              <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded mb-2">
+                                📦 Paket
+                              </span>
+                            )}
 
-                            {/* Stok Durumu */}
-                            {(() => {
-                              const stockStatus = getStockStatus(item.availableStock, item.reservedStock, item.quantity || 1);
+                            {/* Stok Durumu (sadece normal ürünler için) */}
+                            {!item.isPackage && (() => {
+                              const stockStatus = getStockStatus(item.availableStock || 0, item.reservedStock || 0, item.quantity || 1);
                               return (
                                 <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium mb-2 ${stockStatus.bgColor} ${stockStatus.color}`}>
                                   <div className={`w-1.5 h-1.5 rounded-full ${
-                                    item.availableStock > 0 ? 'bg-green-500' : item.reservedStock > 0 ? 'bg-yellow-500' : 'bg-red-500'
+                                    (item.availableStock || 0) > 0 ? 'bg-green-500' : (item.reservedStock || 0) > 0 ? 'bg-yellow-500' : 'bg-red-500'
                                   }`}></div>
                                   {stockStatus.status}
                                 </div>
@@ -633,6 +817,11 @@ export default function StokSiparisPage() {
 
                             <p className="text-sm font-medium text-blue-600">
                               {(() => {
+                                // Paket ise direkt fiyatı göster
+                                if (item.isPackage && item.price) {
+                                  return `${item.price}₺ / paket`;
+                                }
+                                // Normal ürün ise hesaplanmış fiyatı göster
                                 const key = `${item.id}-${item.quantity}`;
                                 const totalPrice = cartPrices[key] || 0;
                                 const quantity = item.quantity || 1;
@@ -641,8 +830,8 @@ export default function StokSiparisPage() {
                               })()}
                             </p>
                             
-                            {/* Filament bilgisi göster */}
-                            {currentUser?.customerCategory === 'normal' && (
+                            {/* Filament bilgisi göster (sadece normal ürünler için) */}
+                            {!item.isPackage && currentUser?.customerCategory === 'normal' && (
                               <p className="text-xs text-gray-500">
                                 {(() => {
                                   const filamentType = item.filaments?.[0]?.type || 'PLA';
