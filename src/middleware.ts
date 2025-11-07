@@ -185,27 +185,17 @@ export function middleware(request: NextRequest) {
     return new NextResponse('Request Too Large', { status: 413 });
   }
   
-  // 🚫 LAMER KONTROL 8: Admin sayfaları koruması + JWT kontrolü
-  if (url.pathname.startsWith('/admin-dashboard') || 
-      url.pathname.startsWith('/api/admin') ||
-      url.pathname.includes('admin')) {
-    
-    // Admin sayfaları için ekstra kontrol
-    const acceptHeader = request.headers.get('accept') || '';
-    
-    // API çağrıları için JSON accept header olmalı
-    if (url.pathname.startsWith('/api/') && !acceptHeader.includes('application/json')) {
-      console.log(`🚫 LAMER BLOCKED: ${clientIP} - Invalid accept header for API: ${acceptHeader}`);
-      return new NextResponse('Not Acceptable', { status: 406 });
-    }
-
-    // JWT doğrulama: admin alanlarına erişim için auth-token gerekli
+  // 🚫 LAMER KONTROL 8: Admin API endpoint'leri koruması (sayfalar değil, sadece API)
+  if (url.pathname.startsWith('/api/admin')) {
+    // Admin API endpoint'leri için JWT kontrolü
     const token = request.cookies.get('auth-token')?.value;
     const verify = token ? verifyJWT(token) : { valid: false };
-    if (!verify.valid || (verify.payload?.role !== 'admin' && url.pathname.includes('admin'))) {
-      return NextResponse.redirect(new URL('/', request.url));
+    if (!verify.valid || verify.payload?.role !== 'admin') {
+      return new NextResponse('Unauthorized', { status: 401 });
     }
   }
+  
+  // Dashboard sayfaları için JWT kontrolü YOK - localStorage kontrolü frontend'de yapılıyor
   
   // 🚫 LAMER KONTROL 9: Rate limiting header'ları ekle
   response.headers.set('X-RateLimit-Limit', '50');

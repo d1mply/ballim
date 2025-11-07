@@ -5,6 +5,7 @@ import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
 import FilamentModal, { FilamentData } from '../../components/FilamentModal';
 import StockAddModal, { StockAddData } from '../../components/StockAddModal';
+import { useToast } from '../../contexts/ToastContext';
 
 
 
@@ -46,6 +47,9 @@ export default function FilamentlerPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyItems, setHistoryItems] = useState<any[]>([]);
   const [historyFor, setHistoryFor] = useState<{ id: string; code: string } | null>(null);
+
+  // Toast hook
+  const toast = useToast();
   
   // Veritabanından filament verilerini yükle
   useEffect(() => {
@@ -159,7 +163,7 @@ export default function FilamentlerPage() {
     const { minGram, maxGram, price } = priceRangeForm;
     
     if (!minGram || !maxGram || !price) {
-      alert('Tüm alanları doldurun');
+      toast.warning('Tüm alanları doldurun');
       return;
     }
 
@@ -168,7 +172,7 @@ export default function FilamentlerPage() {
     const priceNum = parseFloat(price);
 
     if (minGramNum >= maxGramNum) {
-      alert('Min gram, max gramdan küçük olmalı');
+      toast.warning('Min gram, max gramdan küçük olmalı');
       return;
     }
 
@@ -188,13 +192,14 @@ export default function FilamentlerPage() {
         await fetchPriceRanges();
         setPriceRangeForm({ minGram: '', maxGram: '', price: '' });
         setEditingPriceRange(null);
+        toast.success(editingPriceRange ? 'Fiyat aralığı güncellendi!' : 'Fiyat aralığı eklendi!');
       } else {
         const error = await response.json();
-        alert(error.error || 'Bir hata oluştu');
+        toast.error(error.error || 'Bir hata oluştu');
       }
     } catch (error) {
       console.error('Fiyat aralığı kaydetme hatası:', error);
-      alert('Bir hata oluştu');
+      toast.error('Bir hata oluştu');
     }
   };
 
@@ -217,13 +222,14 @@ export default function FilamentlerPage() {
 
       if (response.ok) {
         await fetchPriceRanges();
+        toast.success('Fiyat aralığı silindi!');
       } else {
         const error = await response.json();
-        alert(error.error || 'Bir hata oluştu');
+        toast.error(error.error || 'Bir hata oluştu');
       }
     } catch (error) {
       console.error('Fiyat aralığı silme hatası:', error);
-      alert('Bir hata oluştu');
+      toast.error('Bir hata oluştu');
     }
   };
 
@@ -312,10 +318,18 @@ export default function FilamentlerPage() {
         
         // State'i güncelle
         setFilamentsList(prevList => [...prevList, newFilament]);
+        toast.success('Filament başarıyla eklendi!');
+      } else {
+        // Güncelleme
+        const updatedFilament = await response.json();
+        setFilamentsList(prevList => 
+          prevList.map(item => item.id === selectedFilament.id ? updatedFilament : item)
+        );
+        toast.success('Filament başarıyla güncellendi!');
       }
     } catch (error) {
       console.error('Filament kaydedilirken hata:', error);
-      alert('Filament kaydedilirken bir hata oluştu!');
+      toast.error('Filament kaydedilirken bir hata oluştu!');
       return;
     }
     
@@ -344,7 +358,7 @@ export default function FilamentlerPage() {
                 throw new Error(forceData?.error || `API hatası: ${forceRes.status} ${forceRes.statusText}`);
               }
               setFilamentsList(prevList => prevList.filter(item => String(item.id) !== String(filamentId)));
-              alert('Filament ve kullanım geçmişi silindi');
+              toast.success('Filament ve kullanım geçmişi silindi');
               return;
             }
           }
@@ -355,10 +369,10 @@ export default function FilamentlerPage() {
         setFilamentsList(prevList => prevList.filter(item => String(item.id) !== String(filamentId)));
         
         console.log('Filament silindi', data);
-        alert('Filament başarıyla silindi');
+        toast.success('Filament başarıyla silindi');
       } catch (error) {
         console.error('Filament silinirken hata:', error);
-        alert(`Filament silinirken bir hata oluştu: ${error instanceof Error ? error.message : String(error)}`);
+        toast.error(`Filament silinirken bir hata oluştu: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   };
@@ -384,7 +398,7 @@ export default function FilamentlerPage() {
       setHistoryItems(Array.isArray(rows) ? rows : []);
     } catch (err) {
       console.error('Geçmiş yüklenirken hata:', err);
-      alert('Geçmiş yüklenirken bir hata oluştu');
+      toast.error('Geçmiş yüklenirken bir hata oluştu');
     } finally {
       setHistoryLoading(false);
     }
@@ -418,10 +432,10 @@ export default function FilamentlerPage() {
       setIsStockModalOpen(false);
       setSelectedFilamentForStock(null);
       
-      alert(`✅ ${result.message}`);
+      toast.success(result.message || 'Stok başarıyla eklendi!');
     } catch (error) {
       console.error('Stok eklenirken hata:', error);
-      alert('Stok eklenirken bir hata oluştu!');
+      toast.error('Stok eklenirken bir hata oluştu!');
     }
   };
 

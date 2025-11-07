@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
 import { getStockStatus } from '../../../lib/stock';
+import { createAuditLog, getUserFromRequest } from '../../../lib/audit-log';
 
 // Tüm ürünleri getir
 export async function GET() {
@@ -175,6 +176,17 @@ export async function POST(request: NextRequest) {
 
       await query('COMMIT');
 
+      // Audit log
+      const userInfo = await getUserFromRequest(request);
+      await createAuditLog({
+        ...userInfo,
+        action: 'CREATE',
+        entityType: 'PRODUCT',
+        entityId: String(newProduct.id),
+        entityName: `${productCode} - ${productType}`,
+        details: { productCode, productType, capacity, filaments: filaments?.length || 0 }
+      });
+
       return NextResponse.json({
         success: true,
         message: 'Ürün başarıyla oluşturuldu',
@@ -195,6 +207,235 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         error: 'Ürün oluşturulurken bir hata oluştu',
+        details: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// Ürün güncelle
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      id,
+      productCode,
+      productType,
+      imagePath,
+      barcode,
+      capacity,
+      dimensionX,
+      dimensionY,
+      dimensionZ,
+      printTime,
+      totalGram,
+      pieceGram,
+      filePath,
+      notes,
+      filaments
+    } = body;
+
+    // ID kontrolü
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Ürün ID gerekli' },
+        { status: 400 }
+      );
+    }
+
+    // Ürünün var olup olmadığını kontrol et
+    const existingProduct = await query(
+      'SELECT id FROM products WHERE id = $1',
+      [id]
+    );
+
+    if (existingProduct.rows.length === 0) {
+      return NextResponse.json(
+        { error: 'Ürün bulunamadı' },
+        { status: 404 }
+      );
+    }
+
+    // Ürün kodunun benzersizliğini kontrol et (kendi ID'si hariç)
+    if (productCode) {
+      const codeCheck = await query(
+        'SELECT id FROM products WHERE product_code = $1 AND id != $2',
+        [productCode, id]
+      );
+
+      if (codeCheck.rows.length > 0) {
+        return NextResponse.json(
+          { error: 'Bu ürün kodu başka bir ürün tarafından kullanılıyor' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Transaction başlat
+    await query('BEGIN');
+
+    try {
+      // Ürünü güncelle
+      const updateFields = [];
+      const updateValues = [];
+      let paramIndex = 1;
+
+      if (productCode) {
+        updateFields.push(`product_code = $${paramIndex++}`);
+        updateValues.push(productCode);
+      }
+      if (productType) {
+        updateFields.push(`product_type = $${paramIndex++}`);
+        updateValues.push(productType);
+      }
+      if (imagePath !== undefined) {
+        updateFields.push(`image_path = $${paramIndex++}`);
+        updateValues.push(imagePath || null);
+      }
+      if (barcode !== undefined) {
+        updateFields.push(`barcode = $${paramIndex++}`);
+        updateValues.push(barcode || null);
+      }
+      if (capacity !== undefined) {
+        updateFields.push(`capacity = $${paramIndex++}`);
+        updateValues.push(capacity || 0);
+      }
+      if (dimensionX !== undefined) {
+        updateFields.push(`dimension_x = $${paramIndex++}`);
+        updateValues.push(dimensionX || 0);
+      }
+      if (dimensionY !== undefined) {
+        updateFields.push(`dimension_y = $${paramIndex++}`);
+        updateValues.push(dimensionY || 0);
+      }
+      if (dimensionZ !== undefined) {
+        updateFields.push(`dimension_z = $${paramIndex++}`);
+        updateValues.push(dimensionZ || 0);
+      }
+      if (printTime !== undefined) {
+        updateFields.push(`print_time = $${paramIndex++}`);
+        updateValues.push(printTime || 0);
+      }
+      if (totalGram !== undefined) {
+        updateFields.push(`total_gram = $${paramIndex++}`);
+        updateValues.push(totalGram || 0);
+      }
+      if (pieceGram !== undefined) {
+        updateFields.push(`piece_gram = $${paramIndex++}`);
+        updateValues.push(pieceGram || 0);
+      }
+      if (filePath !== undefined) {
+        updateFields.push(`file_path = $${paramIndex++}`);
+        updateValues.push(filePath || null);
+      }
+      if (notes !== undefined) {
+        updateFields.push(`notes = $${paramIndex++}`);
+        updateValues.push(notes || null);
+      }
+
+      // updated_at her zaman güncellenir
+      updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+
+      if (updateFields.length === 0) {
+        await query('ROLLBACK');
+        return NextResponse.json(
+          { error: 'Güncellenecek alan bulunamadı' },
+          { status: 400 }
+        );
+      }
+
+      updateValues.push(id);
+      const updateQuery = `
+        UPDATE products 
+        SET ${updateFields.join(', ')}
+        WHERE id = $${paramIndex}
+        RETURNING *
+      `;
+
+      const productResult = await query(updateQuery, updateValues);
+      const updatedProduct = productResult.rows[0];
+
+      // Filamentleri güncelle (önce sil, sonra ekle)
+      if (filaments !== undefined) {
+        // Mevcut filamentleri sil
+        await query(
+          'DELETE FROM product_filaments WHERE product_id = $1',
+          [id]
+        );
+
+        // Yeni filamentleri ekle
+        if (Array.isArray(filaments) && filaments.length > 0) {
+          for (const filament of filaments) {
+            await query(`
+              INSERT INTO product_filaments (
+                product_id, filament_type, filament_color, filament_density, weight
+              ) VALUES ($1, $2, $3, $4, $5)
+            `, [
+              id,
+              filament.type,
+              filament.color,
+              filament.brand || '',
+              filament.weight || 0
+            ]);
+          }
+        }
+      }
+
+      await query('COMMIT');
+
+      // Audit log
+      const userInfo = await getUserFromRequest(request);
+      await createAuditLog({
+        ...userInfo,
+        action: 'UPDATE',
+        entityType: 'PRODUCT',
+        entityId: String(id),
+        entityName: `${updatedProduct.product_code} - ${updatedProduct.product_type}`,
+        details: { 
+          productCode: updatedProduct.product_code, 
+          productType: updatedProduct.product_type,
+          changes: Object.keys(body).filter(k => k !== 'id' && k !== 'filaments')
+        }
+      });
+
+      // Güncellenmiş ürünü formatla ve döndür
+      const formattedProduct = {
+        id: updatedProduct.id,
+        code: updatedProduct.product_code,
+        productType: updatedProduct.product_type,
+        image: updatedProduct.image_path,
+        barcode: updatedProduct.barcode || '',
+        capacity: updatedProduct.capacity || 0,
+        dimensionX: updatedProduct.dimension_x || 0,
+        dimensionY: updatedProduct.dimension_y || 0,
+        dimensionZ: updatedProduct.dimension_z || 0,
+        printTime: updatedProduct.print_time || 0,
+        totalGram: updatedProduct.total_gram || 0,
+        pieceGram: updatedProduct.piece_gram || 0,
+        filePath: updatedProduct.file_path,
+        notes: updatedProduct.notes || '',
+        createdAt: updatedProduct.created_at,
+        updatedAt: updatedProduct.updated_at,
+        filaments: Array.isArray(filaments) ? filaments : []
+      };
+
+      return NextResponse.json(formattedProduct);
+
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Ürün güncelleme hatası:', error);
+    console.error('Hata detayları:', {
+      message: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return NextResponse.json(
+      { 
+        error: 'Ürün güncellenirken bir hata oluştu',
         details: error instanceof Error ? error.message : 'Bilinmeyen hata'
       },
       { status: 500 }

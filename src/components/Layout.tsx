@@ -18,16 +18,39 @@ export default function Layout({ children, hideNavigation = false }: LayoutProps
 
   useEffect(() => {
     // Kullanıcı giriş bilgisini kontrol et
-    const loggedUserJson = localStorage.getItem('loggedUser');
+    const checkUser = () => {
+      try {
+        const loggedUserJson = localStorage.getItem('loggedUser');
+        
+        if (loggedUserJson) {
+          const user = JSON.parse(loggedUserJson);
+          setCurrentUser(user);
+        }
+        // Dashboard sayfalarında otomatik yönlendirme YOK
+        // Sadece kullanıcı bilgisini set et
+      } catch (error) {
+        console.error('Kullanıcı bilgisi okunamadı:', error);
+      }
+    };
     
-    if (loggedUserJson) {
-      const user = JSON.parse(loggedUserJson);
-      setCurrentUser(user);
-    } else if (!hideNavigation) {
-      // Giriş yapılmamışsa ve navigasyon gösterilecekse giriş sayfasına yönlendir
-      router.push('/');
-    }
-  }, [hideNavigation, router]);
+    // İlk kontrol
+    checkUser();
+    
+    // Storage değişikliklerini dinle (giriş yapıldığında)
+    const handleStorageChange = () => {
+      checkUser();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Kısa bir gecikme ile tekrar kontrol et (race condition için)
+    const timeout = setTimeout(checkUser, 200);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearTimeout(timeout);
+    };
+  }, [hideNavigation]);
 
   const handleLogout = () => {
     localStorage.removeItem('loggedUser');

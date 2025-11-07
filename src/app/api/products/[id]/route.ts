@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
+import { createAuditLog, getUserFromRequest } from '../../../../lib/audit-log';
 
 // Belirli bir ürünü getir
 export async function GET(
@@ -138,6 +139,18 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Audit log
+    const userInfo = await getUserFromRequest(request);
+    const deletedProduct = result.rows[0];
+    await createAuditLog({
+      ...userInfo,
+      action: 'DELETE',
+      entityType: 'PRODUCT',
+      entityId: String(productId),
+      entityName: deletedProduct?.product_code || 'Bilinmeyen',
+      details: { productId, reason: 'User deletion' }
+    });
 
     console.log('Ürün başarıyla silindi');
     return NextResponse.json(

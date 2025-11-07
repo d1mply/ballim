@@ -36,13 +36,7 @@ export default function HomePage() {
     { name: 'Uludağ Anahtarlık 3', file: 'ULUDAG ANAHTARLIK KATOLOG3.pdf', description: 'Anahtarlık koleksiyonu' }
   ];
 
-  // Halihazırda oturum açılmış mı kontrol et
-  useEffect(() => {
-    const loggedUser = localStorage.getItem('loggedUser');
-    if (loggedUser) {
-      router.push('/urunler');
-    }
-  }, [router]);
+  // Otomatik yönlendirme kaldırıldı - kullanıcı manuel giriş yapmalı
 
   // Ekran genişliğine göre arka plan seçimi
   const [isMobile, setIsMobile] = useState(false);
@@ -80,6 +74,13 @@ export default function HomePage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    // Basit validasyon
+    if (!username || !password) {
+      setError('Lütfen kullanıcı adı ve şifre girin');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -100,24 +101,40 @@ export default function HomePage() {
         }),
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Giriş yapılırken bir hata oluştu');
+      // Response'u parse et
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (parseError) {
+        console.error('Response parse hatası:', parseError);
+        setError('Sunucudan geçersiz yanıt alındı');
+        setLoading(false);
+        return;
       }
       
-      const responseData = await response.json();
+      if (!response.ok) {
+        // Hata durumu
+        const errorMessage = responseData?.error || `HTTP ${response.status}: Giriş yapılamadı`;
+        console.error('Giriş hatası:', errorMessage, responseData);
+        setError(errorMessage);
+        setLoading(false);
+        return;
+      }
       
-      // Yeni API response formatına uygun
-      const userData = responseData.user || responseData;
-      
-      // Kullanıcı bilgilerini session'a kaydet
-      localStorage.setItem('loggedUser', JSON.stringify(userData));
-      
-      // Kullanıcı tipine göre yönlendir
-      if (userData.type === 'admin') {
-        router.push('/admin-dashboard');
+      // Başarılı giriş kontrolü
+      if (responseData && responseData.success && responseData.user) {
+        const userData = responseData.user;
+        console.log('Giriş başarılı:', userData);
+        
+        // Kullanıcı bilgilerini session'a kaydet
+        localStorage.setItem('loggedUser', JSON.stringify(userData));
+        
+        // Direkt ürünler sayfasına yönlendir
+        window.location.href = '/urunler';
       } else {
-        router.push('/customer-dashboard');
+        console.error('Geçersiz response:', responseData);
+        setError('Giriş başarısız. Lütfen bilgilerinizi kontrol edin.');
+        setLoading(false);
       }
     } catch (error) {
       console.error('Giriş hatası:', error);
@@ -267,25 +284,25 @@ export default function HomePage() {
             {/* Kataloglar */}
             <div>
               <h3 className="text-white font-bold text-lg mb-4 text-center tracking-wide">📖 Kataloglarımız</h3>
-              
+            
               <div className="overflow-x-auto pb-4">
-                <div className="flex space-x-4 min-w-max px-1">
-                  {catalogs.map((catalog, index) => (
-                    <a
-                      key={index}
-                      href={`/kataloglar/${catalog.file}`}
-                      target="_blank"
+              <div className="flex space-x-4 min-w-max px-1">
+                {catalogs.map((catalog, index) => (
+                  <a
+                    key={index}
+                    href={`/kataloglar/${catalog.file}`}
+                    target="_blank"
                       className="group bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-lg rounded-xl border border-white/30 p-4 min-w-[160px] hover:from-white/25 hover:to-white/10 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                    >
-                      <div className="text-center">
+                  >
+                    <div className="text-center">
                         <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-2 group-hover:bg-blue-500/30 transition-colors">
                           <span className="text-blue-300 text-lg">📄</span>
-                        </div>
-                        <h4 className="text-white font-semibold text-xs mb-1 leading-tight">{catalog.name}</h4>
-                        <p className="text-white/70 text-xs leading-relaxed">{catalog.description}</p>
                       </div>
-                    </a>
-                  ))}
+                        <h4 className="text-white font-semibold text-xs mb-1 leading-tight">{catalog.name}</h4>
+                      <p className="text-white/70 text-xs leading-relaxed">{catalog.description}</p>
+                    </div>
+                  </a>
+                ))}
                 </div>
               </div>
             </div>
@@ -297,29 +314,29 @@ export default function HomePage() {
               <div className="flex flex-wrap gap-2 justify-center">
                 {salesPoints.map((point, index) => {
                   let displayName = resolvedNames[point.url || ''] || point.name;
-                  // Google Haritalar/Maps gibi başlıklar geldiyse kendi ismimizi kullan
-                  if (displayName && /google\s*(maps|haritalar)/i.test(displayName)) {
+                // Google Haritalar/Maps gibi başlıklar geldiyse kendi ismimizi kullan
+                if (displayName && /google\s*(maps|haritalar)/i.test(displayName)) {
                     displayName = point.name;
-                  }
-                  return (
-                    <a
+                }
+                return (
+                  <a
                       key={index}
                       href={point.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    target="_blank"
+                    rel="noopener noreferrer"
                       className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-400/30 text-green-200 px-3 py-2 rounded-full text-xs font-medium hover:from-green-500/30 hover:to-emerald-500/30 hover:border-green-400/50 transition-all duration-300 transform hover:scale-105"
-                    >
+                  >
                       {displayName}
-                    </a>
-                  );
-                })}
+                  </a>
+                );
+              })}
               </div>
               
               <p className="text-white/60 text-center mt-3 text-xs">
                 {salesPoints.length}+ iş ortağı
               </p>
             </div>
-          </div>
+            </div>
           </div>
         </div>
 

@@ -576,6 +576,58 @@ export async function createTables() {
     success = false;
   }
 
+  // Audit Log tablosu
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT,
+        user_name TEXT,
+        action VARCHAR(50) NOT NULL,
+        entity_type VARCHAR(50) NOT NULL,
+        entity_id TEXT,
+        entity_name TEXT,
+        details JSONB,
+        ip_address TEXT,
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC)
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id)
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id)
+    `);
+    console.log('Audit Logs tablosu oluşturuldu veya zaten mevcut');
+  } catch (error) {
+    console.error('Audit Logs tablosu oluşturulurken hata:', error);
+    success = false;
+  }
+
+  // Favori ürünler tablosu
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS favorite_products (
+        id SERIAL PRIMARY KEY,
+        customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(customer_id, product_id)
+      )
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_favorite_products_customer ON favorite_products(customer_id)
+    `);
+    console.log('Favorite Products tablosu oluşturuldu veya zaten mevcut');
+  } catch (error) {
+    console.error('Favorite Products tablosu oluşturulurken hata:', error);
+    success = false;
+  }
+
   // Sistem müşterisi oluştur (stok üretimleri için)
   try {
     await query(`

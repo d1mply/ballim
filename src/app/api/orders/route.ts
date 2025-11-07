@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
 import { parseIntSafe } from '@/lib/validation';
 import { logOrderEvent } from '@/lib/audit';
+import { createAuditLog, getUserFromRequest } from '../../../lib/audit-log';
 
 // Siparişleri getir - Basitleştirilmiş ve müşteri izolasyonu ile
 export async function GET(request: NextRequest) {
@@ -181,34 +182,34 @@ export async function POST(request: NextRequest) {
           console.log(`✅ Paket eklendi: ${packageInfo.package_code}`);
         } else {
           // Normal ürün ise
-          const productResult = await query(`
-            SELECT product_code, product_type
-            FROM products 
-            WHERE id = $1
-          `, [productId]);
+        const productResult = await query(`
+          SELECT product_code, product_type
+          FROM products 
+          WHERE id = $1
+        `, [productId]);
 
-          if (productResult.rows.length === 0) {
-            throw new Error(`Ürün bulunamadı: ${productId}`);
-          }
+        if (productResult.rows.length === 0) {
+          throw new Error(`Ürün bulunamadı: ${productId}`);
+        }
 
-          const productInfo = productResult.rows[0];
+        const productInfo = productResult.rows[0];
 
           // Order item ekle (normal ürün)
-          await query(`
-            INSERT INTO order_items (
+        await query(`
+          INSERT INTO order_items (
               order_id, product_id, package_id, product_code, product_name, 
-              quantity, unit_price, status, created_at
+            quantity, unit_price, status, created_at
             ) VALUES ($1, $2, NULL, $3, $4, $5, $6, 'onay_bekliyor', CURRENT_TIMESTAMP)
-          `, [
-            order.id,
-            productId,
-            productInfo.product_code,
-            productInfo.product_type,
-            quantity,
-            finalUnitPrice
-          ]);
-          
-          console.log(`✅ Ürün eklendi: ${productInfo.product_code}`);
+        `, [
+          order.id,
+          productId,
+          productInfo.product_code,
+          productInfo.product_type,
+          quantity,
+          finalUnitPrice
+        ]);
+        
+        console.log(`✅ Ürün eklendi: ${productInfo.product_code}`);
         }
       }
 
@@ -222,6 +223,23 @@ export async function POST(request: NextRequest) {
 
       await query('COMMIT');
       console.log('✅ Transaction tamamlandı');
+
+      // Audit log
+      const userInfo = await getUserFromRequest(request);
+      await createAuditLog({
+        ...userInfo,
+        action: 'CREATE',
+        entityType: 'ORDER',
+        entityId: String(order.id),
+        entityName: orderCode,
+        details: { 
+          orderId: order.id, 
+          orderCode, 
+          orderType, 
+          totalAmount, 
+          itemCount: products.length 
+        }
+      });
 
       return NextResponse.json({
         success: true,

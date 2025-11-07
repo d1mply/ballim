@@ -45,6 +45,39 @@ export async function GET() {
     `);
     const activeCustomers = parseInt(activeCustomersResult.rows[0]?.count || '0');
 
+    // Günlük istatistikler (Bugün)
+    const todayOrdersResult = await query(`
+      SELECT COUNT(*) as count 
+      FROM orders 
+      WHERE DATE(order_date) = CURRENT_DATE
+    `);
+    const todayOrders = parseInt(todayOrdersResult.rows[0]?.count || '0');
+
+    const todayRevenueResult = await query(`
+      SELECT COALESCE(SUM(total_amount), 0) as total 
+      FROM orders 
+      WHERE DATE(order_date) = CURRENT_DATE 
+      AND status != 'İptal'
+    `);
+    const todayRevenue = parseFloat(todayRevenueResult.rows[0]?.total || '0');
+
+    const todayNewCustomersResult = await query(`
+      SELECT COUNT(*) as count 
+      FROM customers 
+      WHERE DATE(created_at) = CURRENT_DATE
+    `);
+    const todayNewCustomers = parseInt(todayNewCustomersResult.rows[0]?.count || '0');
+
+    // Aylık gelir (Bu ay)
+    const monthlyRevenueResult = await query(`
+      SELECT COALESCE(SUM(total_amount), 0) as total 
+      FROM orders 
+      WHERE EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+      AND EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+      AND status != 'İptal'
+    `);
+    const monthlyRevenue = parseFloat(monthlyRevenueResult.rows[0]?.total || '0');
+
     const stats = {
       totalProducts,
       totalOrders,
@@ -53,7 +86,11 @@ export async function GET() {
       pendingOrders,
       criticalStock,
       completedOrders,
-      activeCustomers
+      activeCustomers,
+      todayOrders,
+      todayRevenue,
+      todayNewCustomers,
+      monthlyRevenue
     };
 
     return NextResponse.json(stats);

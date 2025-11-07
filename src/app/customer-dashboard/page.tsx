@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
+import { useToast } from '../../contexts/ToastContext';
+import Link from 'next/link';
 
 interface CustomerStats {
   totalOrders: number;
@@ -19,7 +21,7 @@ interface CustomerOrder {
   order_date: string;
   total_amount: number;
   status: string;
-  products: { code: string; name: string; quantity: number }[];
+  products?: { code: string; name: string; quantity: number }[];
 }
 
 interface RecentPayment {
@@ -28,6 +30,18 @@ interface RecentPayment {
   tutar: number;
   odeme_yontemi: string;
   aciklama: string;
+}
+
+interface FavoriteProduct {
+  id: number;
+  productId: number;
+  product: {
+    id: number;
+    code: string;
+    productType: string;
+    image: string | null;
+    stockQuantity: number;
+  };
 }
 
 export default function CustomerDashboard() {
@@ -41,20 +55,35 @@ export default function CustomerDashboard() {
   });
   const [recentOrders, setRecentOrders] = useState<CustomerOrder[]>([]);
   const [recentPayments, setRecentPayments] = useState<RecentPayment[]>([]);
+  const [favoriteProducts, setFavoriteProducts] = useState<FavoriteProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<{ id: number; name: string } | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
-    const userJson = localStorage.getItem('loggedUser');
-    if (userJson) {
-      const user = JSON.parse(userJson);
-      setCurrentUser(user);
-      fetchCustomerData(user.id);
+    try {
+      const userJson = localStorage.getItem('loggedUser');
+      if (userJson) {
+        const user = JSON.parse(userJson);
+        setCurrentUser(user);
+        if (user.id) {
+          fetchCustomerData(Number(user.id));
+        } else {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Kullanıcı bilgisi okunamadı:', error);
+      setLoading(false);
     }
   }, []);
 
   const fetchCustomerData = async (customerId: number) => {
     try {
+      setLoading(true);
+      
       // Müşteri istatistiklerini al
       const statsResponse = await fetch(`/api/customer-stats/${customerId}`);
       if (statsResponse.ok) {
@@ -66,47 +95,64 @@ export default function CustomerDashboard() {
       const ordersResponse = await fetch(`/api/customer-orders/${customerId}?limit=5`);
       if (ordersResponse.ok) {
         const ordersData = await ordersResponse.json();
-        setRecentOrders(ordersData.slice(0, 5));
+        setRecentOrders(Array.isArray(ordersData) ? ordersData.slice(0, 5) : []);
       }
 
       // Son ödemeleri al
       const paymentsResponse = await fetch(`/api/customer-payments/${customerId}?limit=5`);
       if (paymentsResponse.ok) {
         const paymentsData = await paymentsResponse.json();
-        setRecentPayments(paymentsData.slice(0, 5));
+        setRecentPayments(Array.isArray(paymentsData) ? paymentsData.slice(0, 5) : []);
+      }
+
+      // Favori ürünleri al
+      const favoritesResponse = await fetch(`/api/favorites?customerId=${customerId}`);
+      if (favoritesResponse.ok) {
+        const favoritesData = await favoritesResponse.json();
+        setFavoriteProducts(Array.isArray(favoritesData) ? favoritesData.slice(0, 6) : []);
       }
     } catch (error) {
       console.error('Müşteri verisi alınırken hata:', error);
+      toast.error('Veriler yüklenirken bir hata oluştu');
     } finally {
       setLoading(false);
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const statusClasses = {
-      'Beklemede': 'bg-yellow-100 text-yellow-800',
-      'Üretimde': 'bg-blue-100 text-blue-800',
-      'Tamamlandı': 'bg-green-100 text-green-800',
-      'İptal': 'bg-red-100 text-red-800'
+    const statusClasses: Record<string, string> = {
+      'Beklemede': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      'Onay Bekliyor': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      'Üretimde': 'bg-blue-100 text-blue-800 border-blue-200',
+      'Tamamlandı': 'bg-green-100 text-green-800 border-green-200',
+      'İptal': 'bg-red-100 text-red-800 border-red-200',
+      'Kargoda': 'bg-purple-100 text-purple-800 border-purple-200'
     };
     
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusClasses[status as keyof typeof statusClasses] || 'bg-gray-100 text-gray-800'}`}>
+      <span className={`px-2.5 py-1 text-xs font-semibold rounded-md border ${statusClasses[status] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
         {status}
       </span>
     );
   };
 
-  const getPaymentMethodIcon = (method: string) => {
-    switch (method) {
-      case 'Nakit':
-        return '💵';
-      case 'Kredi Kartı':
-        return '💳';
-      case 'Banka Transferi':
-        return '🏦';
-      default:
-        return '💰';
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('tr-TR', {
+      style: 'currency',
+      currency: 'TRY',
+      minimumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('tr-TR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch {
+      return dateString;
     }
   };
 
@@ -114,7 +160,7 @@ export default function CustomerDashboard() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Yükleniyor...</div>
+          <div className="text-muted-foreground">Yükleniyor...</div>
         </div>
       </Layout>
     );
@@ -123,204 +169,215 @@ export default function CustomerDashboard() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="bg-gradient-to-r from-primary to-accent text-white rounded-lg p-6 mb-6">
+        {/* Hoş Geldiniz Başlığı */}
+        <div className="bg-gradient-to-r from-primary to-accent text-white rounded-lg p-6 shadow-lg">
           <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center w-16 h-16 bg-white/20 text-white rounded-full text-2xl font-bold">
-              {currentUser?.name?.charAt(0) || '👤'}
+            <div className="flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm text-white rounded-full text-2xl font-bold">
+              {currentUser?.name?.charAt(0)?.toUpperCase() || '👤'}
             </div>
             <div>
-              <h1 className="text-3xl font-bold mb-2 text-black">ULUDAĞ3D HOŞGELDİNİZ</h1>
-              <p className="text-lg opacity-90 text-black">BALLİM İLE SİPARİŞLERİNİZİ YÖNET</p>
-              <p className="text-sm opacity-75 mt-1">Merhaba {currentUser?.name}, hesap durumunuz ve sipariş geçmişiniz</p>
+              <h1 className="text-2xl font-bold mb-1">Hoş Geldiniz, {currentUser?.name || 'Müşteri'}!</h1>
+              <p className="text-white/90">Hesap durumunuz ve sipariş geçmişiniz</p>
             </div>
           </div>
         </div>
 
         {/* İstatistik Kartları */}
-        <div className="dashboard-grid">
-          <div className="dashboard-card">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Toplam Siparişler */}
+          <div className="bg-card border border-border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm opacity-90">Toplam Sipariş</p>
-                <p className="text-2xl font-bold">{stats.totalOrders}</p>
+                <p className="text-sm font-medium text-muted-foreground">Toplam Siparişler</p>
+                <p className="text-3xl font-bold text-foreground mt-2">{stats.totalOrders}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats.pendingOrders} beklemede
+                </p>
               </div>
-              <Icons.ShoppingCartIcon className="w-8 h-8 opacity-80" />
+              <div className="bg-blue-500/10 p-3 rounded-lg">
+                <Icons.ShoppingCartIcon className="w-8 h-8 text-blue-500" />
+              </div>
             </div>
+            <Link href="/siparis-takip" className="text-xs text-primary hover:underline mt-4 inline-block">
+              Tümünü gör →
+            </Link>
           </div>
 
-          <div className="dashboard-card-secondary">
+          {/* Toplam Harcama */}
+          <div className="bg-card border border-border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm opacity-90">Toplam Harcama</p>
-                <p className="text-2xl font-bold">₺{(stats.totalSpent || 0).toLocaleString()}</p>
+                <p className="text-sm font-medium text-muted-foreground">Toplam Harcama</p>
+                <p className="text-3xl font-bold text-foreground mt-2">{formatCurrency(stats.totalSpent)}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats.completedOrders} tamamlanan
+                </p>
               </div>
-              <Icons.TrendingUpIcon className="w-8 h-8 opacity-80" />
+              <div className="bg-green-500/10 p-3 rounded-lg">
+                <Icons.CreditCardIcon className="w-8 h-8 text-green-500" />
+              </div>
             </div>
+            <Link href="/cari-hesap" className="text-xs text-primary hover:underline mt-4 inline-block">
+              Detaylar →
+            </Link>
           </div>
 
-          <div className="dashboard-card-warning">
+          {/* Cari Hesap */}
+          <div className="bg-card border border-border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm opacity-90">Bekleyen Sipariş</p>
-                <p className="text-2xl font-bold">{stats.pendingOrders}</p>
+                <p className="text-sm font-medium text-muted-foreground">Cari Hesap</p>
+                <p className={`text-3xl font-bold mt-2 ${stats.currentBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(Math.abs(stats.currentBalance))}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats.currentBalance >= 0 ? 'Alacak' : 'Borç'}
+                </p>
               </div>
-              <Icons.ClockIcon className="w-8 h-8 opacity-80" />
+              <div className="bg-yellow-500/10 p-3 rounded-lg">
+                <Icons.ReceiptIcon className="w-8 h-8 text-yellow-500" />
+              </div>
             </div>
+            <Link href="/cari-hesap" className="text-xs text-primary hover:underline mt-4 inline-block">
+              Detaylar →
+            </Link>
           </div>
 
-          <div className="dashboard-card-danger">
+          {/* Favori Ürünler */}
+          <div className="bg-card border border-border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm opacity-90">Mevcut Bakiye</p>
-                <p className="text-2xl font-bold">₺{(stats.currentBalance || 0).toLocaleString()}</p>
+                <p className="text-sm font-medium text-muted-foreground">Favori Ürünler</p>
+                <p className="text-3xl font-bold text-foreground mt-2">{favoriteProducts.length}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Kayıtlı ürünler
+                </p>
               </div>
-              <Icons.CreditCardIcon className="w-8 h-8 opacity-80" />
-            </div>
-          </div>
-
-          <div className="dashboard-card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm opacity-90">Tamamlanan Sipariş</p>
-                <p className="text-2xl font-bold">{stats.completedOrders}</p>
+              <div className="bg-purple-500/10 p-3 rounded-lg">
+                <Icons.PackageIcon className="w-8 h-8 text-purple-500" />
               </div>
-              <Icons.CheckCircleIcon className="w-8 h-8 opacity-80" />
             </div>
-          </div>
-
-          <div className="dashboard-card-secondary">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm opacity-90">Favori Ürünler</p>
-                <p className="text-2xl font-bold">{stats.favoriteProducts}</p>
-              </div>
-              <Icons.PackageIcon className="w-8 h-8 opacity-80" />
-            </div>
+            <Link href="/urunler" className="text-xs text-primary hover:underline mt-4 inline-block">
+              Ürünlere git →
+            </Link>
           </div>
         </div>
+
+        {/* Favori Ürünler */}
+        {favoriteProducts.length > 0 && (
+          <div className="bg-card border border-border rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground">Favori Ürünlerim</h2>
+              <Link href="/urunler" className="text-sm text-primary hover:underline font-medium">
+                Tümünü Gör →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {favoriteProducts.map((fav) => (
+                <Link
+                  key={fav.id}
+                  href={`/urunler?product=${fav.productId}`}
+                  className="group relative aspect-square bg-secondary rounded-lg overflow-hidden hover:shadow-lg transition-all"
+                >
+                  {fav.product.image ? (
+                    <img
+                      src={fav.product.image}
+                      alt={fav.product.productType}
+                      className="w-full h-full object-contain p-2"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Icons.PackageIcon className="w-12 h-12 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 text-xs">
+                    <p className="font-medium truncate">{fav.product.code}</p>
+                    <p className="text-xs opacity-75">Stok: {fav.product.stockQuantity}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Son Siparişler ve Ödemeler */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Son Siparişler */}
-          <div className="content-card">
-            <div className="content-card-header">
-              <h2 className="text-lg font-semibold">Son Siparişlerim</h2>
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Son Siparişlerim</h2>
+              <Link href="/siparis-takip" className="text-sm text-primary hover:underline font-medium">
+                Tümünü Gör →
+              </Link>
             </div>
-            <div className="content-card-body">
-              {recentOrders.length > 0 ? (
-                <div className="space-y-3">
-                  {recentOrders.map((order) => (
-                    <div key={order.id} className="border-b border-gray-200 pb-3 last:border-b-0">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-medium text-sm">{order.order_code}</p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(order.order_date).toLocaleDateString('tr-TR')}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-sm">₺{(order.total_amount || 0).toLocaleString()}</p>
-                          {getStatusBadge(order.status)}
-                        </div>
-                      </div>
-                      {order.products && order.products.length > 0 && (
-                        <div className="text-xs text-gray-600">
-                          {order.products.slice(0, 2).map((product: { code: string; name: string; quantity: number }, index: number) => (
-                            <span key={index}>
-                              {product.name} ({product.quantity} adet)
-                              {index < Math.min(2, order.products.length - 1) && ', '}
-                            </span>
-                          ))}
-                          {order.products.length > 2 && ` ve ${order.products.length - 2} ürün daha`}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
+            <div className="divide-y divide-border">
+              {recentOrders.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
                   Henüz sipariş bulunmuyor
                 </div>
+              ) : (
+                recentOrders.map((order) => (
+                  <div key={order.id} className="p-4 hover:bg-secondary/50 transition-colors">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-semibold text-foreground">{order.order_code}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatDate(order.order_date)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-foreground">{formatCurrency(order.total_amount)}</p>
+                        <div className="mt-1">{getStatusBadge(order.status)}</div>
+                      </div>
+                    </div>
+                    {order.products && order.products.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {order.products.length} ürün
+                      </p>
+                    )}
+                  </div>
+                ))
               )}
             </div>
           </div>
 
           {/* Son Ödemeler */}
-          <div className="content-card">
-            <div className="content-card-header">
-              <h2 className="text-lg font-semibold">Son Ödemelerim</h2>
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Son Ödemelerim</h2>
+              <Link href="/cari-hesap" className="text-sm text-primary hover:underline font-medium">
+                Tümünü Gör →
+              </Link>
             </div>
-            <div className="content-card-body">
-              {recentPayments.length > 0 ? (
-                <div className="space-y-3">
-                  {recentPayments.map((payment) => (
-                    <div key={payment.id} className="border-b border-gray-200 pb-3 last:border-b-0">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-medium text-sm">{payment.aciklama}</p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(payment.odeme_tarihi).toLocaleDateString('tr-TR')}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-sm">₺{(payment.tutar || 0).toLocaleString()}</p>
-                          <p className="text-xs text-gray-600 flex items-center gap-1">
-                            <span>{getPaymentMethodIcon(payment.odeme_yontemi)}</span>
-                            {payment.odeme_yontemi}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
+            <div className="divide-y divide-border">
+              {recentPayments.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
                   Henüz ödeme bulunmuyor
                 </div>
+              ) : (
+                recentPayments.map((payment) => (
+                  <div key={payment.id} className="p-4 hover:bg-secondary/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-foreground">{payment.aciklama || 'Ödeme'}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatDate(payment.odeme_tarihi)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-foreground">{formatCurrency(payment.tutar)}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {payment.odeme_yontemi}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
               )}
-            </div>
-          </div>
-        </div>
-
-        {/* Hızlı Erişim */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="content-card">
-            <div className="content-card-body text-center">
-              <Icons.PackageIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
-              <h3 className="font-semibold mb-1">Ürün Kataloğu</h3>
-              <p className="text-sm text-gray-600 mb-3">Mevcut ürünleri incele</p>
-              <a href="/urunler" className="btn-primary inline-block">Ürünlere Git</a>
-            </div>
-          </div>
-
-          <div className="content-card">
-            <div className="content-card-body text-center">
-              <Icons.ShoppingCartIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
-              <h3 className="font-semibold mb-1">Sipariş Ver</h3>
-              <p className="text-sm text-gray-600 mb-3">Yeni sipariş oluştur</p>
-              <a href="/stok-siparis" className="btn-primary inline-block">Sipariş Ver</a>
-            </div>
-          </div>
-
-          <div className="content-card">
-            <div className="content-card-body text-center">
-              <Icons.ClockIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
-              <h3 className="font-semibold mb-1">Sipariş Takip</h3>
-              <p className="text-sm text-gray-600 mb-3">Siparişlerini takip et</p>
-              <a href="/siparis-takip" className="btn-primary inline-block">Takip Et</a>
-            </div>
-          </div>
-
-          <div className="content-card">
-            <div className="content-card-body text-center">
-              <Icons.CreditCardIcon className="w-8 h-8 mx-auto mb-2 text-primary" />
-              <h3 className="font-semibold mb-1">Cari Hesap</h3>
-              <p className="text-sm text-gray-600 mb-3">Hesap durumunu gör</p>
-              <a href="/cari-hesap" className="btn-primary inline-block">Hesabı Gör</a>
             </div>
           </div>
         </div>
       </div>
     </Layout>
   );
-} 
+}

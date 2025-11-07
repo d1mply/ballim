@@ -74,7 +74,7 @@ export async function PUT(request: NextRequest) {
         SET status = $1
         WHERE order_id = $2 AND id = $3
       `, [orderItemStatus, dbOrderId, prodId]);
-      
+
       // FİLAMENT STOK İŞLEMİ: "uretiliyor" durumuna geçince filament düşür
       if (orderItemStatus === 'uretiliyor' && currentStatus !== 'uretiliyor' && !skipProduction && productDbId) {
         console.log('🎨 FILAMENT STOK DÜŞÜRME işlemi başlıyor:', { 
@@ -198,7 +198,7 @@ export async function PUT(request: NextRequest) {
                   totalWeightNeeded,
                   `Sipariş ${orderCode} - ${actualQuantity} adet üretim (otomatik)`
                 ]);
-                
+        
                 console.log(`✅ Filament kullanım geçmişi kaydedildi`);
               } else {
                 throw new Error(`FİLAMENT BULUNAMADI! ${prodFilament.filament_type} ${prodFilament.filament_color} stokta yok!`);

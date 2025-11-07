@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
 import { parseIntSafe } from '@/lib/validation';
 import { handleApiError, handleDatabaseError, validateFilamentData } from '../../../lib/errors';
+import { createAuditLog, getUserFromRequest } from '../../../lib/audit-log';
 
 // Tüm filamentleri getir
 export async function GET() {
@@ -119,6 +120,17 @@ export async function POST(request: NextRequest) {
       updatedAt: result.rows[0].updated_at
     };
     
+    // Audit log
+    const userInfo = await getUserFromRequest(request);
+    await createAuditLog({
+      ...userInfo,
+      action: 'CREATE',
+      entityType: 'FILAMENT',
+      entityId: String(newFilament.id),
+      entityName: `${filamentCode} - ${autoName}`,
+      details: { filamentCode, type, brand, color, totalWeight }
+    });
+    
     return NextResponse.json(newFilament, { status: 201 });
   } catch (error) {
     const errorResponse = handleApiError(error);
@@ -193,6 +205,18 @@ export async function PUT(request: NextRequest) {
       );
     }
     
+    // Audit log
+    const userInfo = await getUserFromRequest(request);
+    const filament = result.rows[0];
+    await createAuditLog({
+      ...userInfo,
+      action: 'UPDATE',
+      entityType: 'FILAMENT',
+      entityId: String(id),
+      entityName: `${filament.filament_code} - ${filament.name}`,
+      details: { filamentId: id, updatedFields: Object.keys(updateData) }
+    });
+    
     // Kolon isimlerini camelCase'e dönüştür
     const updatedFilament = {
       id: result.rows[0].id,
@@ -260,6 +284,19 @@ export async function DELETE(request: NextRequest) {
           if (delRes.rowCount === 0) {
             return NextResponse.json({ error: 'Filament bulunamadı' }, { status: 404 });
           }
+          
+          // Audit log
+          const userInfo = await getUserFromRequest(request);
+          const deletedFilament = delRes.rows[0];
+          await createAuditLog({
+            ...userInfo,
+            action: 'DELETE',
+            entityType: 'FILAMENT',
+            entityId: String(id),
+            entityName: `${deletedFilament.filament_code} - ${deletedFilament.name}`,
+            details: { filamentId: id, force: true, usageHistoryDeleted: true }
+          });
+          
           return NextResponse.json({ message: 'Filament ve kullanım geçmişi silindi', deletedId: id });
         } catch (e) {
           await query('ROLLBACK');
@@ -290,6 +327,18 @@ export async function DELETE(request: NextRequest) {
         { status: 404 }
       );
     }
+    
+    // Audit log
+    const userInfo = await getUserFromRequest(request);
+    const deletedFilament = result.rows[0];
+    await createAuditLog({
+      ...userInfo,
+      action: 'DELETE',
+      entityType: 'FILAMENT',
+      entityId: String(id),
+      entityName: `${deletedFilament.filament_code} - ${deletedFilament.name}`,
+      details: { filamentId: id, force: false }
+    });
     
     return NextResponse.json({ 
       message: 'Filament başarıyla silindi',
