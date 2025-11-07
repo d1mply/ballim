@@ -300,6 +300,7 @@ export default function FilamentlerPage() {
             item.id === selectedFilament.id ? updatedFilament : item
           )
         );
+        toast.success('Filament başarıyla güncellendi!');
       } else {
         // Yeni ekleme
         const response = await fetch('/api/filaments', {
@@ -319,13 +320,6 @@ export default function FilamentlerPage() {
         // State'i güncelle
         setFilamentsList(prevList => [...prevList, newFilament]);
         toast.success('Filament başarıyla eklendi!');
-      } else {
-        // Güncelleme
-        const updatedFilament = await response.json();
-        setFilamentsList(prevList => 
-          prevList.map(item => item.id === selectedFilament.id ? updatedFilament : item)
-        );
-        toast.success('Filament başarıyla güncellendi!');
       }
     } catch (error) {
       console.error('Filament kaydedilirken hata:', error);
