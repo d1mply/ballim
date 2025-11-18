@@ -57,7 +57,7 @@ export default function CustomerDashboard() {
   const [recentPayments, setRecentPayments] = useState<RecentPayment[]>([]);
   const [favoriteProducts, setFavoriteProducts] = useState<FavoriteProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<{ id: number; name: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: number; name?: string; username?: string } | null>(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -170,14 +170,14 @@ export default function CustomerDashboard() {
     <Layout>
       <div className="space-y-6">
         {/* Hoş Geldiniz Başlığı */}
-        <div className="bg-gradient-to-r from-primary to-accent text-white rounded-lg p-6 shadow-lg">
+        <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white rounded-lg p-6 shadow-lg border border-blue-800/50">
           <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm text-white rounded-full text-2xl font-bold">
-              {currentUser?.name?.charAt(0)?.toUpperCase() || '👤'}
+            <div className="flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm text-white rounded-full text-2xl font-bold border-2 border-white/30">
+              {(currentUser?.name || currentUser?.username || 'M')?.charAt(0)?.toUpperCase()}
             </div>
             <div>
-              <h1 className="text-2xl font-bold mb-1">Hoş Geldiniz, {currentUser?.name || 'Müşteri'}!</h1>
-              <p className="text-white/90">Hesap durumunuz ve sipariş geçmişiniz</p>
+              <h1 className="text-2xl font-bold mb-1 text-white drop-shadow-sm">Hoş Geldiniz, {currentUser?.name || currentUser?.username || 'Müşteri'}!</h1>
+              <p className="text-white/95 font-medium">Hesap durumunuz ve sipariş geçmişiniz</p>
             </div>
           </div>
         </div>

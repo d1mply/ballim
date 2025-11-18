@@ -1470,7 +1470,7 @@ export default function UrunlerPage() {
       {/* Ürün Detay Modalı */}
       {selectedProduct && isDetailOpen && (
         <div className="modal">
-          <div className="modal-content max-w-2xl">
+          <div className="modal-content max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="modal-header">
               <h2 className="text-lg font-semibold">Ürün Detayı - {selectedProduct.code}</h2>
               <button 
@@ -1482,17 +1482,18 @@ export default function UrunlerPage() {
             </div>
             
             <div className="modal-body">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <div className="aspect-square bg-muted rounded-md overflow-hidden mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex flex-col">
+                  <div className="bg-muted rounded-md overflow-hidden mb-4 flex items-center justify-center" style={{ minHeight: '300px', maxHeight: '500px' }}>
                     {selectedProduct.image ? (
                       <img 
                         src={selectedProduct.image} 
                         alt={selectedProduct.code} 
-                        className="w-full h-full object-contain"
+                        className="max-w-full max-h-full object-contain p-4"
+                        style={{ maxWidth: '100%', maxHeight: '500px', width: 'auto', height: 'auto' }}
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground min-h-[300px]">
                         Ürün Görseli Yok
                       </div>
                     )}
