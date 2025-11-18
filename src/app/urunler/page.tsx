@@ -25,6 +25,10 @@ export default function UrunlerPage() {
   const [selectedProduct, setSelectedProduct] = useState<ProductData | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<any | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [printTimeMin, setPrintTimeMin] = useState<number | ''>('');
+  const [printTimeMax, setPrintTimeMax] = useState<number | ''>('');
+  const [filamentTypeFilter, setFilamentTypeFilter] = useState('');
+  const [stockStatusFilter, setStockStatusFilter] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [showFilters, setShowFilters] = useState(false);
   const [showPackages, setShowPackages] = useState(true); // Paketleri göster/gizle
@@ -121,12 +125,49 @@ export default function UrunlerPage() {
   // Arama fonksiyonu
   const filteredProducts = productsList.filter((product) => {
     const searchLower = searchTerm.toLowerCase();
+    
+    // Kategori filtresi
     const categoryMatch = categoryFilter === '' || product.productType.toLowerCase().includes(categoryFilter.toLowerCase());
+    
+    // Baskı süresi filtresi (saat cinsinden - range)
+    let printTimeMatch = true;
+    const printTimeHours = product.printTime || 0;
+    if (printTimeMin !== '' || printTimeMax !== '') {
+      if (printTimeMin !== '' && printTimeMax !== '') {
+        printTimeMatch = printTimeHours >= printTimeMin && printTimeHours <= printTimeMax;
+      } else if (printTimeMin !== '') {
+        printTimeMatch = printTimeHours >= printTimeMin;
+      } else if (printTimeMax !== '') {
+        printTimeMatch = printTimeHours <= printTimeMax;
+      }
+    }
+    
+    // Filament tipi filtresi
+    let filamentMatch = true;
+    if (filamentTypeFilter) {
+      filamentMatch = product.filaments?.some(f => 
+        f.type?.toLowerCase() === filamentTypeFilter.toLowerCase()
+      ) || false;
+    }
+    
+    // Stok durumu filtresi
+    let stockMatch = true;
+    if (stockStatusFilter) {
+      const availableStock = product.availableStock || 0;
+      if (stockStatusFilter === 'stokta-var') {
+        stockMatch = availableStock > 0;
+      } else if (stockStatusFilter === 'stokta-yok') {
+        stockMatch = availableStock === 0;
+      }
+    }
     
     return (
       ((product.code && product.code.toLowerCase().includes(searchLower)) ||
       (product.productType && product.productType.toLowerCase().includes(searchLower))) &&
-      categoryMatch
+      categoryMatch &&
+      printTimeMatch &&
+      filamentMatch &&
+      stockMatch
     );
   });
 
@@ -236,15 +277,44 @@ export default function UrunlerPage() {
           throw new Error(`API hatası: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
         }
         
-        const updatedProduct = await response.json();
-        console.log("Güncellenen ürün:", updatedProduct);
+        const responseData = await response.json();
+        console.log("Güncellenen ürün response:", responseData);
+        
+        // API'den dönen veriyi frontend formatına dönüştür
+        let formattedProduct;
+        if (responseData.product) {
+          const dbProduct = responseData.product;
+          // Mevcut ürünün stok ve filament bilgilerini koru
+          const currentProduct = productsList.find(p => p.id === selectedProduct.id);
+          formattedProduct = {
+            id: dbProduct.id,
+            code: dbProduct.product_code,
+            productType: dbProduct.product_type,
+            image: dbProduct.image_path,
+            barcode: dbProduct.barcode || '',
+            capacity: dbProduct.capacity || 0,
+            dimensionX: dbProduct.dimension_x || 0,
+            dimensionY: dbProduct.dimension_y || 0,
+            dimensionZ: dbProduct.dimension_z || 0,
+            printTime: dbProduct.print_time || 0,
+            totalGram: dbProduct.total_gram || 0,
+            pieceGram: dbProduct.piece_gram || 0,
+            filePath: dbProduct.file_path,
+            notes: dbProduct.notes || '',
+            availableStock: currentProduct?.availableStock || 0,
+            filaments: productData.filaments || currentProduct?.filaments || []
+          };
+        } else {
+          formattedProduct = responseData;
+        }
         
         // State'i güncelle
         setProductsList(prevList => 
           prevList.map(item => 
-            item.id === selectedProduct.id ? updatedProduct : item
+            item.id === selectedProduct.id ? formattedProduct : item
           )
         );
+        toast.success('Ürün başarıyla güncellendi!');
       } else {
         // Yeni ekleme - POST isteği
         console.log("POST isteği gönderiliyor:", JSON.stringify(productData, null, 2));
@@ -283,17 +353,47 @@ export default function UrunlerPage() {
           throw new Error(`API hatası: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
         }
         
-        const newProduct = await response.json();
-        console.log("Yeni eklenen ürün:", newProduct);
+        const responseData = await response.json();
+        console.log("Yeni eklenen ürün response:", responseData);
         
-        // State'i güncelle
-        setProductsList(prevList => [...prevList, newProduct]);
+        // API'den dönen veriyi frontend formatına dönüştür
+        let formattedProduct;
+        if (responseData.product) {
+          // API'den dönen product objesi veritabanı formatında (snake_case)
+          const dbProduct = responseData.product;
+          formattedProduct = {
+            id: dbProduct.id,
+            code: dbProduct.product_code,
+            productType: dbProduct.product_type,
+            image: dbProduct.image_path,
+            barcode: dbProduct.barcode || '',
+            capacity: dbProduct.capacity || 0,
+            dimensionX: dbProduct.dimension_x || 0,
+            dimensionY: dbProduct.dimension_y || 0,
+            dimensionZ: dbProduct.dimension_z || 0,
+            printTime: dbProduct.print_time || 0,
+            totalGram: dbProduct.total_gram || 0,
+            pieceGram: dbProduct.piece_gram || 0,
+            filePath: dbProduct.file_path,
+            notes: dbProduct.notes || '',
+            availableStock: 0, // Yeni ürün için stok 0
+            filaments: productData.filaments || [] // Filamentleri productData'dan al
+          };
+        } else {
+          // Eğer formatlanmış veri geliyorsa direkt kullan
+          formattedProduct = responseData;
+        }
+        
+        console.log("Formatlanmış ürün:", formattedProduct);
+        
+        // State'i güncelle - sayfa yenilemeden
+        setProductsList(prevList => [...prevList, formattedProduct]);
+        toast.success('Ürün başarıyla eklendi!');
       }
       
       // Modal'ı kapat ve seçili ürünü temizle
       setIsModalOpen(false);
       setSelectedProduct(null);
-      toast.success(selectedProduct ? 'Ürün başarıyla güncellendi!' : 'Ürün başarıyla eklendi!');
       console.log("Kaydetme işlemi başarıyla tamamlandı");
     } catch (error) {
       console.error('Frontend - Ürün kaydedilirken hata:', error);
@@ -617,38 +717,132 @@ export default function UrunlerPage() {
               <h3 className="text-sm font-semibold mb-3 text-foreground">Gelişmiş Filtreler</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-muted-foreground">Baskı Süresi</label>
-                  <select className="w-full px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-                    <option value="">Tümü</option>
-                    <option value="0-12">0-12 saat</option>
-                    <option value="12-24">12-24 saat</option>
-                    <option value="24+">24+ saat</option>
-                  </select>
+                  <label className="block text-sm font-medium mb-2 text-muted-foreground">
+                    Baskı Süresi (saat)
+                    {(printTimeMin !== '' || printTimeMax !== '') && (
+                      <span className="ml-2 text-xs text-primary font-semibold">
+                        {printTimeMin !== '' ? printTimeMin : '0'} - {printTimeMax !== '' ? printTimeMax : '∞'} saat
+                      </span>
+                    )}
+                  </label>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        placeholder="Min"
+                        value={printTimeMin}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                          setPrintTimeMin(val);
+                          if (val !== '' && printTimeMax !== '' && val > printTimeMax) {
+                            setPrintTimeMax(val);
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      />
+                      <span className="text-muted-foreground">-</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        placeholder="Max"
+                        value={printTimeMax}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                          setPrintTimeMax(val);
+                          if (val !== '' && printTimeMin !== '' && val < printTimeMin) {
+                            setPrintTimeMin(val);
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      />
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value={printTimeMax !== '' ? printTimeMax : printTimeMin !== '' ? printTimeMin : 50}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (printTimeMin === '' || val >= printTimeMin) {
+                            setPrintTimeMax(val);
+                          } else {
+                            setPrintTimeMin(val);
+                            setPrintTimeMax(val);
+                          }
+                        }}
+                        className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer slider"
+                        style={{
+                          background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${((printTimeMax !== '' ? printTimeMax : printTimeMin !== '' ? printTimeMin : 50) / 100) * 100}%, hsl(var(--secondary)) ${((printTimeMax !== '' ? printTimeMax : printTimeMin !== '' ? printTimeMin : 50) / 100) * 100}%, hsl(var(--secondary)) 100%)`
+                        }}
+                      />
+                    </div>
+                    {(printTimeMin !== '' || printTimeMax !== '') && (
+                      <button
+                        onClick={() => {
+                          setPrintTimeMin('');
+                          setPrintTimeMax('');
+                        }}
+                        className="w-full text-xs px-2 py-1 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Temizle
+                      </button>
+                    )}
+                  </div>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium mb-2 text-muted-foreground">Filament Tipi</label>
-                  <select className="w-full px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                  <select 
+                    value={filamentTypeFilter}
+                    onChange={(e) => setFilamentTypeFilter(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
                     <option value="">Tümü</option>
-                    <option value="PLA">PLA</option>
-                    <option value="PETG">PETG</option>
-                    <option value="ABS">ABS</option>
+                    {Array.from(new Set(
+                      productsList.flatMap(p => 
+                        p.filaments?.map(f => f.type).filter(Boolean) || []
+                      )
+                    )).map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
                   </select>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium mb-2 text-muted-foreground">Stok Durumu</label>
-                  <select className="w-full px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                  <select 
+                    value={stockStatusFilter}
+                    onChange={(e) => setStockStatusFilter(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
                     <option value="">Tümü</option>
                     <option value="stokta-var">Stokta Var</option>
                     <option value="stokta-yok">Stokta Yok</option>
                   </select>
                 </div>
               </div>
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex justify-between items-center">
+                {(printTimeMin !== '' || printTimeMax !== '' || filamentTypeFilter || stockStatusFilter) && (
+                  <button 
+                    onClick={() => {
+                      setPrintTimeMin('');
+                      setPrintTimeMax('');
+                      setFilamentTypeFilter('');
+                      setStockStatusFilter('');
+                    }}
+                    className="px-4 py-2 text-sm bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg transition-colors"
+                  >
+                    Filtreleri Temizle
+                  </button>
+                )}
                 <button 
                   onClick={() => setShowFilters(false)}
-                  className="px-4 py-2 text-sm bg-card hover:bg-secondary border border-border rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm bg-card hover:bg-secondary border border-border rounded-lg transition-colors ml-auto"
                 >
                   Filtreleri Gizle
                 </button>
@@ -670,8 +864,17 @@ export default function UrunlerPage() {
               <span>Paketleri göster</span>
             </label>
           </div>
-          {searchTerm && <span>Arama: &quot;{searchTerm}&quot;</span>}
-          {categoryFilter && <span>Kategori: {categoryFilter}</span>}
+          <div className="flex flex-wrap gap-2 items-center">
+            {searchTerm && <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs">Arama: &quot;{searchTerm}&quot;</span>}
+            {categoryFilter && <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs">Kategori: {categoryFilter}</span>}
+            {(printTimeMin !== '' || printTimeMax !== '') && (
+              <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs">
+                Baskı: {printTimeMin !== '' ? printTimeMin : '0'} - {printTimeMax !== '' ? printTimeMax : '∞'} saat
+              </span>
+            )}
+            {filamentTypeFilter && <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs">Filament: {filamentTypeFilter}</span>}
+            {stockStatusFilter && <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs">Stok: {stockStatusFilter === 'stokta-var' ? 'Stokta Var' : 'Stokta Yok'}</span>}
+          </div>
         </div>
         
         {viewMode === 'grid' ? (

@@ -281,7 +281,9 @@ export default function ProductModal({
                   value={formData.code}
                   onChange={handleChange}
                   required
+                  maxLength={50}
                 />
+                <p className="mt-1 text-xs text-muted-foreground">• Zorunlu alan • Maksimum 50 karakter • Benzersiz olmalı</p>
               </div>
               
               <div>
@@ -295,7 +297,9 @@ export default function ProductModal({
                   value={formData.productType}
                   onChange={handleChange}
                   required
+                  maxLength={50}
                 />
+                <p className="mt-1 text-xs text-muted-foreground">• Zorunlu alan • Maksimum 50 karakter • Örnek: "BrawlStarsAnahtarlık"</p>
               </div>
 
               <div>
@@ -308,7 +312,9 @@ export default function ProductModal({
                   type="text"
                   value={formData.barcode || ''}
                   onChange={handleChange}
+                  maxLength={50}
                 />
+                <p className="mt-1 text-xs text-muted-foreground">• Opsiyonel • Maksimum 50 karakter</p>
               </div>
               
               <div>
@@ -321,7 +327,9 @@ export default function ProductModal({
                   type="number"
                   value={formData.capacity}
                   onChange={handleChange}
+                  min="0"
                 />
+                <p className="mt-1 text-xs text-muted-foreground">• Tam sayı • Minimum 0 • Tablaya sığan ürün sayısı</p>
               </div>
               
               <div className="grid grid-cols-3 gap-2">
@@ -335,6 +343,8 @@ export default function ProductModal({
                     type="number"
                     value={formData.dimensionX}
                     onChange={handleChange}
+                    min="0"
+                    step="0.1"
                   />
                 </div>
                 <div>
@@ -347,6 +357,8 @@ export default function ProductModal({
                     type="number"
                     value={formData.dimensionY}
                     onChange={handleChange}
+                    min="0"
+                    step="0.1"
                   />
                 </div>
                 <div>
@@ -359,9 +371,12 @@ export default function ProductModal({
                     type="number"
                     value={formData.dimensionZ}
                     onChange={handleChange}
+                    min="0"
+                    step="0.1"
                   />
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground -mt-2 mb-2">• Opsiyonel • Milimetre cinsinden • Ondalıklı değer girebilirsiniz</p>
               
               <div>
                 <label htmlFor="printTime" className="block text-sm font-medium mb-1">
@@ -373,7 +388,10 @@ export default function ProductModal({
                   type="number"
                   value={formData.printTime}
                   onChange={handleChange}
+                  min="0"
+                  step="0.5"
                 />
+                <p className="mt-1 text-xs text-muted-foreground">• Opsiyonel • Saat cinsinden • Örnek: 38 saat</p>
               </div>
               
               <div className="grid grid-cols-2 gap-2">
@@ -387,7 +405,10 @@ export default function ProductModal({
                     type="number"
                     value={formData.totalGram}
                     onChange={handleChange}
+                    min="0"
+                    step="0.01"
                   />
+                  <p className="mt-1 text-xs text-muted-foreground">• Gram cinsinden • Otomatik hesaplanır</p>
                 </div>
                 <div>
                   <label htmlFor="pieceGram" className="block text-sm font-medium mb-1">
@@ -401,6 +422,7 @@ export default function ProductModal({
                     onChange={handleChange}
                     readOnly
                   />
+                  <p className="mt-1 text-xs text-muted-foreground">• Otomatik hesaplanır • (Toplam / Kapasite)</p>
                 </div>
               </div>
               
@@ -415,6 +437,7 @@ export default function ProductModal({
                   value={formData.filePath || ''}
                   onChange={handleChange}
                 />
+                <p className="mt-1 text-xs text-muted-foreground">• Opsiyonel • 3D model dosya yolu</p>
               </div>
             </div>
             
@@ -445,12 +468,13 @@ export default function ProductModal({
                     className="w-full text-sm file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-primary file:text-primary-foreground"
                   />
                 </div>
+                <p className="mt-1 text-xs text-muted-foreground">• Opsiyonel • WEBP formatı önerilir • Tüm görsel formatları kabul edilir</p>
               </div>
               
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-sm font-medium">
-                    Filament Detayları
+                    Filament Detayları*
                   </label>
                   {filamentTypes.length > 0 ? (
                     <button 
@@ -462,6 +486,7 @@ export default function ProductModal({
                     </button>
                   ) : null}
                 </div>
+                <p className="mb-2 text-xs text-muted-foreground">• En az bir filament gerekli • Tip, renk/marka ve miktar seçilmeli</p>
                 
                 {filamentTypes.length === 0 ? (
                   <div className="border border-warning/20 bg-warning/5 rounded-md p-3 text-center">
