@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { Icons } from '../utils/Icons';
 
 type ProductModalProps = {
@@ -9,6 +10,7 @@ type ProductModalProps = {
   onSave: (data: ProductData) => void;
   product?: ProductData | null;
   isNewProduct?: boolean;
+  productTypeOptions?: string[];
 };
 
 export interface ProductData {
@@ -41,7 +43,8 @@ export default function ProductModal({
   onClose, 
   onSave, 
   product = null,
-  isNewProduct = false
+  isNewProduct = false,
+  productTypeOptions = []
 }: ProductModalProps) {
   const [formData, setFormData] = useState<ProductData>({
     code: '',
@@ -62,6 +65,7 @@ export default function ProductModal({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [filamentTypes, setFilamentTypes] = useState<string[]>([]);
   const [filamentDetails, setFilamentDetails] = useState<Record<string, { color: string; brand: string; remaining_weight: number }[]>>({});
+  const [formErrors, setFormErrors] = useState<string[]>([]);
 
   useEffect(() => {
     // Filament tiplerini API'den dinamik olarak çek
@@ -132,8 +136,19 @@ export default function ProductModal({
     });
   }, [formData.filaments]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
+
+    // Baskı süresi: virgül veya noktalı ondalık kabul et
+    if (name === 'printTime') {
+      const normalized = value.replace(',', '.');
+      const parsed = normalized === '' ? 0 : Number(normalized);
+      setFormData((prev) => ({
+        ...prev,
+        printTime: Number.isFinite(parsed) ? parsed : 0,
+      }));
+      return;
+    }
     
     // Sayısal değerleri dönüştür
     let numValue = value;
@@ -183,7 +198,7 @@ export default function ProductModal({
     } else {
       updatedFilaments[index] = {
         ...updatedFilaments[index],
-        [field]: value
+        [field]: field === 'weight' ? (value === '' ? 0 : parseFloat(value)) : value
       };
     }
     
@@ -227,24 +242,33 @@ export default function ProductModal({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    
-    // Eğer sistemde filament tipi yoksa uyarı ver
+
+    const errors: string[] = [];
+    if (!formData.code.trim()) errors.push('Ürün kodu zorunlu');
+    if (!formData.productType.trim()) errors.push('Ürün tipi zorunlu');
+    if ((formData.capacity ?? 0) < 0) errors.push('Kapasite 0 veya üzeri olmalı');
+    if ((formData.totalGram ?? 0) < 0) errors.push('Toplam gramaj 0 veya üzeri olmalı');
+    if ((formData.printTime ?? 0) < 0) errors.push('Baskı süresi 0 veya üzeri olmalı');
+
     if (filamentTypes.length === 0) {
-      alert('Ürün eklemek için önce filament eklemeniz gerekiyor. Lütfen Filament Yönetimi sayfasından filament ekleyin.');
-      return;
+      errors.push('Ürün eklemek için önce filament eklemelisiniz.');
     }
-    
-    // Filament detaylarını kontrol et - boş tip olanları filtrele
-    const validFilaments = (formData.filaments || []).filter(f => f.type && f.type.trim() !== '');
-    
+
+    const validFilaments = (formData.filaments || []).filter(
+      (f) => f.type && f.type.trim() !== '' && (f.weight ?? 0) >= 0,
+    );
     if (validFilaments.length === 0) {
-      alert('En az bir geçerli filament tipi seçmelisiniz.');
+      errors.push('En az bir geçerli filament tipi seçmelisiniz.');
+    }
+
+    if (errors.length > 0) {
+      setFormErrors(errors);
       return;
     }
-    
-    // Geçerli filamentlerle ürünü kaydet
+
+    setFormErrors([]);
     onSave({ ...formData, filaments: validFilaments });
   };
 
@@ -267,6 +291,15 @@ export default function ProductModal({
         </div>
         
         <form onSubmit={handleSubmit} className="modal-body">
+          {formErrors.length > 0 && (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <ul className="list-disc list-inside space-y-1">
+                {formErrors.map((err, idx) => (
+                  <li key={idx}>{err}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Sol Kolon - Temel Bilgiler */}
             <div className="space-y-4">
@@ -294,12 +327,23 @@ export default function ProductModal({
                   id="productType"
                   name="productType"
                   type="text"
+                  list="productTypeOptions"
                   value={formData.productType}
                   onChange={handleChange}
                   required
                   maxLength={50}
+                  placeholder={productTypeOptions.length ? 'Var olan tiplerden seçin veya yazın' : 'Ürün tipi'}
                 />
-                <p className="mt-1 text-xs text-muted-foreground">• Zorunlu alan • Maksimum 50 karakter • Örnek: "BrawlStarsAnahtarlık"</p>
+                {productTypeOptions.length > 0 && (
+                  <datalist id="productTypeOptions">
+                    {productTypeOptions.map((type) => (
+                      <option key={type} value={type} />
+                    ))}
+                  </datalist>
+                )}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  • Var olan tiplerden seçin veya yeni tip yazın • Maksimum 50 karakter
+                </p>
               </div>
 
               <div>
@@ -385,13 +429,16 @@ export default function ProductModal({
                 <input
                   id="printTime"
                   name="printTime"
-                  type="number"
-                  value={formData.printTime}
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]+([\\.,][0-9]+)?"
+                  value={formData.printTime ?? ''}
                   onChange={handleChange}
-                  min="0"
-                  step="0.5"
+                  placeholder="Örn: 3.5 veya 3,58"
                 />
-                <p className="mt-1 text-xs text-muted-foreground">• Opsiyonel • Saat cinsinden • Örnek: 38 saat</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  • Ondalık destekli (virgül veya nokta) • Örn: 3.5 saat veya 3,58 (3 saat 35 dk)
+                </p>
               </div>
               
               <div className="grid grid-cols-2 gap-2">
@@ -567,6 +614,8 @@ export default function ProductModal({
                             value={filament.weight}
                             onChange={(e) => handleFilamentChange(index, 'weight', e.target.value)}
                             className="w-full text-sm"
+                            min="0"
+                            step="0.1"
                           />
                         </div>
                         
