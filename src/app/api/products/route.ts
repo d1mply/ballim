@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
-import { getStockStatus } from '../../../lib/stock';
 import { createAuditLog, getUserFromRequest } from '../../../lib/audit-log';
+import { STOCK_COLORS } from '../../../lib/stock';
 
-// Tüm ürünleri getir
+// Tüm ürünleri getir - Optimize edilmiş tek sorgu
 export async function GET() {
   try {
-    // Ürünleri ve filament detaylarını getir
+    // Tek sorguda tüm ürünleri, filamentleri ve stok bilgilerini getir
     const result = await query(`
-      SELECT p.*, 
+      SELECT 
+        p.*,
+        -- Filamentler subquery
         (SELECT json_agg(json_build_object(
           'id', pf.id,
           'type', pf.filament_type,
@@ -17,13 +19,23 @@ export async function GET() {
           'weight', pf.weight
         ))
         FROM product_filaments pf
-        WHERE pf.product_id = p.id) as filaments
+        WHERE pf.product_id = p.id) as filaments,
+        -- Stok bilgileri LEFT JOIN ile
+        COALESCE(i.quantity, 0) as inventory_quantity,
+        -- Rezerve stok hesaplama
+        COALESCE((
+          SELECT SUM(oi.quantity) 
+          FROM order_items oi 
+          WHERE oi.product_id = p.id 
+          AND oi.status IN ('onay_bekliyor', 'uretiliyor', 'uretildi', 'hazirlaniyor')
+        ), 0) as total_ordered
       FROM products p
-      ORDER BY p.product_code
+      LEFT JOIN inventory i ON i.product_id = p.id
+      ORDER BY p.created_at DESC
     `);
     
-    // Her ürün için stok durumunu al ve yapıyı frontend ile uyumlu hale getir
-    const products = await Promise.all(result.rows.map(async (product) => {
+    // Stok hesaplama mantığını uygula ve frontend ile uyumlu hale getir
+    const products = result.rows.map((product) => {
       const { 
         id,
         product_code, 
@@ -41,11 +53,49 @@ export async function GET() {
         notes,
         created_at, 
         updated_at, 
-        filaments
+        filaments,
+        inventory_quantity,
+        total_ordered
       } = product;
       
-      // Yeni stok sistemi ile stok durumunu al
-      const stockStatus = await getStockStatus(id);
+      // Stok hesaplama mantığı (getStockStatus mantığına göre)
+      let availableStock = parseInt(inventory_quantity) || 0;
+      let reservedStock = 0;
+      
+      const totalOrdered = parseInt(total_ordered) || 0;
+      
+      // DOĞRU HESAPLAMA:
+      // Eğer sipariş <= stok: Mevcut stok = stok - sipariş, Rezerve = 0
+      // Eğer sipariş > stok: Mevcut stok = 0, Rezerve = sipariş - stok
+      if (totalOrdered <= availableStock) {
+        availableStock = availableStock - totalOrdered;
+        reservedStock = 0;
+      } else {
+        reservedStock = totalOrdered - availableStock;
+        availableStock = 0;
+      }
+      
+      const totalStock = availableStock + reservedStock;
+      
+      // Stok durumunu belirle
+      let stockDisplay = '';
+      let stockColor = '';
+      
+      if (availableStock > 0) {
+        if (reservedStock > 0) {
+          stockDisplay = `${availableStock} adet (${reservedStock} rezerve)`;
+          stockColor = STOCK_COLORS.IN_STOCK;
+        } else {
+          stockDisplay = `${availableStock} adet`;
+          stockColor = STOCK_COLORS.IN_STOCK;
+        }
+      } else if (reservedStock > 0) {
+        stockDisplay = `0 adet (${reservedStock} rezerve)`;
+        stockColor = STOCK_COLORS.RESERVED;
+      } else {
+        stockDisplay = 'Stokta Yok';
+        stockColor = STOCK_COLORS.OUT_OF_STOCK;
+      }
       
       return {
         id,
@@ -62,17 +112,17 @@ export async function GET() {
         pieceGram: piece_gram || 0,
         filePath: file_path,
         notes: notes || '',
-        stockQuantity: stockStatus.availableStock, // Geriye uyumluluk için
-        availableStock: stockStatus.availableStock,
-        reservedStock: stockStatus.reservedStock,
-        totalStock: stockStatus.totalStock,
-        stockDisplay: stockStatus.stockDisplay,
-        stockColor: stockStatus.stockColor, // Yeni stok rengi eklendi
+        stockQuantity: availableStock, // Geriye uyumluluk için
+        availableStock,
+        reservedStock,
+        totalStock,
+        stockDisplay,
+        stockColor,
         createdAt: created_at,
         updatedAt: updated_at,
         filaments: Array.isArray(filaments) ? filaments : []
       };
-    }));
+    });
     
     return NextResponse.json(products);
   } catch (error) {
