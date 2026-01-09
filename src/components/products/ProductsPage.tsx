@@ -138,6 +138,9 @@ export default function ProductsPage() {
     stockMax: '',
   });
 
+  // 🎯 Sıralama state'i (varsayılan: Alfabetik A-Z)
+  const [sortBy, setSortBy] = useState<'alphabetical-asc' | 'alphabetical-desc' | 'newest' | 'oldest' | 'stock-high' | 'stock-low'>('alphabetical-asc');
+
   // Kullanıcı bilgisini yükle
   useEffect(() => {
     const loggedUserJson = localStorage.getItem('loggedUser');
@@ -153,10 +156,10 @@ export default function ProductsPage() {
 
   // 🚀 PERFORMANS: SWR otomatik data fetching yapar, useEffect'e gerek yok
 
-  // Filtreli ürünler
+  // Filtreli ve sıralı ürünler
   const filteredProducts = useMemo(() => {
     const searchLower = filters.searchTerm.trim().toLowerCase();
-    return productsList.filter((product) => {
+    const filtered = productsList.filter((product) => {
       const categoryMatch =
         !filters.category ||
         product.productType?.toLowerCase().includes(filters.category.toLowerCase());
@@ -211,7 +214,49 @@ export default function ProductsPage() {
         gramMatch
       );
     });
-  }, [filters, productsList]);
+
+    // 🎯 Sıralama uygula
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'alphabetical-asc':
+          // Alfabetik A-Z (ürün kodu veya tipine göre)
+          const nameA = (a.code || a.productType || '').toLowerCase();
+          const nameB = (b.code || b.productType || '').toLowerCase();
+          return nameA.localeCompare(nameB, 'tr', { sensitivity: 'base' });
+        
+        case 'alphabetical-desc':
+          // Alfabetik Z-A
+          const nameA2 = (a.code || a.productType || '').toLowerCase();
+          const nameB2 = (b.code || b.productType || '').toLowerCase();
+          return nameB2.localeCompare(nameA2, 'tr', { sensitivity: 'base' });
+        
+        case 'newest':
+          // En yeni (created_at'e göre, yoksa id'ye göre)
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        
+        case 'oldest':
+          // En eski
+          const dateA2 = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB2 = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateA2 - dateB2;
+        
+        case 'stock-high':
+          // Stok yüksekten düşüğe
+          return (b.availableStock || 0) - (a.availableStock || 0);
+        
+        case 'stock-low':
+          // Stok düşükten yükseğe
+          return (a.availableStock || 0) - (b.availableStock || 0);
+        
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [filters, productsList, sortBy]);
 
   const filteredPackages = useMemo(() => {
     const searchLower = filters.searchTerm.trim().toLowerCase();
@@ -703,6 +748,26 @@ export default function ProductsPage() {
             </div>
 
             <div className="flex flex-wrap gap-3 items-center">
+              {/* 🎯 Sıralama Dropdown */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">Sırala:</label>
+                <select
+                  className="min-w-[180px] px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(e.target.value as typeof sortBy);
+                    setPage(1);
+                  }}
+                >
+                  <option value="alphabetical-asc">Alfabetik (A-Z)</option>
+                  <option value="alphabetical-desc">Alfabetik (Z-A)</option>
+                  <option value="newest">En Yeni</option>
+                  <option value="oldest">En Eski</option>
+                  <option value="stock-high">Stok (Yüksekten Düşüğe)</option>
+                  <option value="stock-low">Stok (Düşükten Yükseğe)</option>
+                </select>
+              </div>
+
               <button
                 onClick={() => setShowFilters((prev) => !prev)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 ${

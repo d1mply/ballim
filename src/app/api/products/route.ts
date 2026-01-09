@@ -39,7 +39,7 @@ export async function GET() {
         ), 0) as total_ordered
       FROM products p
       LEFT JOIN inventory i ON i.product_id = p.id
-      ORDER BY p.created_at DESC
+      ORDER BY p.product_code ASC, p.product_type ASC
     `);
     
     // Stok hesaplama mantığını uygula ve frontend ile uyumlu hale getir
