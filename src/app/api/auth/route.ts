@@ -175,41 +175,62 @@ export async function POST(request: NextRequest) {
         // Mevcut db.ts dosyasını kullan
         const { query } = await import('@/lib/db');
         
+        console.log('Login denemesi - Username:', cleanUsername);
+        
         // Önce kullanıcıyı bul (şifre olmadan - güvenlik için)
+        // Basitleştirilmiş query (subquery validation sorununu önlemek için)
         const result = await query(`
-          SELECT c.*, 
-            (
-              SELECT json_agg(json_build_object(
-                'type', cfp.filament_type,
-                'price', cfp.price_per_gram
-              ))
-              FROM customer_filament_prices cfp
-              WHERE cfp.customer_id = c.id
-            ) as filament_prices
+          SELECT c.*
           FROM customers c
           WHERE c.username = $1
         `, [cleanUsername]);
         
+        console.log('Query sonucu:', result.rowCount, 'satır bulundu');
+        
         if (result.rowCount > 0) {
           const customer = result.rows[0];
+          console.log('Kullanıcı bulundu, şifre doğrulaması yapılıyor...');
           
           // Şifre doğrulama: bcrypt ile hash'lenmiş şifreyi kontrol et
           // Eğer veritabanındaki şifre hash'lenmişse bcrypt.compare kullan, değilse direkt karşılaştır
           let passwordValid = false;
           
-          if (customer.password) {
-            // Şifre bcrypt hash formatında mı kontrol et ($2a$, $2b$, $2y$ ile başlıyor mu)
-            if (customer.password.startsWith('$2')) {
-              // Bcrypt hash'li şifre - bcrypt.compare ile kontrol et
-              passwordValid = await bcrypt.compare(cleanPassword, customer.password);
+          try {
+            if (customer.password) {
+              // Şifre bcrypt hash formatında mı kontrol et ($2a$, $2b$, $2y$ ile başlıyor mu)
+              if (customer.password.startsWith('$2')) {
+                // Bcrypt hash'li şifre - bcrypt.compare ile kontrol et
+                passwordValid = await bcrypt.compare(cleanPassword, customer.password);
+                console.log('Bcrypt karşılaştırma sonucu:', passwordValid);
+              } else {
+                // Plaintext şifre (eski sistem uyumluluğu için) - direkt karşılaştır
+                passwordValid = customer.password === cleanPassword;
+                console.log('Plaintext karşılaştırma sonucu:', passwordValid);
+              }
             } else {
-              // Plaintext şifre (eski sistem uyumluluğu için) - direkt karşılaştır
-              passwordValid = customer.password === cleanPassword;
+              console.log('Kullanıcının şifresi yok');
             }
+          } catch (bcryptError) {
+            console.error('Bcrypt hatası:', bcryptError);
+            passwordValid = false;
           }
           
           if (passwordValid) {
             isValid = true;
+            
+            // Filament prices'ı ayrı query ile al (subquery sorununu önlemek için)
+            let filamentPrices = [];
+            try {
+              const filamentResult = await query(`
+                SELECT filament_type as type, price_per_gram as price
+                FROM customer_filament_prices
+                WHERE customer_id = $1
+              `, [customer.id]);
+              filamentPrices = filamentResult.rows || [];
+            } catch (filamentError) {
+              console.error('Filament prices çekme hatası (devam ediliyor):', filamentError);
+            }
+            
             userData = {
               id: customer.id,
               username: customer.username,
@@ -218,8 +239,10 @@ export async function POST(request: NextRequest) {
               type: 'customer',
               customerCategory: customer.customer_category || 'normal',
               discountRate: customer.discount_rate || 0,
-              filamentPrices: customer.filament_prices || []
+              filamentPrices: filamentPrices
             };
+            
+            console.log('Login başarılı:', userData.username);
             
             // Başarılı customer girişi
             resetFailedAttempts(clientIP);
@@ -232,6 +255,7 @@ export async function POST(request: NextRequest) {
               responseTime: Date.now() - startTime
             }, 'LOW');
           } else {
+            console.log('Şifre yanlış');
             // Başarısız customer girişi (şifre yanlış)
             recordFailedAttempt(clientIP);
             logSecurityEvent('CUSTOMER_LOGIN_FAILED', { 
@@ -242,6 +266,7 @@ export async function POST(request: NextRequest) {
             }, 'MEDIUM');
           }
         } else {
+          console.log('Kullanıcı bulunamadı');
           // Kullanıcı bulunamadı
           recordFailedAttempt(clientIP);
           logSecurityEvent('CUSTOMER_LOGIN_FAILED', { 
@@ -254,6 +279,12 @@ export async function POST(request: NextRequest) {
         
       } catch (error) {
         console.error('Database error:', error);
+        console.error('Error details:', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+          name: error instanceof Error ? error.name : undefined
+        });
+        
         logSecurityEvent('DATABASE_ERROR', { 
           ip: clientIP,
           userAgent,
@@ -264,7 +295,7 @@ export async function POST(request: NextRequest) {
         
         return NextResponse.json({ 
           error: 'Sunucu hatası',
-          details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : undefined
+          details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? `${error.name}: ${error.message}` : 'Unknown error') : undefined
         }, { status: 500 });
       }
     }
@@ -290,12 +321,22 @@ export async function POST(request: NextRequest) {
         path: '/'
       });
 
-      // Audit
-      await logAuthEvent(String(userData.id), 'LOGIN_SUCCESS', clientIP, userAgent);
+      // Audit (hata olsa bile devam et)
+      try {
+        await logAuthEvent(String(userData.id), 'LOGIN_SUCCESS', clientIP, userAgent);
+      } catch (auditError) {
+        console.error('Audit log hatası (devam ediliyor):', auditError);
+      }
+      
       return response;
     } else {
       // Başarısız giriş - generic error message (bilgi sızdırma önleme)
-      await logAuthEvent(null, 'LOGIN_FAILED', clientIP, userAgent);
+      try {
+        await logAuthEvent(null, 'LOGIN_FAILED', clientIP, userAgent);
+      } catch (auditError) {
+        console.error('Audit log hatası (devam ediliyor):', auditError);
+      }
+      
       return NextResponse.json({ 
         error: 'Kullanıcı adı veya şifre hatalı' 
       }, { status: 401 });
@@ -303,17 +344,20 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     // Beklenmeyen hata
+    console.error('Login genel hatası:', error);
     logSecurityEvent('UNEXPECTED_ERROR', { 
       ip: clientIP,
       userAgent,
       error: error instanceof Error ? error.message : 'Unknown error',
+      errorStack: error instanceof Error ? error.stack : undefined,
       timestamp: new Date().toISOString()
     }, 'HIGH');
     
     recordFailedAttempt(clientIP);
     
     return NextResponse.json({ 
-      error: 'Sunucu hatası' 
+      error: 'Sunucu hatası',
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : undefined
     }, { status: 500 });
   }
 }

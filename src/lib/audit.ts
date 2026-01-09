@@ -4,36 +4,43 @@ let tablesEnsured = false;
 
 async function ensureTables() {
   if (tablesEnsured) return;
-  await query(`
-    CREATE TABLE IF NOT EXISTS order_audit (
-      id SERIAL PRIMARY KEY,
-      order_id INTEGER,
-      event TEXT NOT NULL,
-      details JSONB,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-  await query(`
-    CREATE TABLE IF NOT EXISTS stock_audit (
-      id SERIAL PRIMARY KEY,
-      product_id INTEGER,
-      operation TEXT NOT NULL,
-      quantity INTEGER NOT NULL,
-      order_id INTEGER,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-  await query(`
-    CREATE TABLE IF NOT EXISTS auth_audit (
-      id SERIAL PRIMARY KEY,
-      user_id TEXT,
-      event TEXT NOT NULL,
-      ip TEXT,
-      ua TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-  tablesEnsured = true;
+  
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS order_audit (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER,
+        event TEXT NOT NULL,
+        details JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await query(`
+      CREATE TABLE IF NOT EXISTS stock_audit (
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER,
+        operation TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        order_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await query(`
+      CREATE TABLE IF NOT EXISTS auth_audit (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT,
+        event TEXT NOT NULL,
+        ip TEXT,
+        ua TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    tablesEnsured = true;
+  } catch (error) {
+    console.error('ensureTables hatası:', error);
+    // Hata olsa bile devam et (tablo zaten var olabilir)
+    tablesEnsured = true;
+  }
 }
 
 export async function logOrderEvent(orderId: number | null, event: string, details?: Record<string, unknown>) {
@@ -58,11 +65,16 @@ export async function logStockEvent(
 }
 
 export async function logAuthEvent(userId: string | null, event: string, ip?: string, ua?: string) {
-  await ensureTables();
-  await query(
-    `INSERT INTO auth_audit (user_id, event, ip, ua) VALUES ($1, $2, $3, $4)`,
-    [userId, event, ip ?? null, ua ?? null]
-  );
+  try {
+    await ensureTables();
+    await query(
+      `INSERT INTO auth_audit (user_id, event, ip, ua) VALUES ($1, $2, $3, $4)`,
+      [userId, event, ip ?? null, ua ?? null]
+    );
+  } catch (error) {
+    // Audit log hatası kritik değil, ana işlemi engelleme
+    console.error('logAuthEvent hatası (devam ediliyor):', error);
+  }
 }
 
 
