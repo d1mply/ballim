@@ -747,9 +747,9 @@ export default function ProductsPage() {
               />
             </div>
 
-            <div className="flex flex-wrap gap-3 items-center">
-              {/* 🎯 Sıralama Dropdown */}
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap gap-3 items-center w-full sm:w-auto">
+              {/* 🎯 Sıralama Dropdown - Filtreler butonundan önce, daha görünür */}
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">Sırala:</label>
                 <select
                   className="min-w-[180px] px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
@@ -770,7 +770,7 @@ export default function ProductsPage() {
 
               <button
                 onClick={() => setShowFilters((prev) => !prev)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 flex-shrink-0 ${
                   showFilters
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-card hover:bg-secondary border-border'
@@ -779,10 +779,10 @@ export default function ProductsPage() {
                 <Icons.FilterIcon /> Filtreler
               </button>
 
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-muted-foreground">Kategori:</label>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">Kategori:</label>
                 <select
-                  className="min-w-[140px] px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="min-w-[140px] px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                   value={filters.category}
                   onChange={(e) => {
                     setFilters((prev) => ({ ...prev, category: e.target.value }));
