@@ -25,6 +25,7 @@ type SidebarProps = {
 
 export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
   // Admin için menü öğeleri
   const adminMenuItems = [
@@ -88,14 +89,17 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
             const isActive = pathname === itemPath || 
                            (itemPath !== '/' && pathname.startsWith(itemPath));
             
-            const handleHover = usePrefetchOnHover(itemPath);
-            
             return (
               <li key={item.name + item.path} className="px-1">
                 <Link
                   href={itemPath}
                   prefetch={true}
-                  onMouseEnter={handleHover}
+                  onMouseEnter={() => {
+                    // 🚀 PERFORMANS: Hover prefetch (client-side only)
+                    if (typeof window !== 'undefined') {
+                      router.prefetch(itemPath);
+                    }
+                  }}
                   onClick={handleLinkClick}
                   className={`flex items-center gap-3 px-3 py-3 text-sm rounded-lg transition-all duration-200 ${
                     isActive
