@@ -732,27 +732,28 @@ export default function ProductsPage() {
 
         {/* Filtreler */}
         <div className="bg-card border border-border p-4 rounded-lg">
-          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-            <div className="search-container flex-grow">
-              <Icons.SearchIcon className="search-icon" />
-              <input
-                type="text"
-                placeholder="Ürün ara..."
-                className="w-full"
-                value={filters.searchTerm}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, searchTerm: e.target.value }));
-                  setPage(1);
-                }}
-              />
-            </div>
+          <div className="flex flex-col gap-4">
+            {/* Üst satır: Arama ve Sıralama */}
+            <div className="flex flex-col sm:flex-row gap-4 items-center">
+              <div className="search-container flex-grow w-full sm:w-auto">
+                <Icons.SearchIcon className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Ürün ara..."
+                  className="w-full"
+                  value={filters.searchTerm}
+                  onChange={(e) => {
+                    setFilters((prev) => ({ ...prev, searchTerm: e.target.value }));
+                    setPage(1);
+                  }}
+                />
+              </div>
 
-            <div className="flex flex-wrap gap-3 items-center w-full sm:w-auto">
-              {/* 🎯 Sıralama Dropdown - Filtreler butonundan önce, daha görünür */}
-              <div className="flex items-center gap-2 flex-shrink-0">
+              {/* 🎯 Sıralama Dropdown - Arama çubuğunun yanında, her zaman görünür */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">Sırala:</label>
                 <select
-                  className="min-w-[180px] px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                  className="flex-1 sm:min-w-[180px] px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                   value={sortBy}
                   onChange={(e) => {
                     setSortBy(e.target.value as typeof sortBy);
@@ -767,10 +768,13 @@ export default function ProductsPage() {
                   <option value="stock-low">Stok (Düşükten Yükseğe)</option>
                 </select>
               </div>
+            </div>
 
+            {/* Alt satır: Filtreler ve Kategori */}
+            <div className="flex flex-wrap gap-3 items-center justify-between">
               <button
                 onClick={() => setShowFilters((prev) => !prev)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 flex-shrink-0 ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 ${
                   showFilters
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-card hover:bg-secondary border-border'
@@ -779,7 +783,7 @@ export default function ProductsPage() {
                 <Icons.FilterIcon /> Filtreler
               </button>
 
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">Kategori:</label>
                 <select
                   className="min-w-[140px] px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
