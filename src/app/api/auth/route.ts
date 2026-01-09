@@ -84,12 +84,14 @@ export async function POST(request: NextRequest) {
     }
     
     // 🛡️ LAMER KONTROL 5: Input sanitization
+    // NOT: Şifre sanitize edilmez çünkü bcrypt ile hash'lenecek ve özel karakterler içerebilir
     const cleanUsername = sanitizeInput(username);
-    const cleanPassword = sanitizeInput(password);
+    const cleanPassword = password; // Şifre sanitize edilmez (bcrypt ile güvenli)
     const cleanType = sanitizeInput(type);
     
     // 🛡️ LAMER KONTROL 6: SQL injection kontrolü
-    if (!validateSQLInput(cleanUsername) || !validateSQLInput(cleanPassword) || !validateSQLInput(cleanType)) {
+    // NOT: Şifre kontrol edilmez çünkü direkt query'de kullanılmayacak (bcrypt ile kontrol edilecek)
+    if (!validateSQLInput(cleanUsername) || !validateSQLInput(cleanType)) {
       logSecurityEvent('SQL_INJECTION_ATTEMPT', { 
         ip: clientIP,
         userAgent,
@@ -173,7 +175,7 @@ export async function POST(request: NextRequest) {
         // Mevcut db.ts dosyasını kullan
         const { query } = await import('@/lib/db');
         
-        // Parametreli sorgu (SQL injection koruması)
+        // Önce kullanıcıyı bul (şifre olmadan - güvenlik için)
         const result = await query(`
           SELECT c.*, 
             (
@@ -185,35 +187,62 @@ export async function POST(request: NextRequest) {
               WHERE cfp.customer_id = c.id
             ) as filament_prices
           FROM customers c
-          WHERE c.username = $1 AND c.password = $2
-        `, [cleanUsername, cleanPassword]);
+          WHERE c.username = $1
+        `, [cleanUsername]);
         
         if (result.rowCount > 0) {
-          isValid = true;
           const customer = result.rows[0];
-          userData = {
-            id: customer.id,
-            username: customer.username,
-            name: customer.name,
-            email: customer.email,
-            type: 'customer',
-            customerCategory: customer.customer_category || 'normal',
-            discountRate: customer.discount_rate || 0,
-            filamentPrices: customer.filament_prices || []
-          };
           
-          // Başarılı customer girişi
-          resetFailedAttempts(clientIP);
-          logSecurityEvent('CUSTOMER_LOGIN_SUCCESS', { 
-            ip: clientIP,
-            userAgent,
-            customerId: userData.id,
-            username: cleanUsername,
-            timestamp: new Date().toISOString(),
-            responseTime: Date.now() - startTime
-          }, 'LOW');
+          // Şifre doğrulama: bcrypt ile hash'lenmiş şifreyi kontrol et
+          // Eğer veritabanındaki şifre hash'lenmişse bcrypt.compare kullan, değilse direkt karşılaştır
+          let passwordValid = false;
+          
+          if (customer.password) {
+            // Şifre bcrypt hash formatında mı kontrol et ($2a$, $2b$, $2y$ ile başlıyor mu)
+            if (customer.password.startsWith('$2')) {
+              // Bcrypt hash'li şifre - bcrypt.compare ile kontrol et
+              passwordValid = await bcrypt.compare(cleanPassword, customer.password);
+            } else {
+              // Plaintext şifre (eski sistem uyumluluğu için) - direkt karşılaştır
+              passwordValid = customer.password === cleanPassword;
+            }
+          }
+          
+          if (passwordValid) {
+            isValid = true;
+            userData = {
+              id: customer.id,
+              username: customer.username,
+              name: customer.name,
+              email: customer.email,
+              type: 'customer',
+              customerCategory: customer.customer_category || 'normal',
+              discountRate: customer.discount_rate || 0,
+              filamentPrices: customer.filament_prices || []
+            };
+            
+            // Başarılı customer girişi
+            resetFailedAttempts(clientIP);
+            logSecurityEvent('CUSTOMER_LOGIN_SUCCESS', { 
+              ip: clientIP,
+              userAgent,
+              customerId: userData.id,
+              username: cleanUsername,
+              timestamp: new Date().toISOString(),
+              responseTime: Date.now() - startTime
+            }, 'LOW');
+          } else {
+            // Başarısız customer girişi (şifre yanlış)
+            recordFailedAttempt(clientIP);
+            logSecurityEvent('CUSTOMER_LOGIN_FAILED', { 
+              ip: clientIP,
+              userAgent,
+              attemptedUsername: cleanUsername,
+              timestamp: new Date().toISOString()
+            }, 'MEDIUM');
+          }
         } else {
-          // Başarısız customer girişi
+          // Kullanıcı bulunamadı
           recordFailedAttempt(clientIP);
           logSecurityEvent('CUSTOMER_LOGIN_FAILED', { 
             ip: clientIP,
@@ -229,11 +258,13 @@ export async function POST(request: NextRequest) {
           ip: clientIP,
           userAgent,
           error: error instanceof Error ? error.message : 'Unknown error',
+          errorStack: error instanceof Error ? error.stack : undefined,
           timestamp: new Date().toISOString()
         }, 'HIGH');
         
         return NextResponse.json({ 
-          error: 'Sunucu hatası' 
+          error: 'Sunucu hatası',
+          details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : undefined
         }, { status: 500 });
       }
     }
