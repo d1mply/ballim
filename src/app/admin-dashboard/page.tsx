@@ -227,7 +227,7 @@ export default function AdminDashboard() {
                 <Icons.PackageIcon className="w-8 h-8 text-primary" />
               </div>
             </div>
-            <Link href="/urunler" className="text-xs text-primary hover:underline mt-4 inline-block">
+            <Link href="/urunler" prefetch={true} className="text-xs text-primary hover:underline mt-4 inline-block">
               Tümünü gör →
             </Link>
           </div>
@@ -246,7 +246,7 @@ export default function AdminDashboard() {
                 <Icons.ShoppingCartIcon className="w-8 h-8 text-blue-500" />
               </div>
             </div>
-            <Link href="/siparis-takip" className="text-xs text-primary hover:underline mt-4 inline-block">
+            <Link href="/siparis-takip" prefetch={true} className="text-xs text-primary hover:underline mt-4 inline-block">
               Tümünü gör →
             </Link>
           </div>
@@ -265,7 +265,7 @@ export default function AdminDashboard() {
                 <Icons.TrendingUpIcon className="w-8 h-8 text-emerald-500" />
               </div>
             </div>
-            <Link href="/odemeler" className="text-xs text-primary hover:underline mt-4 inline-block">
+            <Link href="/odemeler" prefetch={true} className="text-xs text-primary hover:underline mt-4 inline-block">
               Detaylar →
             </Link>
           </div>
@@ -286,7 +286,7 @@ export default function AdminDashboard() {
                 <Icons.CubeIcon className="w-8 h-8 text-orange-500" />
               </div>
             </div>
-            <Link href="/filamentler" className="text-xs text-primary hover:underline mt-4 inline-block">
+            <Link href="/filamentler" prefetch={true} className="text-xs text-primary hover:underline mt-4 inline-block">
               Detaylar →
             </Link>
           </div>
@@ -297,42 +297,48 @@ export default function AdminDashboard() {
           <h2 className="text-lg font-semibold text-foreground mb-4">Hızlı Erişim</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
             <Link 
-              href="/urunler" 
+              href="/urunler"
+              prefetch={true}
               className="flex flex-col items-center justify-center p-4 bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors group"
             >
               <Icons.PackageIcon className="w-6 h-6 text-primary mb-2 group-hover:scale-110 transition-transform" />
               <span className="text-sm font-medium text-foreground">Ürünler</span>
             </Link>
             <Link 
-              href="/siparis-takip" 
+              href="/siparis-takip"
+              prefetch={true}
               className="flex flex-col items-center justify-center p-4 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors group"
             >
               <Icons.ShoppingCartIcon className="w-6 h-6 text-blue-500 mb-2 group-hover:scale-110 transition-transform" />
               <span className="text-sm font-medium text-foreground">Siparişler</span>
             </Link>
             <Link 
-              href="/musteriler" 
+              href="/musteriler"
+              prefetch={true}
               className="flex flex-col items-center justify-center p-4 bg-green-500/10 hover:bg-green-500/20 rounded-lg transition-colors group"
             >
               <Icons.UsersIcon className="w-6 h-6 text-green-500 mb-2 group-hover:scale-110 transition-transform" />
               <span className="text-sm font-medium text-foreground">Müşteriler</span>
             </Link>
             <Link 
-              href="/stok-yonetimi" 
+              href="/stok-yonetimi"
+              prefetch={true}
               className="flex flex-col items-center justify-center p-4 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors group"
             >
               <Icons.WarehouseIcon className="w-6 h-6 text-red-500 mb-2 group-hover:scale-110 transition-transform" />
               <span className="text-sm font-medium text-foreground">Stok</span>
             </Link>
             <Link 
-              href="/filamentler" 
+              href="/filamentler"
+              prefetch={true}
               className="flex flex-col items-center justify-center p-4 bg-orange-500/10 hover:bg-orange-500/20 rounded-lg transition-colors group"
             >
               <Icons.CubeIcon className="w-6 h-6 text-orange-500 mb-2 group-hover:scale-110 transition-transform" />
               <span className="text-sm font-medium text-foreground">Filamentler</span>
             </Link>
             <Link 
-              href="/uretim-takip" 
+              href="/uretim-takip"
+              prefetch={true}
               className="flex flex-col items-center justify-center p-4 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg transition-colors group"
             >
               <Icons.ClipboardListIcon className="w-6 h-6 text-purple-500 mb-2 group-hover:scale-110 transition-transform" />

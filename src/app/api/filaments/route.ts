@@ -32,7 +32,14 @@ export async function GET() {
       updatedAt: row.updated_at
     }));
     
-    return NextResponse.json(filaments);
+    // 🚀 PERFORMANS: Cache headers (30 saniye cache - filaments orta sıklıkta değişir)
+    return NextResponse.json(filaments, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=180',
+        'CDN-Cache-Control': 'public, s-maxage=30',
+        'Vercel-CDN-Cache-Control': 'public, s-maxage=30',
+      },
+    });
   } catch (error) {
     const errorResponse = handleApiError(handleDatabaseError(error));
     return NextResponse.json(

@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ToastProvider from "../components/ToastProvider";
+import PerformanceHints from "../components/PerformanceHints";
+import SWRProvider from "../providers/SWRProvider";
+import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
+import PerformanceMonitoring from "../components/PerformanceMonitoring";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,9 +40,14 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <PerformanceHints />
+        <ServiceWorkerRegistration />
+        <PerformanceMonitoring />
+        <SWRProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </SWRProvider>
       </body>
     </html>
   );

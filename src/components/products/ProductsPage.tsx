@@ -1,11 +1,27 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
+import Image from 'next/image';
+import useSWR from 'swr';
 import Layout from '../Layout';
-import ProductModal, { ProductData } from '../ProductModal';
+import { ProductData } from '../ProductModal';
 import { Icons } from '../../utils/Icons';
-import Papa from 'papaparse';
 import { useToast } from '../../contexts/ToastContext';
+
+// 🚀 PERFORMANS: PapaParse lazy load (heavy library)
+const loadPapaParse = async () => {
+  const Papa = await import('papaparse');
+  return Papa.default;
+};
+
+// 🚀 PERFORMANS: Code Splitting - Heavy component'leri lazy load
+const ProductModal = dynamic(() => import('../ProductModal'), {
+  loading: () => <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-lg p-6">Yükleniyor...</div>
+  </div>,
+  ssr: false, // Client-side only (modal için uygun)
+});
 
 interface LoggedInUser {
   id: string;
@@ -52,11 +68,44 @@ export default function ProductsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [user, setUser] = useState<LoggedInUser | null>(null);
-  const [productsList, setProductsList] = useState<ProductData[]>([]);
-  const [packagesList, setPackagesList] = useState<PackageData[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // 🚀 PERFORMANS: SWR ile data fetching (otomatik caching ve revalidation)
+  const { data: productsData, error: productsError, isLoading: productsLoading, mutate: mutateProducts } = useSWR<ProductData[]>(
+    '/api/products',
+    async (url: string) => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Ürünler yüklenemedi: ${res.statusText}`);
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 2000,
+      refreshInterval: 0,
+    }
+  );
+
+  const { data: packagesData, error: packagesError, isLoading: packagesLoading } = useSWR<PackageData[]>(
+    '/api/packages?includeItems=true',
+    async (url: string) => {
+      const res = await fetch(url);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 2000,
+      refreshInterval: 0,
+    }
+  );
+
+  // SWR'dan gelen data'yı state'e map et
+  const productsList = productsData || [];
+  const packagesList = packagesData || [];
+  const isLoading = productsLoading || packagesLoading;
+  const error = productsError || packagesError ? (productsError?.message || packagesError?.message || 'Veri yükleme hatası') : null;
 
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [showFilters, setShowFilters] = useState(false);
@@ -102,40 +151,7 @@ export default function ProductsPage() {
     }
   }, []);
 
-  // Ürün ve paketleri getir
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [productsRes, packagesRes] = await Promise.all([
-          fetch('/api/products'),
-          fetch('/api/packages?includeItems=true'),
-        ]);
-
-        if (!productsRes.ok) {
-          throw new Error(`Ürünler yüklenemedi: ${productsRes.statusText}`);
-        }
-        const productsData = await productsRes.json();
-        setProductsList(Array.isArray(productsData) ? productsData : []);
-
-        if (packagesRes.ok) {
-          const packagesData = await packagesRes.json();
-          setPackagesList(Array.isArray(packagesData) ? packagesData : []);
-        } else {
-          setPackagesList([]);
-        }
-      } catch (err) {
-        console.error('Veri yükleme hatası:', err);
-        setError('Ürünler yüklenirken bir hata oluştu');
-        setProductsList([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+  // 🚀 PERFORMANS: SWR otomatik data fetching yapar, useEffect'e gerek yok
 
   // Filtreli ürünler
   const filteredProducts = useMemo(() => {
@@ -276,7 +292,8 @@ export default function ProductsPage() {
         throw new Error(err.error || 'Kopyalama başarısız');
       }
       const duplicated = await response.json();
-      setProductsList((prev) => [...prev, duplicated]);
+      // SWR cache'i güncelle
+      mutateProducts((prev) => prev ? [...prev, duplicated] : [duplicated], false);
       setSelectedProduct(duplicated);
       setIsModalOpen(true);
     } catch (e) {
@@ -294,7 +311,8 @@ export default function ProductsPage() {
       if (!response.ok) {
         throw new Error(data.error || `API hatası: ${response.status}`);
       }
-      setProductsList((prev) => prev.filter((item) => item.id !== productId));
+      // SWR cache'i güncelle
+      mutateProducts((prev) => prev ? prev.filter((item) => item.id !== productId) : [], false);
       toast.success('Ürün başarıyla silindi!');
     } catch (err) {
       console.error('Ürün silinirken hata:', err);
@@ -362,9 +380,13 @@ export default function ProductsPage() {
               }
             : responseData;
 
-        setProductsList((prev) =>
-          prev.map((item) => (item.id === selectedProduct.id ? formattedProduct : item)),
+        // SWR cache'i güncelle
+        mutateProducts((prev) => 
+          prev ? prev.map((item) => (item.id === selectedProduct.id ? formattedProduct : item)) : [],
+          false
         );
+        // SWR cache'i server'dan revalidate et (background)
+        mutateProducts();
         toast.success('Ürün başarıyla güncellendi!');
       } else {
         const apiData = {
@@ -420,7 +442,10 @@ export default function ProductsPage() {
               }
             : responseData;
 
-        setProductsList((prev) => [...prev, formattedProduct]);
+        // SWR cache'i güncelle
+        mutateProducts((prev) => prev ? [...prev, formattedProduct] : [formattedProduct], false);
+        // SWR cache'i server'dan revalidate et (background)
+        mutateProducts();
         toast.success('Ürün başarıyla eklendi!');
       }
     } catch (err) {
@@ -478,6 +503,8 @@ export default function ProductsPage() {
   const handleImportProducts = async (file: File) => {
     setIsImporting(true);
     try {
+      // 🚀 PERFORMANS: PapaParse lazy load (heavy library)
+      const Papa = await loadPapaParse();
       const text = await file.text();
       Papa.parse(text, {
         header: true,
@@ -551,13 +578,8 @@ export default function ProductsPage() {
               toast.success(`${successCount} ürün başarıyla içeri aktarıldı!`);
             }
 
-            const response = await fetch('/api/products');
-            if (response.ok) {
-              const data = await response.json();
-              if (Array.isArray(data)) {
-                setProductsList(data);
-              }
-            }
+            // SWR cache'i server'dan revalidate et (fresh data)
+            mutateProducts();
             setIsImportModalOpen(false);
           } catch (err) {
             console.error('Import işleme hatası:', err);
@@ -979,7 +1001,16 @@ export default function ProductsPage() {
               <div key={product.id} className="bg-card rounded-lg shadow-sm border border-border p-2 md:p-3">
                 <div className="relative aspect-[4/3] max-h-32 md:max-h-36 mb-2 bg-secondary rounded-md overflow-hidden">
                   {product.image ? (
-                    <img src={product.image} alt={product.productType} className="w-full h-full object-contain" />
+                    <Image 
+                      src={product.image} 
+                      alt={product.productType || 'Ürün'} 
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 200px"
+                      className="object-contain"
+                      loading="lazy"
+                      placeholder="blur"
+                      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
                       Görsel Yok
@@ -1600,11 +1631,16 @@ export default function ProductsPage() {
                     style={{ minHeight: '300px', maxHeight: '500px' }}
                   >
                     {selectedProduct.image ? (
-                      <img
+                      <Image
                         src={selectedProduct.image}
-                        alt={selectedProduct.code}
+                        alt={selectedProduct.code || 'Ürün detay'}
+                        width={500}
+                        height={500}
                         className="max-w-full max-h-full object-contain p-4"
                         style={{ maxWidth: '100%', maxHeight: '500px', width: 'auto', height: 'auto' }}
+                        loading="lazy"
+                        placeholder="blur"
+                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground min-h-[300px]">

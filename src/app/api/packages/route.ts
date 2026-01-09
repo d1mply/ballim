@@ -56,7 +56,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(packages);
+    // 🚀 PERFORMANS: Cache headers (60 saniye cache - packages orta sıklıkta değişir)
+    return NextResponse.json(packages, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        'CDN-Cache-Control': 'public, s-maxage=60',
+        'Vercel-CDN-Cache-Control': 'public, s-maxage=60',
+      },
+    });
   } catch (error) {
     console.error('Paketleri getirme hatası:', error);
     return NextResponse.json(

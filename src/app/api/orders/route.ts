@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
 
     const result = await query(listQuery, listParams);
 
+    // 🚀 PERFORMANS: Cache headers (10 saniye cache - orders canlı data)
     return NextResponse.json({
       data: result.rows,
       meta: {
@@ -69,6 +70,12 @@ export async function GET(request: NextRequest) {
         totalCount,
         totalPages: Math.max(1, Math.ceil(totalCount / limit))
       }
+    }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30',
+        'CDN-Cache-Control': 'public, s-maxage=10',
+        'Vercel-CDN-Cache-Control': 'public, s-maxage=10',
+      },
     });
   } catch (error) {
     console.error('Siparişleri getirme hatası:', error);

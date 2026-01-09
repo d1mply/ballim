@@ -132,7 +132,14 @@ export async function GET() {
       };
     });
     
-    return NextResponse.json(products);
+    // 🚀 PERFORMANS: Cache headers (60 saniye cache, 300 saniye stale-while-revalidate)
+    return NextResponse.json(products, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        'CDN-Cache-Control': 'public, s-maxage=60',
+        'Vercel-CDN-Cache-Control': 'public, s-maxage=60',
+      },
+    });
   } catch (error) {
     console.error('Ürünleri getirme hatası:', error);
     return NextResponse.json(

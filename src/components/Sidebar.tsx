@@ -88,10 +88,14 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
             const isActive = pathname === itemPath || 
                            (itemPath !== '/' && pathname.startsWith(itemPath));
             
+            const handleHover = usePrefetchOnHover(itemPath);
+            
             return (
               <li key={item.name + item.path} className="px-1">
                 <Link
                   href={itemPath}
+                  prefetch={true}
+                  onMouseEnter={handleHover}
                   onClick={handleLinkClick}
                   className={`flex items-center gap-3 px-3 py-3 text-sm rounded-lg transition-all duration-200 ${
                     isActive

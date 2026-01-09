@@ -93,7 +93,14 @@ export async function GET() {
       monthlyRevenue
     };
 
-    return NextResponse.json(stats);
+    // 🚀 PERFORMANS: Cache headers (5 dakika cache - stats az değişir)
+    return NextResponse.json(stats, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        'CDN-Cache-Control': 'public, s-maxage=300',
+        'Vercel-CDN-Cache-Control': 'public, s-maxage=300',
+      },
+    });
   } catch (error) {
     console.error('Dashboard stats error:', error);
     return NextResponse.json(

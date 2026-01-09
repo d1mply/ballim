@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '../components/Layout';
 import { salesPoints } from '../config/salesPoints';
+import { usePrefetchRoutes } from '../hooks/usePrefetch';
 
 // Giriş yapan kullanıcı tipi
 export interface LoggedInUser {

@@ -501,6 +501,7 @@ export default function ProductModal({
                         src={imagePreview} 
                         alt="Ürün önizleme" 
                         className="w-full h-full object-contain rounded-md"
+                        // Note: Image preview uses regular img tag (blob URL, not optimized)
                       />
                     </div>
                   ) : (

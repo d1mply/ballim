@@ -172,7 +172,14 @@ export async function GET() {
         })
       );
       
-      return NextResponse.json(customerStats);
+      // 🚀 PERFORMANS: Cache headers (30 saniye cache - customers orta sıklıkta değişir)
+      return NextResponse.json(customerStats, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=180',
+          'CDN-Cache-Control': 'public, s-maxage=30',
+          'Vercel-CDN-Cache-Control': 'public, s-maxage=30',
+        },
+      });
     } catch (tableCheckError) {
       console.error('Tablo kontrol hatası:', tableCheckError);
       return NextResponse.json(
