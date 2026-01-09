@@ -1,0 +1,79 @@
+# robots.txt - Ballim Security Configuration
+# Bu dosya arama motoru botlarına hangi sayfaları tarayabileceğini belirtir.
+
+# Tüm botlar için genel kurallar
+User-agent: *
+
+# Engellenen dizinler ve endpoint'ler (Güvenlik)
+Disallow: /api/
+Disallow: /admin-dashboard
+Disallow: /admin/
+Disallow: /_next/
+Disallow: /private/
+Disallow: /internal/
+Disallow: /*.json$
+Disallow: /*?*=
+Disallow: /login
+Disallow: /auth
+
+# Hassas dosyalar
+Disallow: /.env
+Disallow: /.env.*
+Disallow: /package.json
+Disallow: /package-lock.json
+Disallow: /tsconfig.json
+Disallow: /next.config.*
+
+# Geçici ve log dosyaları
+Disallow: /logs/
+Disallow: /tmp/
+Disallow: /temp/
+Disallow: /*.log$
+
+# Yedek dosyalar
+Disallow: /*.bak$
+Disallow: /*.backup$
+Disallow: /*.old$
+Disallow: /*.orig$
+
+# İzin verilen sayfalar
+Allow: /
+Allow: /urunler
+Allow: /musteriler
+Allow: /customer-dashboard
+Allow: /teklif
+
+# Özel botlar için kurallar
+User-agent: Googlebot
+Disallow: /api/
+Disallow: /admin-dashboard
+Disallow: /admin/
+Disallow: /_next/
+
+User-agent: Bingbot
+Disallow: /api/
+Disallow: /admin-dashboard
+Disallow: /admin/
+Disallow: /_next/
+
+# Zararlı botlar için tam engelleme
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: BLEXBot
+Disallow: /
+
+# Crawl-delay (tarama gecikmesi)
+Crawl-delay: 1
+
+# Sitemap (eğer varsa)
+# Sitemap: https://yourdomain.com/sitemap.xml

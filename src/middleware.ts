@@ -6,38 +6,42 @@ import { verifyJWT } from '@/lib/jwt';
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
   
-  // Güvenlik başlıkları - Daha sıkı!
+  // Güvenlik başlıkları - Sahibinden.com gibi güvenlik standartları
   const securityHeaders = {
-    // Content Security Policy - Google Fonts için güncellenmiş
+    // Content Security Policy - Güvenlik odaklı, sıkı CSP
     'Content-Security-Policy': [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // PDF için gerekli
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", // Google Fonts CSS
-      "img-src 'self' data: blob:",
+      "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://fonts.gstatic.com", // Google Fonts dosyaları
-      "connect-src 'self'",
+      "connect-src 'self'", // API istekleri sadece kendi domain'den
       "media-src 'none'",
-      "object-src 'none'",
+      "object-src 'none'", // Plugin'ler engellenmiş
       "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'", // Clickjacking koruması
-      "upgrade-insecure-requests"
+      "form-action 'self'", // Form submission sadece kendi domain'e
+      "frame-ancestors 'none'", // Clickjacking koruması - hiçbir frame içine alınamaz
+      "frame-src 'none'", // Frame embedding engellenmiş
+      "upgrade-insecure-requests", // HTTP -> HTTPS yönlendirme
+      "block-all-mixed-content" // Mixed content engellenmiş
     ].join('; '),
     
-    // HSTS - Çok sıkı!
+    // HSTS - HTTP Strict Transport Security (1 yıl)
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
     
-    // Clickjacking koruması
+    // Clickjacking koruması - EN STRICT
     'X-Frame-Options': 'DENY',
+    
+    // MIME type sniffing koruması
     'X-Content-Type-Options': 'nosniff',
     
-    // XSS koruması
+    // XSS koruması (legacy browser support)
     'X-XSS-Protection': '1; mode=block',
     
-    // Referrer policy
+    // Referrer policy - Hassas bilgi sızıntısını önle
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     
-    // Permissions policy
+    // Permissions Policy - Gereksiz özellikleri engelle
     'Permissions-Policy': [
       'camera=()',
       'microphone=()',
@@ -47,20 +51,29 @@ export function middleware(request: NextRequest) {
       'bluetooth=()',
       'magnetometer=()',
       'gyroscope=()',
-      'accelerometer=()'
+      'accelerometer=()',
+      'autoplay=()',
+      'encrypted-media=()',
+      'picture-in-picture=()'
     ].join(', '),
     
-    // MIME type koruması
-    'X-Content-Type-Options': 'nosniff',
-    
-    // DNS prefetch kontrolü
+    // DNS prefetch kontrolü - Güvenlik için kapalı
     'X-DNS-Prefetch-Control': 'off',
     
-    // Download options
+    // Download options - Dosya indirme güvenliği
     'X-Download-Options': 'noopen',
     
-    // Powered by gizleme
-    'X-Powered-By': 'BallimSecure/1.0'
+    // Cross-Origin Resource Policy - CORP
+    'Cross-Origin-Resource-Policy': 'same-origin',
+    
+    // Cross-Origin Embedder Policy - COEP
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+    
+    // Cross-Origin Opener Policy - COOP
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    
+    // Powered by gizleme - Bilgi sızıntısını önle
+    'X-Powered-By': ''
   };
   
   // Güvenlik başlıklarını ekle

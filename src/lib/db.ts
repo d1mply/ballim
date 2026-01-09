@@ -1,4 +1,23 @@
 import { Pool } from 'pg';
+import { logSecurityEvent } from './security';
+
+// SQL Injection Pattern Detection
+const SQL_INJECTION_PATTERNS = [
+  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT|TRUNCATE|GRANT|REVOKE)\b)/i,
+  /(;|--|\/\*|\*\/|xp_|sp_)/i,
+  /(\bOR\b|\bAND\b)\s+\d+\s*=\s*\d+/i, // OR 1=1, AND 1=1
+  /(\bOR\b|\bAND\b)\s+['"]\w+['"]?\s*=\s*['"]\w+['"]?/i, // OR 'a'='a'
+  /INFORMATION_SCHEMA/i,
+  /pg_sleep|waitfor|benchmark/i,
+  /load_file|into\s+outfile/i,
+];
+
+// Dynamic Query Detection
+const DYNAMIC_QUERY_PATTERNS = [
+  /\$\{[^}]+\}/, // Template literals
+  /\+.*\+/, // String concatenation
+  /`[^`]*\$\{[^}]+\}[^`]*`/, // Template strings
+];
 
 // Veritabanı bağlantı bilgileri
 export const pool = new Pool(
@@ -40,10 +59,117 @@ export async function testConnection() {
   }
 }
 
-// Sorgu çalıştırma yardımcı fonksiyonu
+// SQL Injection ve Dynamic Query Kontrolü
+// PERFORMANS: GET request'lerde hafifletilmiş validation (sadece kritik kontroller)
+function validateQuery(text: string, params?: (string | number | boolean | null)[], isReadOnly: boolean = false): { isValid: boolean; error?: string } {
+  // 🛡️ Güvenlik 1: Dynamic query pattern kontrolü (her zaman aktif)
+  if (DYNAMIC_QUERY_PATTERNS.some(pattern => pattern.test(text))) {
+    logSecurityEvent('DYNAMIC_QUERY_DETECTED', {
+      query: text.substring(0, 200),
+      isReadOnly,
+      timestamp: new Date().toISOString(),
+    }, 'CRITICAL');
+    
+    return { isValid: false, error: 'Dynamic query kullanımı güvenlik nedeniyle engellenmiştir. Parametreli sorgu kullanın.' };
+  }
+
+  // 🛡️ Güvenlik 2: GET request'lerde (read-only) hafifletilmiş validation
+  if (isReadOnly) {
+    // Sadece kritik kontroller:
+    // - Dynamic query kontrolü (yukarıda yapıldı)
+    // - Parametrelerde SQL injection kontrolü (sadece string parametrelerde)
+    if (params && params.length > 0) {
+      for (let i = 0; i < params.length; i++) {
+        const param = params[i];
+        // Sadece string parametrelerde kontrol et (number, boolean güvenli)
+        if (typeof param === 'string' && param.length > 0) {
+          // Kritik SQL injection pattern'leri (sadece en tehlikeli olanlar)
+          const criticalPatterns = [
+            /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC)\b.*\b(WHERE|FROM|INTO|TABLE)\b)/i,
+            /(;|--|\/\*|\*\/)/, // SQL comment injection
+            /(\bOR\b|\bAND\b)\s+['"]?\w+['"]?\s*=\s*['"]?\w+['"]?/i, // OR 'a'='a'
+          ];
+          
+          for (const pattern of criticalPatterns) {
+            if (pattern.test(param)) {
+              logSecurityEvent('SQL_INJECTION_IN_PARAMS_READ', {
+                paramIndex: i,
+                paramValue: param.substring(0, 50),
+                pattern: pattern.toString(),
+                timestamp: new Date().toISOString(),
+              }, 'CRITICAL');
+              
+              return { isValid: false, error: `Parametre ${i + 1} içinde SQL injection pattern tespit edildi` };
+            }
+          }
+        }
+      }
+    }
+    
+    return { isValid: true };
+  }
+
+  // 🛡️ Güvenlik 3: POST/PUT/DELETE için tam validation
+  // Parametreli sorgu kontrolü
+  if (!params || params.length === 0) {
+    if (text.match(/\$[0-9]+/)) {
+      return { isValid: false, error: 'Parametreli sorgu kullanılmalıdır' };
+    }
+    
+    // SQL injection pattern kontrolü (tüm pattern'ler)
+    for (const pattern of SQL_INJECTION_PATTERNS) {
+      if (pattern.test(text)) {
+        logSecurityEvent('SQL_INJECTION_PATTERN_DETECTED', {
+          query: text.substring(0, 200),
+          pattern: pattern.toString(),
+          timestamp: new Date().toISOString(),
+        }, 'CRITICAL');
+        
+        return { isValid: false, error: 'SQL injection pattern tespit edildi' };
+      }
+    }
+  }
+
+  // 🛡️ Güvenlik 4: Parametrelerde SQL injection kontrolü (tam kontrol)
+  if (params && params.length > 0) {
+    for (let i = 0; i < params.length; i++) {
+      const param = params[i];
+      if (typeof param === 'string' && param.length > 0) {
+        for (const pattern of SQL_INJECTION_PATTERNS) {
+          if (pattern.test(param)) {
+            logSecurityEvent('SQL_INJECTION_IN_PARAMS', {
+              paramIndex: i,
+              paramValue: param.substring(0, 100),
+              pattern: pattern.toString(),
+              timestamp: new Date().toISOString(),
+            }, 'CRITICAL');
+            
+            return { isValid: false, error: `Parametre ${i + 1} içinde SQL injection pattern tespit edildi` };
+          }
+        }
+      }
+    }
+  }
+
+  return { isValid: true };
+}
+
+// Sorgu çalıştırma yardımcı fonksiyonu - Güvenlik Geliştirmeleri + Performans Optimizasyonu
 export async function query(text: string, params?: (string | number | boolean | null)[]) {
   const start = Date.now();
+  
   try {
+    // 🚀 PERFORMANS: GET request'lerde (SELECT) hafifletilmiş validation
+    // POST/PUT/DELETE için tam validation
+    const isReadOnly = text.trim().toUpperCase().startsWith('SELECT') || 
+                      text.trim().toUpperCase().startsWith('WITH');
+    
+    // 🛡️ Güvenlik: Query validation (isReadOnly'ye göre)
+    const validation = validateQuery(text, params, isReadOnly);
+    if (!validation.isValid) {
+      throw new Error(validation.error || 'Query validation failed');
+    }
+
     // Production'da log seviyesini azalt
     if (process.env.NODE_ENV !== 'production') {
       console.log('Sorgu başlatılıyor:', { text, params });
@@ -56,6 +182,7 @@ export async function query(text: string, params?: (string | number | boolean | 
       });
     }
     
+    // Parametreli sorgu ile çalıştır (pg otomatik olarak prepared statement kullanır)
     const res = await pool.query(text, params);
     const duration = Date.now() - start;
     
@@ -66,11 +193,21 @@ export async function query(text: string, params?: (string | number | boolean | 
     return res;
   } catch (error) {
     console.error('Sorgu hatası:', {
-      error: error.message,
-      query: text,
-      params: params,
+      error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      query: text.substring(0, 200), // İlk 200 karakteri logla
+      params: params ? params.map(p => typeof p === 'string' ? p.substring(0, 50) : p) : undefined,
       timestamp: new Date().toISOString()
     });
+    
+    // Güvenlik hatalarını ayrı logla
+    if (error instanceof Error && error.message.includes('validation')) {
+      logSecurityEvent('QUERY_VALIDATION_FAILED', {
+        query: text.substring(0, 200),
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      }, 'CRITICAL');
+    }
+    
     throw error;
   }
 }
@@ -639,6 +776,60 @@ export async function createTables() {
   } catch (error) {
     console.error('Sistem müşterisi oluşturulurken hata:', error);
     success = false;
+  }
+
+  // 🚀 PERFORMANS: Database Index'leri Ekleme (Query performansı için kritik)
+  try {
+    // Products tablosu index'leri
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC)
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_products_product_code ON products(product_code)
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_products_product_type ON products(product_type)
+    `);
+    console.log('Products tablosu index\'leri oluşturuldu veya zaten mevcut');
+
+    // Product Filaments tablosu index'leri
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_product_filaments_product_id ON product_filaments(product_id)
+    `);
+    console.log('Product Filaments tablosu index\'leri oluşturuldu veya zaten mevcut');
+
+    // Inventory tablosu index'leri
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_inventory_product_id ON inventory(product_id)
+    `);
+    console.log('Inventory tablosu index\'leri oluşturuldu veya zaten mevcut');
+
+    // Order Items tablosu index'leri (stok hesaplama için kritik)
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id)
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_order_items_status ON order_items(status)
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_order_items_product_status ON order_items(product_id, status)
+    `);
+    console.log('Order Items tablosu index\'leri oluşturuldu veya zaten mevcut');
+
+    // Orders tablosu index'leri
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id)
+    `);
+    console.log('Orders tablosu index\'leri oluşturuldu veya zaten mevcut');
+  } catch (indexError) {
+    console.error('Index\'ler oluşturulurken hata:', indexError);
+    // Index hataları tablo oluşturmayı engellemez
   }
 
   if (success) {

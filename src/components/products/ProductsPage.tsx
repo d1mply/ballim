@@ -662,11 +662,6 @@ export default function ProductsPage() {
             {error}
           </div>
         )}
-        {isLoading && !error && (
-          <div className="rounded-md border border-border bg-secondary/40 px-4 py-2 text-sm text-muted-foreground">
-            Ürünler yükleniyor...
-          </div>
-        )}
 
         {/* Filtreler */}
         <div className="bg-card border border-border p-4 rounded-lg">
@@ -964,7 +959,21 @@ export default function ProductsPage() {
         </div>
 
         {/* Liste */}
-        {viewMode === 'grid' ? (
+        {isLoading && !error ? (
+          // 🚀 PERFORMANS: Skeleton Loading (Anında görsel geri bildirim)
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2 md:gap-3">
+            {Array.from({ length: GRID_PAGE_SIZE }).map((_, index) => (
+              <div key={`skeleton-${index}`} className="bg-card rounded-lg shadow-sm border border-border p-2 md:p-3 animate-pulse">
+                <div className="relative aspect-[4/3] max-h-32 md:max-h-36 mb-2 bg-secondary rounded-md"></div>
+                <div className="space-y-2">
+                  <div className="h-4 bg-secondary rounded w-3/4"></div>
+                  <div className="h-3 bg-secondary rounded w-1/2"></div>
+                  <div className="h-3 bg-secondary rounded w-full"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2 md:gap-3">
             {paginatedProducts.map((product) => (
               <div key={product.id} className="bg-card rounded-lg shadow-sm border border-border p-2 md:p-3">
@@ -1081,8 +1090,21 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedProducts.map((product) => (
-                  <tr key={product.id} className="border-b border-border">
+                {isLoading && !error ? (
+                  // 🚀 PERFORMANS: Table Skeleton Loading
+                  Array.from({ length: 10 }).map((_, index) => (
+                    <tr key={`table-skeleton-${index}`} className="border-b border-border animate-pulse">
+                      <td className="p-2"><div className="h-4 bg-secondary rounded w-20"></div></td>
+                      <td className="p-2"><div className="h-4 bg-secondary rounded w-32"></div></td>
+                      <td className="p-2"><div className="h-4 bg-secondary rounded w-24"></div></td>
+                      <td className="p-2"><div className="h-4 bg-secondary rounded w-16"></div></td>
+                      <td className="p-2"><div className="h-4 bg-secondary rounded w-20"></div></td>
+                      <td className="p-2"><div className="h-4 bg-secondary rounded w-24"></div></td>
+                    </tr>
+                  ))
+                ) : (
+                  paginatedProducts.map((product) => (
+                    <tr key={product.id} className="border-b border-border">
                     <td className="p-2">{product.code}</td>
                     <td className="p-2">{product.productType}</td>
                     <td className="p-2">{formatDimensions(product)}</td>
@@ -1125,9 +1147,10 @@ export default function ProductsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
 
-                {showPackages &&
+                {!isLoading && showPackages &&
                   filteredPackages.map((pkg) => (
                     <tr key={`package-${pkg.id}`} className="border-b border-border bg-blue-50/30">
                       <td className="p-2">

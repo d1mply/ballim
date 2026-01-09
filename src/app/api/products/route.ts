@@ -2,27 +2,35 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
 import { createAuditLog, getUserFromRequest } from '../../../lib/audit-log';
 import { STOCK_COLORS } from '../../../lib/stock';
+import { validateAPIInput, validateProductCode } from '../../../lib/api-validation';
+import { getClientIP, logSecurityEvent } from '../../../lib/security';
 
-// Tüm ürünleri getir - Optimize edilmiş tek sorgu
+// Tüm ürünleri getir - Optimize edilmiş tek sorgu (Index'ler ile)
 export async function GET() {
   try {
-    // Tek sorguda tüm ürünleri, filamentleri ve stok bilgilerini getir
+    // 🚀 PERFORMANS OPTİMİZASYONU: 
+    // - Index'ler sayesinde ORDER BY hızlı
+    // - LEFT JOIN'ler index'li alanlar üzerinden
+    // - Subquery'ler json_agg ile optimize (PostgreSQL'de hızlı)
     const result = await query(`
       SELECT 
         p.*,
-        -- Filamentler subquery
-        (SELECT json_agg(json_build_object(
-          'id', pf.id,
-          'type', pf.filament_type,
-          'color', pf.filament_color,
-          'brand', pf.filament_density,
-          'weight', pf.weight
-        ))
-        FROM product_filaments pf
-        WHERE pf.product_id = p.id) as filaments,
-        -- Stok bilgileri LEFT JOIN ile
+        -- Filamentler: json_agg ile optimize (index'li product_id üzerinden)
+        COALESCE(
+          (SELECT json_agg(json_build_object(
+            'id', pf.id,
+            'type', pf.filament_type,
+            'color', pf.filament_color,
+            'brand', pf.filament_density,
+            'weight', pf.weight
+          ))
+          FROM product_filaments pf
+          WHERE pf.product_id = p.id),
+          '[]'::json
+        ) as filaments,
+        -- Stok bilgileri: LEFT JOIN ile (index'li product_id üzerinden)
         COALESCE(i.quantity, 0) as inventory_quantity,
-        -- Rezerve stok hesaplama
+        -- Rezerve stok: Subquery ile (index'li product_id ve status üzerinden)
         COALESCE((
           SELECT SUM(oi.quantity) 
           FROM order_items oi 
@@ -140,8 +148,57 @@ export async function GET() {
 
 // Yeni ürün oluştur
 export async function POST(request: NextRequest) {
+  const clientIP = getClientIP(request);
+  
   try {
     const body = await request.json();
+    
+    // 🛡️ Güvenlik: Input validation ve sanitization
+    const validation = validateAPIInput(body, {
+      sanitize: true,
+      validateSQL: true,
+      required: ['productCode', 'productType'],
+      types: {
+        productCode: 'string',
+        productType: 'string',
+        imagePath: 'string',
+        barcode: 'string',
+        capacity: 'number',
+        dimensionX: 'number',
+        dimensionY: 'number',
+        dimensionZ: 'number',
+        printTime: 'number',
+        totalGram: 'number',
+        pieceGram: 'number',
+        filePath: 'string',
+        notes: 'string',
+        filaments: 'array',
+      },
+      maxLengths: {
+        productCode: 50,
+        productType: 100,
+        barcode: 50,
+        filePath: 500,
+        notes: 1000,
+      },
+    });
+
+    if (!validation.isValid || !validation.sanitizedData) {
+      logSecurityEvent('PRODUCT_CREATE_VALIDATION_FAILED', {
+        ip: clientIP,
+        errors: validation.errors,
+        timestamp: new Date().toISOString(),
+      }, 'MEDIUM');
+      
+      return NextResponse.json(
+        { 
+          error: 'Validation hatası',
+          details: validation.errors 
+        },
+        { status: 400 }
+      );
+    }
+
     const {
       productCode,
       productType,
@@ -156,14 +213,19 @@ export async function POST(request: NextRequest) {
       pieceGram,
       filePath,
       notes,
-      unitPrice,
       filaments
-    } = body;
+    } = validation.sanitizedData;
 
-    // Gerekli alanları kontrol et
-    if (!productCode || !productType) {
+    // 🛡️ Güvenlik: Product code format kontrolü
+    if (!validateProductCode(productCode)) {
+      logSecurityEvent('INVALID_PRODUCT_CODE_FORMAT', {
+        ip: clientIP,
+        productCode: productCode,
+        timestamp: new Date().toISOString(),
+      }, 'MEDIUM');
+      
       return NextResponse.json(
-        { error: 'Ürün kodu ve tipi gerekli' },
+        { error: 'Ürün kodu formatı geçersiz. Sadece harf, rakam, tire ve alt çizgi kullanılabilir (3-50 karakter)' },
         { status: 400 }
       );
     }
@@ -201,19 +263,56 @@ export async function POST(request: NextRequest) {
 
       const newProduct = productResult.rows[0];
 
-      // Filamentleri ekle
+      // Filamentleri ekle - Validation ile
       if (filaments && Array.isArray(filaments) && filaments.length > 0) {
         for (const filament of filaments) {
+          // 🛡️ Güvenlik: Filament validation
+          const filamentValidation = validateAPIInput(filament, {
+            sanitize: true,
+            validateSQL: true,
+            types: {
+              type: 'string',
+              color: 'string',
+              brand: 'string',
+              weight: 'number',
+            },
+            maxLengths: {
+              type: 50,
+              color: 50,
+              brand: 100,
+            },
+          });
+
+          if (!filamentValidation.isValid || !filamentValidation.sanitizedData) {
+            await query('ROLLBACK');
+            logSecurityEvent('FILAMENT_VALIDATION_FAILED', {
+              ip: clientIP,
+              productCode: productCode,
+              errors: filamentValidation.errors,
+              timestamp: new Date().toISOString(),
+            }, 'MEDIUM');
+            
+            return NextResponse.json(
+              { 
+                error: 'Filament validation hatası',
+                details: filamentValidation.errors 
+              },
+              { status: 400 }
+            );
+          }
+
+          const sanitizedFilament = filamentValidation.sanitizedData;
+          
           await query(`
             INSERT INTO product_filaments (
               product_id, filament_type, filament_color, filament_density, weight
             ) VALUES ($1, $2, $3, $4, $5)
           `, [
             newProduct.id,
-            filament.type,
-            filament.color,
-            filament.brand || '',
-            filament.weight || 0
+            sanitizedFilament.type || '',
+            sanitizedFilament.color || '',
+            sanitizedFilament.brand || '',
+            typeof sanitizedFilament.weight === 'number' ? sanitizedFilament.weight : 0
           ]);
         }
       }
@@ -266,8 +365,85 @@ export async function POST(request: NextRequest) {
 
 // Ürün güncelle
 export async function PUT(request: NextRequest) {
+  const clientIP = getClientIP(request);
+  
   try {
     const body = await request.json();
+    
+    // 🛡️ Güvenlik: ID validation
+    if (!body.id) {
+      logSecurityEvent('PRODUCT_UPDATE_MISSING_ID', {
+        ip: clientIP,
+        timestamp: new Date().toISOString(),
+      }, 'MEDIUM');
+      
+      return NextResponse.json(
+        { error: 'Ürün ID gerekli' },
+        { status: 400 }
+      );
+    }
+
+    // ID'nin geçerli olduğunu kontrol et
+    if (!validateID(body.id)) {
+      logSecurityEvent('INVALID_PRODUCT_ID', {
+        ip: clientIP,
+        id: body.id,
+        timestamp: new Date().toISOString(),
+      }, 'MEDIUM');
+      
+      return NextResponse.json(
+        { error: 'Geçersiz ürün ID formatı' },
+        { status: 400 }
+      );
+    }
+
+    // 🛡️ Güvenlik: Input validation ve sanitization
+    const validation = validateAPIInput(body, {
+      sanitize: true,
+      validateSQL: true,
+      types: {
+        id: 'number',
+        productCode: 'string',
+        productType: 'string',
+        imagePath: 'string',
+        barcode: 'string',
+        capacity: 'number',
+        dimensionX: 'number',
+        dimensionY: 'number',
+        dimensionZ: 'number',
+        printTime: 'number',
+        totalGram: 'number',
+        pieceGram: 'number',
+        filePath: 'string',
+        notes: 'string',
+        filaments: 'array',
+      },
+      maxLengths: {
+        productCode: 50,
+        productType: 100,
+        barcode: 50,
+        filePath: 500,
+        notes: 1000,
+      },
+    });
+
+    if (!validation.isValid || !validation.sanitizedData) {
+      logSecurityEvent('PRODUCT_UPDATE_VALIDATION_FAILED', {
+        ip: clientIP,
+        productId: body.id,
+        errors: validation.errors,
+        timestamp: new Date().toISOString(),
+      }, 'MEDIUM');
+      
+      return NextResponse.json(
+        { 
+          error: 'Validation hatası',
+          details: validation.errors 
+        },
+        { status: 400 }
+      );
+    }
+
     const {
       id,
       productCode,
@@ -284,12 +460,19 @@ export async function PUT(request: NextRequest) {
       filePath,
       notes,
       filaments
-    } = body;
+    } = validation.sanitizedData;
 
-    // ID kontrolü
-    if (!id) {
+    // 🛡️ Güvenlik: Product code format kontrolü (eğer değiştiriliyorsa)
+    if (productCode && !validateProductCode(productCode)) {
+      logSecurityEvent('INVALID_PRODUCT_CODE_FORMAT_UPDATE', {
+        ip: clientIP,
+        productId: id,
+        productCode: productCode,
+        timestamp: new Date().toISOString(),
+      }, 'MEDIUM');
+      
       return NextResponse.json(
-        { error: 'Ürün ID gerekli' },
+        { error: 'Ürün kodu formatı geçersiz. Sadece harf, rakam, tire ve alt çizgi kullanılabilir (3-50 karakter)' },
         { status: 400 }
       );
     }
@@ -406,7 +589,7 @@ export async function PUT(request: NextRequest) {
       const productResult = await query(updateQuery, updateValues);
       const updatedProduct = productResult.rows[0];
 
-      // Filamentleri güncelle (önce sil, sonra ekle)
+      // Filamentleri güncelle (önce sil, sonra ekle) - Validation ile
       if (filaments !== undefined) {
         // Mevcut filamentleri sil
         await query(
@@ -414,19 +597,56 @@ export async function PUT(request: NextRequest) {
           [id]
         );
 
-        // Yeni filamentleri ekle
+        // Yeni filamentleri ekle - Validation ile
         if (Array.isArray(filaments) && filaments.length > 0) {
           for (const filament of filaments) {
+            // 🛡️ Güvenlik: Filament validation
+            const filamentValidation = validateAPIInput(filament, {
+              sanitize: true,
+              validateSQL: true,
+              types: {
+                type: 'string',
+                color: 'string',
+                brand: 'string',
+                weight: 'number',
+              },
+              maxLengths: {
+                type: 50,
+                color: 50,
+                brand: 100,
+              },
+            });
+
+            if (!filamentValidation.isValid || !filamentValidation.sanitizedData) {
+              await query('ROLLBACK');
+              logSecurityEvent('FILAMENT_UPDATE_VALIDATION_FAILED', {
+                ip: clientIP,
+                productId: id,
+                errors: filamentValidation.errors,
+                timestamp: new Date().toISOString(),
+              }, 'MEDIUM');
+              
+              return NextResponse.json(
+                { 
+                  error: 'Filament validation hatası',
+                  details: filamentValidation.errors 
+                },
+                { status: 400 }
+              );
+            }
+
+            const sanitizedFilament = filamentValidation.sanitizedData;
+            
             await query(`
               INSERT INTO product_filaments (
                 product_id, filament_type, filament_color, filament_density, weight
               ) VALUES ($1, $2, $3, $4, $5)
             `, [
               id,
-              filament.type,
-              filament.color,
-              filament.brand || '',
-              filament.weight || 0
+              sanitizedFilament.type || '',
+              sanitizedFilament.color || '',
+              sanitizedFilament.brand || '',
+              typeof sanitizedFilament.weight === 'number' ? sanitizedFilament.weight : 0
             ]);
           }
         }

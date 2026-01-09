@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
+import { validateAPIInput, validateEmail, validatePhone } from '../../../lib/api-validation';
+import { getClientIP, logSecurityEvent } from '../../../lib/security';
 
 // Tüm müşterileri getir
 export async function GET() {
@@ -189,10 +191,60 @@ export async function GET() {
 
 // Yeni müşteri ekle
 export async function POST(request: NextRequest) {
+  const clientIP = getClientIP(request);
+  
   try {
     const body = await request.json();
-    // Güvenlik: Müşteri ekleme verisi loglanmaz
     
+    // 🛡️ Güvenlik: Input validation ve sanitization
+    const validation = validateAPIInput(body, {
+      sanitize: true,
+      validateSQL: true,
+      required: ['name', 'phone', 'email', 'username', 'password'],
+      types: {
+        name: 'string',
+        company: 'string',
+        phone: 'string',
+        email: 'string',
+        address: 'string',
+        notes: 'string',
+        type: 'string',
+        taxNumber: 'string',
+        username: 'string',
+        password: 'string',
+        customerCategory: 'string',
+        discountRate: 'number',
+        filamentPrices: 'array',
+      },
+      maxLengths: {
+        name: 100,
+        company: 100,
+        phone: 20,
+        email: 100,
+        address: 500,
+        notes: 1000,
+        taxNumber: 20,
+        username: 50,
+        password: 255,
+      },
+    });
+
+    if (!validation.isValid || !validation.sanitizedData) {
+      logSecurityEvent('CUSTOMER_CREATE_VALIDATION_FAILED', {
+        ip: clientIP,
+        errors: validation.errors,
+        timestamp: new Date().toISOString(),
+      }, 'MEDIUM');
+      
+      return NextResponse.json(
+        { 
+          error: 'Validation hatası',
+          details: validation.errors 
+        },
+        { status: 400 }
+      );
+    }
+
     const {
       name,
       company,
@@ -207,7 +259,50 @@ export async function POST(request: NextRequest) {
       customerCategory = 'normal',
       discountRate = 0,
       filamentPrices = []
-    } = body;
+    } = validation.sanitizedData;
+
+    // 🛡️ Güvenlik: Email format kontrolü
+    if (!validateEmail(email)) {
+      logSecurityEvent('INVALID_EMAIL_FORMAT', {
+        ip: clientIP,
+        email: email,
+        timestamp: new Date().toISOString(),
+      }, 'MEDIUM');
+      
+      return NextResponse.json(
+        { error: 'Geçersiz email formatı' },
+        { status: 400 }
+      );
+    }
+
+    // 🛡️ Güvenlik: Telefon format kontrolü
+    if (!validatePhone(phone)) {
+      logSecurityEvent('INVALID_PHONE_FORMAT', {
+        ip: clientIP,
+        phone: phone,
+        timestamp: new Date().toISOString(),
+      }, 'MEDIUM');
+      
+      return NextResponse.json(
+        { error: 'Geçersiz telefon formatı. Türkiye telefon formatı kullanın (örn: 05551234567)' },
+        { status: 400 }
+      );
+    }
+
+    // 🛡️ Güvenlik: Username format kontrolü (alfanümerik, tire, alt çizgi)
+    const usernameRegex = /^[A-Za-z0-9_-]+$/;
+    if (!usernameRegex.test(username) || username.length < 3 || username.length > 50) {
+      logSecurityEvent('INVALID_USERNAME_FORMAT', {
+        ip: clientIP,
+        username: username,
+        timestamp: new Date().toISOString(),
+      }, 'MEDIUM');
+      
+      return NextResponse.json(
+        { error: 'Kullanıcı adı formatı geçersiz. Sadece harf, rakam, tire ve alt çizgi kullanılabilir (3-50 karakter)' },
+        { status: 400 }
+      );
+    }
     
     // Müşteri kodunu otomatik oluştur (MUS-001, MUS-002, ...)
     // Güvenli bir şekilde benzersiz kod oluştur

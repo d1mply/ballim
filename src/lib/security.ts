@@ -207,7 +207,61 @@ export function generateSecureToken(): string {
 
 // CSRF Token Oluşturma
 export function generateCSRFToken(): string {
-  return crypto.randomBytes(16).toString('hex');
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// CSRF Token Doğrulama
+export function validateCSRFToken(requestToken: string, cookieToken: string): boolean {
+  // Double submit cookie pattern: Token hem header'da hem cookie'de olmalı ve eşleşmeli
+  if (!requestToken || !cookieToken) {
+    return false;
+  }
+  
+  // Timing-safe comparison (timing attack koruması)
+  if (requestToken.length !== cookieToken.length) {
+    return false;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < requestToken.length; i++) {
+    result |= requestToken.charCodeAt(i) ^ cookieToken.charCodeAt(i);
+  }
+  
+  return result === 0;
+}
+
+// CSRF Token Store (in-memory, production'da Redis kullanılmalı)
+const csrfTokenStore = new Map<string, { token: string; expiresAt: number }>();
+
+// CSRF Token Saklama ve Doğrulama
+export function storeCSRFToken(sessionId: string, token: string, ttl: number = 3600000): void {
+  csrfTokenStore.set(sessionId, {
+    token,
+    expiresAt: Date.now() + ttl, // 1 saat
+  });
+}
+
+export function getCSRFToken(sessionId: string): string | null {
+  const stored = csrfTokenStore.get(sessionId);
+  if (!stored || Date.now() > stored.expiresAt) {
+    csrfTokenStore.delete(sessionId);
+    return null;
+  }
+  return stored.token;
+}
+
+export function removeCSRFToken(sessionId: string): void {
+  csrfTokenStore.delete(sessionId);
+}
+
+// Eski token'ları temizle (her 5 dakikada bir çalıştırılmalı)
+export function cleanupExpiredTokens(): void {
+  const now = Date.now();
+  for (const [sessionId, stored] of csrfTokenStore.entries()) {
+    if (now > stored.expiresAt) {
+      csrfTokenStore.delete(sessionId);
+    }
+  }
 }
 
 // Güvenli rastgele şifre oluşturma
