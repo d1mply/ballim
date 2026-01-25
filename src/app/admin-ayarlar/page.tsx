@@ -114,8 +114,8 @@ export default function AdminAyarlarPage() {
     setSaving(true);
     
     try {
-      const response = await fetch('/api/settings', {
-        method: 'PATCH',
+      const response = await fetch('/api/settings/bulk', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ settings: localSettings }),
