@@ -24,6 +24,8 @@ export default function HomePage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('Sistem bakımdadır. Lütfen daha sonra tekrar deneyin.');
   // Arka plan görselleri
   const desktopBg = '/login-bg-desktop.webp';
   const mobileBg = '/login-bg-mobile.webp';
@@ -39,9 +41,35 @@ export default function HomePage() {
 
   // Otomatik yönlendirme kaldırıldı - kullanıcı manuel giriş yapmalı
 
+  // 🔧 BAKIM MODU: Sayfa yüklendiğinde bakım modunu kontrol et
+  useEffect(() => {
+    const checkMaintenanceMode = async () => {
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const settings = await response.json();
+          if (settings.maintenance_mode === true) {
+            setMaintenanceMode(true);
+            if (settings.maintenance_message) {
+              setMaintenanceMessage(settings.maintenance_message);
+            }
+          }
+        }
+      } catch (error) {
+        // Sessizce başarısız ol - bakım kontrolü kritik değil
+        console.log('Bakım modu kontrolü başarısız');
+      }
+    };
+    
+    checkMaintenanceMode();
+  }, []);
+
   // 🚀 PERFORMANS: Arka planda ürünleri prefetch et
   // Kullanıcı login formunu doldururken ürünler yüklenir
   useEffect(() => {
+    // Bakım modundaysa prefetch yapma
+    if (maintenanceMode) return;
+    
     // Prefetch products API - browser cache'e alınır
     const prefetchProducts = async () => {
       try {
@@ -61,7 +89,7 @@ export default function HomePage() {
     // 1 saniye gecikmeyle başlat (sayfa yüklenmesini engellemez)
     const timer = setTimeout(prefetchProducts, 1000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [maintenanceMode]);
 
   // Ekran genişliğine göre arka plan seçimi
   const [isMobile, setIsMobile] = useState(false);
@@ -168,6 +196,43 @@ export default function HomePage() {
       setLoading(false);
     }
   };
+
+  // Bakım modunda özel ekran göster
+  if (maintenanceMode) {
+    return (
+      <Layout hideNavigation>
+        <div
+          className="fixed inset-0"
+          style={{
+            backgroundImage: `url(${isMobile ? mobileBg : desktopBg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/70 to-black/60" />
+          
+          <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
+            <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/30 p-10 md:p-16 shadow-2xl max-w-lg text-center">
+              <div className="w-24 h-24 bg-gradient-to-br from-orange-500/40 to-red-500/40 rounded-full flex items-center justify-center mx-auto mb-8 animate-pulse">
+                <span className="text-5xl">🔧</span>
+              </div>
+              <h1 className="text-white font-bold text-3xl md:text-4xl mb-4">
+                Bakım Modu
+              </h1>
+              <p className="text-white/80 text-lg md:text-xl leading-relaxed">
+                {maintenanceMessage}
+              </p>
+              <div className="mt-8 flex items-center justify-center gap-2 text-white/60">
+                <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout hideNavigation>
