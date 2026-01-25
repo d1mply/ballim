@@ -123,7 +123,8 @@ export default function AdminAyarlarPage() {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.details?.join(', ') || errorData.error || 'Ayarlar kaydedilemedi';
+        console.error('Settings API Error:', response.status, errorData);
+        const errorMessage = errorData.details || errorData.error || `Ayarlar kaydedilemedi (HTTP ${response.status})`;
         throw new Error(errorMessage);
       }
       

@@ -269,38 +269,84 @@ export async function PATCH(request: NextRequest) {
     
     const updatedKeys: string[] = [];
     
-    // Her ayarı güncelle
+    // Ayar tipi belirleme fonksiyonu
+    const getSettingType = (key: string, value: any): string => {
+      if (key === 'hidden_categories') return 'json';
+      if (key === 'maintenance_mode' || key === 'order_notifications_enabled') return 'boolean';
+      if (key === 'min_order_amount' || key === 'free_shipping_limit' || key === 'low_stock_threshold') return 'number';
+      if (typeof value === 'boolean') return 'boolean';
+      if (typeof value === 'number') return 'number';
+      if (Array.isArray(value) || typeof value === 'object') return 'json';
+      return 'string';
+    };
+    
+    // Kategori belirleme
+    const getCategory = (key: string): string => {
+      if (key === 'hidden_categories') return 'categories';
+      if (key.includes('maintenance')) return 'general';
+      if (key.includes('order') || key.includes('shipping')) return 'orders';
+      if (key.includes('notification') || key.includes('stock')) return 'notifications';
+      return 'general';
+    };
+    
+    // Her ayarı güncelle veya ekle (UPSERT)
     for (const [key, value] of Object.entries(settings)) {
       const existing = await query(
         'SELECT id, setting_type FROM system_settings WHERE setting_key = $1',
         [key]
       );
       
-      if (existing.rows.length === 0) continue;
-      
       let jsonValue: any;
-      const settingType = existing.rows[0].setting_type;
+      let settingType: string;
       
-      switch (settingType) {
-        case 'boolean':
-          jsonValue = value === true || value === 'true';
-          break;
-        case 'number':
-          jsonValue = Number(value);
-          break;
-        case 'json':
-          jsonValue = value;
-          break;
-        default:
-          jsonValue = String(value);
+      if (existing.rows.length === 0) {
+        // Yeni ayar ekle
+        settingType = getSettingType(key, value);
+        
+        switch (settingType) {
+          case 'boolean':
+            jsonValue = value === true || value === 'true';
+            break;
+          case 'number':
+            jsonValue = Number(value);
+            break;
+          case 'json':
+            jsonValue = value;
+            break;
+          default:
+            jsonValue = String(value);
+        }
+        
+        await query(
+          `INSERT INTO system_settings (setting_key, setting_value, setting_type, category, is_public)
+           VALUES ($1, $2::jsonb, $3, $4, true)`,
+          [key, JSON.stringify(jsonValue), settingType, getCategory(key)]
+        );
+      } else {
+        // Mevcut ayarı güncelle
+        settingType = existing.rows[0].setting_type;
+        
+        switch (settingType) {
+          case 'boolean':
+            jsonValue = value === true || value === 'true';
+            break;
+          case 'number':
+            jsonValue = Number(value);
+            break;
+          case 'json':
+            jsonValue = value;
+            break;
+          default:
+            jsonValue = String(value);
+        }
+        
+        await query(
+          `UPDATE system_settings 
+           SET setting_value = $1::jsonb, updated_at = CURRENT_TIMESTAMP 
+           WHERE setting_key = $2`,
+          [JSON.stringify(jsonValue), key]
+        );
       }
-      
-      await query(
-        `UPDATE system_settings 
-         SET setting_value = $1::jsonb, updated_at = CURRENT_TIMESTAMP 
-         WHERE setting_key = $2`,
-        [JSON.stringify(jsonValue), key]
-      );
       
       updatedKeys.push(key);
     }
