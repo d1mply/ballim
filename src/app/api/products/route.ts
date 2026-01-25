@@ -5,14 +5,22 @@ import { STOCK_COLORS } from '../../../lib/stock';
 import { validateAPIInput, validateProductCode } from '../../../lib/api-validation';
 import { getClientIP, logSecurityEvent } from '../../../lib/security';
 
-// Tüm ürünleri getir - Optimize edilmiş tek sorgu (Index'ler ile)
+// Tüm ürünleri getir - CTE ile optimize edilmiş tek sorgu
 export async function GET() {
   try {
-    // 🚀 PERFORMANS OPTİMİZASYONU: 
-    // - Index'ler sayesinde ORDER BY hızlı
-    // - LEFT JOIN'ler index'li alanlar üzerinden
-    // - Subquery'ler json_agg ile optimize (PostgreSQL'de hızlı)
+    // 🚀 PERFORMANS OPTİMİZASYONU v2:
+    // - CTE (Common Table Expression) ile rezerve stok tek seferde hesaplanıyor
+    // - Correlated subquery yerine LEFT JOIN kullanılıyor
+    // - Tahmini %60-80 performans artışı
     const result = await query(`
+      WITH reserved_stock AS (
+        SELECT 
+          product_id, 
+          SUM(quantity) as total_reserved
+        FROM order_items
+        WHERE status IN ('onay_bekliyor', 'uretiliyor', 'uretildi', 'hazirlaniyor')
+        GROUP BY product_id
+      )
       SELECT 
         p.*,
         -- Filamentler: json_agg ile optimize (index'li product_id üzerinden)
@@ -28,17 +36,13 @@ export async function GET() {
           WHERE pf.product_id = p.id),
           '[]'::json
         ) as filaments,
-        -- Stok bilgileri: LEFT JOIN ile (index'li product_id üzerinden)
+        -- Stok bilgileri: LEFT JOIN ile
         COALESCE(i.quantity, 0) as inventory_quantity,
-        -- Rezerve stok: Subquery ile (index'li product_id ve status üzerinden)
-        COALESCE((
-          SELECT SUM(oi.quantity) 
-          FROM order_items oi 
-          WHERE oi.product_id = p.id 
-          AND oi.status IN ('onay_bekliyor', 'uretiliyor', 'uretildi', 'hazirlaniyor')
-        ), 0) as total_ordered
+        -- Rezerve stok: CTE ile tek seferde hesaplandı
+        COALESCE(rs.total_reserved, 0) as total_ordered
       FROM products p
       LEFT JOIN inventory i ON i.product_id = p.id
+      LEFT JOIN reserved_stock rs ON rs.product_id = p.id
       ORDER BY p.product_code ASC, p.product_type ASC
     `);
     

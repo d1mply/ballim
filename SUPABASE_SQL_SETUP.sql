@@ -216,5 +216,29 @@ INSERT INTO wholesale_price_ranges (min_gram, max_gram, price) VALUES
 (1001, 9999, 0.025)
 ON CONFLICT (min_gram, max_gram) DO NOTHING;
 
+-- 21. Sistem ayarları tablosu (Admin panel için)
+CREATE TABLE IF NOT EXISTS system_settings (
+  id SERIAL PRIMARY KEY,
+  setting_key VARCHAR(100) UNIQUE NOT NULL,
+  setting_value JSONB NOT NULL DEFAULT '{}',
+  setting_type VARCHAR(50) NOT NULL, -- 'boolean', 'string', 'number', 'json'
+  category VARCHAR(50) NOT NULL, -- 'general', 'categories', 'orders', 'notifications'
+  description TEXT,
+  is_public BOOLEAN DEFAULT false, -- Frontend'e gönderilsin mi
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 22. Varsayılan sistem ayarları
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public) VALUES
+('hidden_categories', '[]', 'json', 'categories', 'Admin harici gizlenen kategoriler', true),
+('maintenance_mode', 'false', 'boolean', 'general', 'Bakım modu aktif mi', true),
+('maintenance_message', '"Sistem bakımda, lütfen daha sonra tekrar deneyin."', 'string', 'general', 'Bakım modu mesajı', true),
+('min_order_amount', '0', 'number', 'orders', 'Minimum sipariş tutarı (TL)', true),
+('free_shipping_limit', '500', 'number', 'orders', 'Ücretsiz kargo limiti (TL)', true),
+('order_notifications_enabled', 'true', 'boolean', 'notifications', 'Sipariş bildirimleri aktif mi', false),
+('low_stock_threshold', '5', 'number', 'notifications', 'Düşük stok uyarı eşiği', false)
+ON CONFLICT (setting_key) DO NOTHING;
+
 -- Başarı mesajı
 SELECT 'Tüm tablolar başarıyla oluşturuldu ve örnek veriler eklendi!' as message;

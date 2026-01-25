@@ -39,6 +39,30 @@ export default function HomePage() {
 
   // Otomatik yönlendirme kaldırıldı - kullanıcı manuel giriş yapmalı
 
+  // 🚀 PERFORMANS: Arka planda ürünleri prefetch et
+  // Kullanıcı login formunu doldururken ürünler yüklenir
+  useEffect(() => {
+    // Prefetch products API - browser cache'e alınır
+    const prefetchProducts = async () => {
+      try {
+        await fetch('/api/products', { 
+          method: 'GET',
+          credentials: 'include',
+          // Cache hint - tarayıcı cache'i kullanmasını sağla
+          cache: 'force-cache'
+        });
+        console.log('📦 Ürünler arka planda prefetch edildi');
+      } catch (error) {
+        // Sessizce başarısız ol - kritik değil
+        console.log('Prefetch başarısız (önemli değil)');
+      }
+    };
+    
+    // 1 saniye gecikmeyle başlat (sayfa yüklenmesini engellemez)
+    const timer = setTimeout(prefetchProducts, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Ekran genişliğine göre arka plan seçimi
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -130,8 +154,9 @@ export default function HomePage() {
         // Kullanıcı bilgilerini session'a kaydet
         localStorage.setItem('loggedUser', JSON.stringify(userData));
         
-        // Direkt ürünler sayfasına yönlendir
-        window.location.href = '/urunler';
+        // Kullanıcı tipine göre dashboard'a yönlendir
+        const dashboardUrl = userData.type === 'admin' ? '/admin-dashboard' : '/customer-dashboard';
+        window.location.href = dashboardUrl;
       } else {
         console.error('Geçersiz response:', responseData);
         setError('Giriş başarısız. Lütfen bilgilerinizi kontrol edin.');

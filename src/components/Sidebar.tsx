@@ -14,7 +14,8 @@ import {
   Truck as TruckIcon,
   Calculator as CalculatorIcon,
   Warehouse as WarehouseIcon,
-  PackageCheck as PackageCheckIcon
+  PackageCheck as PackageCheckIcon,
+  Settings as SettingsIcon
 } from 'lucide-react';
 
 type SidebarProps = {
@@ -43,6 +44,7 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
     { name: 'Ödemeler', path: '/odemeler', icon: <ReceiptIcon /> },
     { name: 'Üretim Takip', path: '/uretim-takip', icon: <ClipboardListIcon /> },
     { name: 'Audit Log', path: '/audit-log', icon: <ClipboardListIcon /> },
+    { name: 'Ayarlar', path: '/admin-ayarlar', icon: <SettingsIcon /> },
   ];
 
   // Müşteri için menü öğeleri

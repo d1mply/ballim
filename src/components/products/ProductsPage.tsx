@@ -101,9 +101,24 @@ export default function ProductsPage() {
     }
   );
 
+  // Settings API - Kategori gizleme için
+  const { data: settingsData } = useSWR<Record<string, any>>(
+    '/api/settings',
+    async (url: string) => {
+      const res = await fetch(url);
+      if (!res.ok) return {};
+      return res.json();
+    },
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 10000, // 10 saniye cache
+    }
+  );
+
   // SWR'dan gelen data'yı state'e map et
   const productsList = productsData || [];
   const packagesList = packagesData || [];
+  const hiddenCategories: string[] = settingsData?.hidden_categories || [];
   const isLoading = productsLoading || packagesLoading;
   const error = productsError || packagesError ? (productsError?.message || packagesError?.message || 'Veri yükleme hatası') : null;
 
@@ -203,6 +218,11 @@ export default function ProductsPage() {
         (product.code?.toLowerCase().includes(searchLower) ||
           product.productType?.toLowerCase().includes(searchLower));
 
+      // Admin değilse gizli kategorilerdeki ürünleri gösterme
+      const hiddenCategoryMatch = user?.type === 'admin' 
+        ? true 
+        : !hiddenCategories.includes(product.productType || '');
+
       return (
         textMatch &&
         categoryMatch &&
@@ -211,7 +231,8 @@ export default function ProductsPage() {
         filamentColorMatch &&
         stockStatusMatch &&
         stockRangeMatch &&
-        gramMatch
+        gramMatch &&
+        hiddenCategoryMatch
       );
     });
 
@@ -256,7 +277,7 @@ export default function ProductsPage() {
     });
 
     return sorted;
-  }, [filters, productsList, sortBy]);
+  }, [filters, productsList, sortBy, hiddenCategories, user?.type]);
 
   const filteredPackages = useMemo(() => {
     const searchLower = filters.searchTerm.trim().toLowerCase();
@@ -279,10 +300,16 @@ export default function ProductsPage() {
   );
 
   // Kategori listesi
-  const categories = useMemo(
+  // Kategoriler - Admin değilse gizli kategorileri filtrele
+  const allCategories = useMemo(
     () => Array.from(new Set(productsList.map((p) => p.productType).filter(Boolean))),
     [productsList],
   );
+  
+  const categories = useMemo(() => {
+    if (user?.type === 'admin') return allCategories;
+    return allCategories.filter(cat => !hiddenCategories.includes(cat));
+  }, [allCategories, hiddenCategories, user?.type]);
 
   const filamentTypes = useMemo(
     () =>
