@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyJWT } from '@/lib/jwt';
+import { apiAuthMiddleware } from '@/lib/auth-middleware';
 
 // 🛡️ LAMER KORUMA SİSTEMİ - DAHA AGRESİF!
 export function middleware(request: NextRequest) {
@@ -198,14 +199,11 @@ export function middleware(request: NextRequest) {
     return new NextResponse('Request Too Large', { status: 413 });
   }
   
-  // 🚫 LAMER KONTROL 8: Admin API endpoint'leri koruması (sayfalar değil, sadece API)
-  if (url.pathname.startsWith('/api/admin')) {
-    // Admin API endpoint'leri için JWT kontrolü
-    const token = request.cookies.get('auth-token')?.value;
-    const verify = token ? verifyJWT(token) : { valid: false };
-    if (!verify.valid || verify.payload?.role !== 'admin') {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
+  // 🔐 API Authentication & Authorization
+  // All API endpoints now require authentication (except public ones)
+  const authResult = apiAuthMiddleware(request);
+  if (authResult) {
+    return authResult; // Return error response if not authenticated
   }
   
   // Dashboard sayfaları için JWT kontrolü YOK - localStorage kontrolü frontend'de yapılıyor

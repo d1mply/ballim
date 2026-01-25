@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     // Toplam kayıt sayısı
-    const countParams: any[] = [];
+    const countParams: (string | number | boolean | null)[] = [];
     let countQuery = `SELECT COUNT(DISTINCT o.id) AS cnt FROM orders o`;
     if (customerId) {
       countQuery += ` WHERE o.customer_id = $1`;
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const totalCount = parseInt(countRes.rows[0]?.cnt || '0', 10);
 
     // Liste sorgusu (N+1 azaltılmış, ürünler json_agg ile)
-    const listParams: any[] = [];
+    const listParams: (string | number | boolean | null)[] = [];
     let listQuery = `
       SELECT 
         o.id,
@@ -302,14 +302,22 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    interface OrderItemRow {
+      product_id: number;
+      quantity: number;
+      status: string | null;
+    }
+    
     const itemsResult = await query(
       `SELECT product_id, quantity, status FROM order_items WHERE order_id = $1`,
       [orderId]
     );
 
+    const items = itemsResult.rows as OrderItemRow[];
+
     // Üretim aşamasındaki siparişlerin silinmesini engelle (Senaryo3)
     const blockedStatuses = new Set(['uretiliyor', 'uretildi', 'hazirlaniyor']);
-    if (itemsResult.rows.some((r: any) => blockedStatuses.has((r.status || '').toLowerCase()))) {
+    if (items.some((r) => blockedStatuses.has((r.status || '').toLowerCase()))) {
       return NextResponse.json(
         { error: 'Bu sipariş üretim sürecinde olduğu için silinemez. Lütfen önce süreci tamamlayın veya iptal edin.' },
         { status: 400 }
@@ -321,7 +329,7 @@ export async function DELETE(request: NextRequest) {
 
     // Senaryo1 ve Senaryo2: Rezerveyi sıfırla, hazırlandı olanların stoklarını geri ekle
     // Not: Filament asla geri alınmaz
-    for (const item of itemsResult.rows) {
+    for (const item of items) {
       const status = (item.status || '').toLowerCase();
       if (status === 'hazirlandi') {
         await query(
@@ -343,7 +351,7 @@ export async function DELETE(request: NextRequest) {
 
     await query('COMMIT');
     await logOrderEvent(orderId, 'ORDER_DELETED', {
-      restoredStockForReadyItems: itemsResult.rows.filter((r: any) => (r.status || '').toLowerCase() === 'hazirlandi').length
+      restoredStockForReadyItems: items.filter((r) => (r.status || '').toLowerCase() === 'hazirlandi').length
     });
 
     return NextResponse.json({

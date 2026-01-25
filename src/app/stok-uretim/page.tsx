@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
+import { useToast } from '../../contexts/ToastContext';
 
 // Ürün tipi
 interface Product {
@@ -42,6 +43,7 @@ interface User {
 
 export default function StokUretimPage() {
   const router = useRouter();
+  const toast = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [stockOrders, setStockOrders] = useState<StockProductionOrder[]>([]);
@@ -175,7 +177,7 @@ export default function StokUretimPage() {
   // Üretim emri oluştur
   const handleCreateOrder = async () => {
     if (!selectedProduct || quantity <= 0) {
-      alert('Lütfen ürün ve adet seçin.');
+      toast.warning('Lütfen ürün ve adet seçin.');
       return;
     }
 
@@ -206,7 +208,7 @@ export default function StokUretimPage() {
       }
 
       const result = await response.json();
-      alert(`Üretim emri başarıyla oluşturuldu! (${result.order?.order_code || 'STK-XXX'})`);
+      toast.success(`Üretim emri başarıyla oluşturuldu! (${result.order?.order_code || 'STK-XXX'})`);
       
       // Modal'ı kapat ve formu sıfırla
       setIsModalOpen(false);
@@ -220,7 +222,7 @@ export default function StokUretimPage() {
     } catch (error) {
       console.error('Üretim emri hatası:', error);
       const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
-      alert(`Hata: ${errorMessage}`);
+      toast.error(`Hata: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }

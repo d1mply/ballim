@@ -21,9 +21,12 @@ export const swrConfig: SWRConfiguration = {
   },
   // Fetcher function
   fetcher: async (url: string) => {
-    const res = await fetch(url);
+    const res = await fetch(url, { credentials: 'include' });
     if (!res.ok) {
-      const error: any = new Error('An error occurred while fetching the data.');
+      const error = new Error('An error occurred while fetching the data.') as Error & { 
+        status?: number; 
+        info?: Record<string, unknown>; 
+      };
       error.status = res.status;
       error.info = await res.json().catch(() => ({}));
       throw error;

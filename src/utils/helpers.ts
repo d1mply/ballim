@@ -104,13 +104,13 @@ export const safeParseFloat = (value: string | number, defaultValue: number = 0)
 /**
  * Array'i güvenli şekilde kontrol eder
  */
-export const safeArray = <T>(value: any): T[] => {
-  return Array.isArray(value) ? value : [];
+export const safeArray = <T>(value: unknown): T[] => {
+  return Array.isArray(value) ? value as T[] : [];
 };
 
 /**
  * Object'i güvenli şekilde kontrol eder
  */
-export const safeObject = <T>(value: any, defaultValue: T): T => {
-  return value && typeof value === 'object' ? value : defaultValue;
+export const safeObject = <T extends object>(value: unknown, defaultValue: T): T => {
+  return value && typeof value === 'object' ? value as T : defaultValue;
 };

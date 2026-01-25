@@ -23,7 +23,37 @@ export async function GET(request: NextRequest) {
     `);
     const totalCount = parseInt(countRes.rows[0]?.cnt || '0', 10);
 
+    // OPTIMIZED: N+1 subqueries replaced with LEFT JOINs and pre-aggregated CTEs
     const result = await query(`
+      WITH product_stock AS (
+        SELECT 
+          p.id as product_id,
+          p.capacity,
+          COALESCE(inv.quantity, 0) as available_stock,
+          COALESCE(res.reserved_qty, 0) as reserved_qty
+        FROM products p
+        LEFT JOIN inventory inv ON inv.product_id = p.id
+        LEFT JOIN (
+          SELECT product_id, SUM(quantity) as reserved_qty
+          FROM order_items
+          WHERE status IN ('onay_bekliyor', 'uretiliyor', 'uretildi', 'hazirlaniyor')
+          GROUP BY product_id
+        ) res ON res.product_id = p.id
+      ),
+      product_filaments_agg AS (
+        SELECT 
+          pf.product_id,
+          json_agg(
+            json_build_object(
+              'type', pf.filament_type,
+              'color', pf.filament_color,
+              'brand', pf.filament_density,
+              'weight', pf.weight
+            )
+          ) as filaments
+        FROM product_filaments pf
+        GROUP BY pf.product_id
+      )
       SELECT 
         o.id,
         o.order_code,
@@ -45,30 +75,10 @@ export async function GET(request: NextRequest) {
               'product_name', oi.product_name,
               'quantity', oi.quantity,
               'status', COALESCE(oi.status, 'onay_bekliyor'),
-              'capacity', (SELECT capacity FROM products WHERE id = oi.product_id),
-              'availableStock', (SELECT COALESCE(quantity, 0) FROM inventory WHERE product_id = oi.product_id),
-              'reservedStock', (
-                SELECT CASE 
-                  WHEN COALESCE(SUM(quantity), 0) <= COALESCE((SELECT quantity FROM inventory WHERE product_id = oi.product_id), 0)
-                  THEN 0
-                  ELSE COALESCE(SUM(quantity), 0) - COALESCE((SELECT quantity FROM inventory WHERE product_id = oi.product_id), 0)
-                END
-                FROM order_items
-                WHERE product_id = oi.product_id
-                AND status IN ('onay_bekliyor', 'uretiliyor', 'uretildi', 'hazirlaniyor')
-              ),
-              'filaments', (
-                SELECT json_agg(
-                  json_build_object(
-                    'type', pf.filament_type,
-                    'color', pf.filament_color,
-                    'brand', pf.filament_density,
-                    'weight', pf.weight
-                  )
-                )
-                FROM product_filaments pf
-                WHERE pf.product_id = oi.product_id
-              )
+              'capacity', ps.capacity,
+              'availableStock', ps.available_stock,
+              'reservedStock', GREATEST(0, ps.reserved_qty - ps.available_stock),
+              'filaments', COALESCE(pfa.filaments, '[]'::json)
             )
           ) FILTER (WHERE oi.id IS NOT NULL),
           '[]'::json
@@ -76,6 +86,8 @@ export async function GET(request: NextRequest) {
       FROM orders o
       LEFT JOIN customers c ON c.id = o.customer_id
       LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN product_stock ps ON ps.product_id = oi.product_id
+      LEFT JOIN product_filaments_agg pfa ON pfa.product_id = oi.product_id
       WHERE o.status IN ('Onay Bekliyor', 'Üretimde', 'Üretildi', 'Hazırlanıyor', 'Hazırlandı')
       GROUP BY o.id, o.order_code, o.customer_id, o.status, o.total_amount, o.order_date, c.name, o.notes
       ORDER BY o.created_at DESC

@@ -9,7 +9,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -p $PORT",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "test:watch": "vitest --watch"
   },
   "dependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -39,10 +44,15 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^9",
     "eslint-config-next": "^15.5.9",
+    "jsdom": "^27.4.0",
     "mkcert": "^3.2.0",
     "ts-node": "^10.9.2",
+    "vitest": "^4.0.18",
     "ws": "^8.18.2"
   }
 }

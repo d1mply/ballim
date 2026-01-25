@@ -1,0 +1,203 @@
+# TEST YAZMA KURALLARI - BALLIM PROJESİ
+
+## TEMEL PRENSİP
+
+Bu proje için test yazarken aşağıdaki standartları takip et. Her test talebi bu kurallara uygun şekilde işlenmeli.
+
+## TEST STACK
+
+```
+Framework: Vitest
+React Testing: @testing-library/react
+Coverage: @vitest/coverage-v8
+Mocking: vitest built-in (vi.mock, vi.fn)
+```
+
+## DOSYA YAPISI
+
+```
+ballim/
+├── __tests__/
+│   ├── lib/           # src/lib/ testleri
+│   │   ├── pricing.test.ts
+│   │   ├── validation.test.ts
+│   │   └── ...
+│   ├── api/           # API route testleri
+│   │   ├── auth.test.ts
+│   │   └── ...
+│   ├── components/    # Component testleri
+│   │   └── ...
+│   └── setup.ts       # Global test setup
+├── vitest.config.ts
+└── ...
+```
+
+## MOCK STRATEJİSİ
+
+### Database Mock (Zorunlu)
+```typescript
+// Her test dosyasında db mock'u olmalı
+vi.mock('@/lib/db', () => ({
+  query: vi.fn(),
+  getPool: vi.fn()
+}));
+```
+
+### Environment Mock
+```typescript
+// Test setup'ta
+process.env.JWT_SECRET = 'test-secret';
+process.env.DATABASE_URL = 'mock://test';
+```
+
+## COVERAGE HEDEFLERİ
+
+| Modül Tipi | Line | Branch | Function |
+|------------|------|--------|----------|
+| lib/ (kritik) | %95 | %90 | %100 |
+| api/ | %90 | %85 | %95 |
+| components/ | %85 | %80 | %90 |
+| utils/ | %90 | %85 | %95 |
+
+## ZORUNLU EDGE CASES
+
+Her fonksiyon için test edilmesi gereken durumlar:
+
+### Input Validasyonu
+- [ ] null input
+- [ ] undefined input
+- [ ] Boş string ""
+- [ ] Boş array []
+- [ ] Boş object {}
+
+### Sayısal Değerler
+- [ ] 0 (sıfır)
+- [ ] Negatif sayılar
+- [ ] Çok büyük sayılar
+- [ ] Ondalıklı sayılar
+- [ ] NaN
+
+### Async İşlemler
+- [ ] Başarılı resolve
+- [ ] Hata reject
+- [ ] Timeout
+
+### Database İşlemleri
+- [ ] Kayıt bulunamadı (rowCount = 0)
+- [ ] Tek kayıt bulundu
+- [ ] Çoklu kayıt bulundu
+- [ ] Database bağlantı hatası
+
+## TEST YAZIM ŞABLONU
+
+```typescript
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { query } from '@/lib/db';
+import { fonksiyonAdi } from '@/lib/modul';
+
+// Mock setup
+vi.mock('@/lib/db', () => ({
+  query: vi.fn()
+}));
+
+const mockQuery = query as ReturnType<typeof vi.fn>;
+
+describe('ModülAdı', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  describe('fonksiyonAdi', () => {
+    describe('başarılı senaryolar', () => {
+      it('geçerli input ile doğru sonuç döndürmeli', async () => {
+        // Arrange
+        mockQuery.mockResolvedValueOnce({
+          rows: [{ id: 1, name: 'Test' }],
+          rowCount: 1
+        });
+
+        // Act
+        const result = await fonksiyonAdi(validInput);
+
+        // Assert
+        expect(result).toEqual(expectedOutput);
+        expect(mockQuery).toHaveBeenCalledWith(
+          expect.stringContaining('SELECT'),
+          [expectedParam]
+        );
+      });
+    });
+
+    describe('hata senaryoları', () => {
+      it('null input ile hata fırlatmalı', async () => {
+        await expect(fonksiyonAdi(null))
+          .rejects.toThrow('Geçersiz input');
+      });
+
+      it('kayıt bulunamadığında hata fırlatmalı', async () => {
+        mockQuery.mockResolvedValueOnce({
+          rows: [],
+          rowCount: 0
+        });
+
+        await expect(fonksiyonAdi(validInput))
+          .rejects.toThrow('bulunamadı');
+      });
+    });
+
+    describe('edge cases', () => {
+      it('quantity = 0 için 0 döndürmeli', async () => {
+        const result = await fonksiyonAdi({ quantity: 0 });
+        expect(result).toBe(0);
+      });
+    });
+  });
+});
+```
+
+## KRİTİK MODÜLLER - ÖNCELİK SIRASI
+
+Ballim projesinde test önceliği:
+
+1. **src/lib/pricing.ts** - Para hesaplama (EN KRİTİK)
+2. **src/lib/validation.ts** - Input validasyonu
+3. **src/lib/security.ts** - Güvenlik fonksiyonları
+4. **src/lib/jwt.ts** - Authentication
+5. **src/lib/stock.ts** - Stok yönetimi
+6. **API routes** - İş mantığı
+
+## YASAKLAR
+
+- ❌ `console.log` test içinde kullanılmaz
+- ❌ Gerçek database bağlantısı yapılmaz
+- ❌ Gerçek API çağrısı yapılmaz
+- ❌ `any` type kullanılmaz
+- ❌ `setTimeout` ile bekleme yapılmaz (fake timers kullan)
+- ❌ Testler arası state paylaşımı yapılmaz
+- ❌ Test dosyası 500 satırı geçmez
+
+## HATA BULUNDUĞUNDA
+
+1. Hatayı `// FIX:` yorumuyla dokümante et
+2. Hatayı düzelt
+3. Eski (hatalı) davranış için regression test yaz
+4. Yeni (düzeltilmiş) davranış için test yaz
+
+## RAPORLAMA
+
+Test yazıldıktan sonra şu bilgileri ver:
+- Test sayısı
+- Tahmini coverage
+- Bulunan hatalar (varsa)
+- Önerilen iyileştirmeler
+
+## ENTEGRASYON
+
+Bu kurallar diğer Cursor kurallarıyla birlikte çalışır:
+- `file-size-enforcement.mdc` - Test dosyaları da 500 satır limitine tabi
+- `clean-code-standards.mdc` - Test kodu da temiz kod standartlarına uymalı
+- `language-rules.mdc` - Test açıklamaları Türkçe veya İngilizce (tutarlı)

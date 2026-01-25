@@ -9,10 +9,10 @@ export class ValidationError extends Error {
 }
 
 // API Validation Result Interface
-export interface ValidationResult {
+export interface ValidationResult<T = Record<string, unknown>> {
   isValid: boolean;
   errors: string[];
-  sanitizedData?: any;
+  sanitizedData?: T;
 }
 
 // Input Validation Options
@@ -30,7 +30,7 @@ export interface ValidationOptions {
  * Tüm API endpoint'leri için ortak validation fonksiyonu
  */
 export function validateAPIInput(
-  data: any,
+  data: Record<string, unknown>,
   options: ValidationOptions = {}
 ): ValidationResult {
   const {
@@ -43,7 +43,7 @@ export function validateAPIInput(
   } = options;
 
   const errors: string[] = [];
-  const sanitizedData: any = {};
+  const sanitizedData: Record<string, unknown> = {};
 
   try {
     // 1. Required field kontrolü
@@ -113,7 +113,7 @@ export function validateAPIInput(
       // 7. Array validation
       else if (Array.isArray(value)) {
         // Array içindeki her elemanı validate et
-        const sanitizedArray: any[] = [];
+        const sanitizedArray: unknown[] = [];
         for (let i = 0; i < value.length; i++) {
           const item = value[i];
           if (typeof item === 'string') {
@@ -219,11 +219,11 @@ export function validateCSRF(request: Request): { isValid: boolean; error?: stri
  * API Route için Validation Wrapper
  * API handler fonksiyonunu wrap ederek otomatik validation yapar
  */
-export function withValidation<T = any>(
-  handler: (sanitizedData: T) => Promise<any>,
+export function withValidation<T = Record<string, unknown>>(
+  handler: (sanitizedData: T) => Promise<Response>,
   options: ValidationOptions & { requireCSRF?: boolean } = {}
 ) {
-  return async (request: Request, data: any) => {
+  return async (request: Request, data: Record<string, unknown>) => {
     // CSRF kontrolü (eğer gerekli ise)
     if (options.requireCSRF !== false) {
       const csrfCheck = validateCSRF(request);
@@ -285,7 +285,7 @@ export function validatePositiveNumber(value: number): boolean {
 }
 
 // ID validation (positive integer)
-export function validateID(id: any): boolean {
+export function validateID(id: unknown): boolean {
   const num = typeof id === 'string' ? parseInt(id, 10) : id;
   return Number.isInteger(num) && num > 0;
 }

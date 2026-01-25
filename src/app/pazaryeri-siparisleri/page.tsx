@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
+import { useToast } from '../../contexts/ToastContext';
 
 // Kullanıcı tipi
 interface LoggedInUser {
@@ -54,6 +55,7 @@ const PAZARYERLERI = [
 ];
 
 export default function PazaryeriSiparisleriPage() {
+  const toast = useToast();
   const [currentUser, setCurrentUser] = useState<LoggedInUser | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [siparisler, setSiparisler] = useState<PazaryeriSiparis[]>([]);
@@ -119,7 +121,7 @@ export default function PazaryeriSiparisleriPage() {
       setProducts(data);
     } catch (error) {
       console.error('Ürünler yüklenirken hata:', error);
-      alert('Ürünler yüklenirken bir hata oluştu!');
+      toast.error('Ürünler yüklenirken bir hata oluştu!');
     }
   };
 
@@ -156,7 +158,7 @@ export default function PazaryeriSiparisleriPage() {
     e.preventDefault();
     
     if (!formData.productId || !formData.quantity || !formData.salePrice) {
-      alert('Lütfen tüm zorunlu alanları doldurun!');
+      toast.warning('Lütfen tüm zorunlu alanları doldurun!');
       return;
     }
 
@@ -217,7 +219,7 @@ export default function PazaryeriSiparisleriPage() {
 
       const result = await response.json();
       
-      alert(`Pazaryeri siparişi oluşturuldu!\nSipariş No: ${result.orderCode}\nToplam: ${orderData.totalAmount}₺`);
+      toast.success(`Pazaryeri siparişi oluşturuldu! Sipariş No: ${result.orderCode} - Toplam: ${orderData.totalAmount}₺`);
       
       // Formu temizle
       setFormData({
@@ -235,7 +237,7 @@ export default function PazaryeriSiparisleriPage() {
 
     } catch (error) {
       console.error('Sipariş oluşturulurken hata:', error);
-      alert('Sipariş oluşturulurken bir hata oluştu!');
+      toast.error('Sipariş oluşturulurken bir hata oluştu!');
     } finally {
       setIsLoading(false);
     }

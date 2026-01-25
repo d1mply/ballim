@@ -5,6 +5,7 @@ import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
 import { ProductData } from '../../components/ProductModal';
 import { LoggedInUser } from '../page';
+import { useToast } from '../../contexts/ToastContext';
 
 
 // Stock item tipini tanımla
@@ -18,6 +19,7 @@ interface StockItem extends ProductData {
 }
 
 export default function StokSiparisPage() {
+  const toast = useToast();
   // 2 ondalık basamakta kesme (yuvarlamasız)
   const truncate2 = (value: number) => {
     if (!isFinite(value)) return 0;
@@ -146,7 +148,7 @@ export default function StokSiparisPage() {
       setProductTypes(Array.from(new Set(stockItemsWithAmount.map((p: StockItem) => p.productType))));
     } catch (error) {
       console.error('Ürünleri getirme hatası:', error);
-      alert('Ürünler yüklenirken bir hata oluştu!');
+      toast.error('Ürünler yüklenirken bir hata oluştu!');
     }
   };
 
@@ -422,11 +424,11 @@ export default function StokSiparisPage() {
       const newOrder = await response.json();
       
       // Stok güncellemelerini kaldırıyoruz çünkü artık üretim takip sayfasında yapılacak
-      alert(`Sipariş oluşturuldu! Sipariş no: ${newOrder.orderCode || newOrder.id}\nToplam Tutar: ${totalAmount}₺\nSipariş takip sayfasından kontrol edebilirsiniz.`);
+      toast.success(`Sipariş oluşturuldu! Sipariş no: ${newOrder.orderCode || newOrder.id} - Toplam: ${totalAmount}₺`);
       setCartItems([]);
     } catch (error) {
       console.error('Sipariş oluşturulurken hata:', error);
-      alert('Sipariş oluşturulurken bir hata oluştu! Detaylar için konsolu kontrol edin.');
+      toast.error('Sipariş oluşturulurken bir hata oluştu!');
     }
   };
   
@@ -704,7 +706,7 @@ export default function StokSiparisPage() {
                               
                               // Sepete paket ekleme mantığı - cartItems'a ekle
                               setCartItems([...cartItems, packageItem]);
-                              alert(`${pkg.name} sepete eklendi!`);
+                              toast.success(`${pkg.name} sepete eklendi!`);
                             }}
                             className="flex items-center gap-1.5 py-2 px-4 text-sm bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors"
                           >

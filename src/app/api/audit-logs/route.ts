@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
 
     let whereConditions: string[] = [];
-    let params: any[] = [];
+    let params: (string | number | boolean | null)[] = [];
     let paramIndex = 1;
 
     if (entityType) {

@@ -109,7 +109,7 @@ export async function PUT(request: NextRequest) {
             // Eğer selectedFilamentBobins varsa, seçilen bobinden düş
             if (selectedFilamentBobins && selectedFilamentBobins.length > 0) {
               const filamentKey = `${prodFilament.filament_type}-${prodFilament.filament_color}`;
-              const selectedBobin = selectedFilamentBobins.find((b: any) => b[filamentKey]);
+              const selectedBobin = selectedFilamentBobins.find((b: Record<string, number>) => b[filamentKey]);
               
               if (selectedBobin) {
                 const bobbinId = selectedBobin[filamentKey];
@@ -345,7 +345,7 @@ export async function PUT(request: NextRequest) {
       `, [dbOrderId]);
 
       // Tüm ürünler aynı durumdaysa sipariş durumunu da güncelle
-      const allStatuses = allItems.rows.map((item: any) => item.status);
+      const allStatuses = allItems.rows.map((item: { status: string }) => item.status);
       const allSame = allStatuses.every((s: string) => s === orderItemStatus);
 
       if (allSame) {

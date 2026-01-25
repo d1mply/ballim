@@ -157,15 +157,17 @@ export async function DELETE(
       { message: 'Ürün başarıyla silindi' },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Ürün silme hatası:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata';
+    const errorStack = error instanceof Error ? error.stack : undefined;
     console.error('Hata detayları:', {
-      message: error?.message || 'Bilinmeyen hata',
-      stack: error?.stack,
+      message: errorMessage,
+      stack: errorStack,
       productId: id || 'Bilinmiyor'
     });
     return NextResponse.json(
-      { error: 'Ürün silinirken bir hata oluştu', details: error?.message || 'Bilinmeyen hata' },
+      { error: 'Ürün silinirken bir hata oluştu', details: errorMessage },
       { status: 500 }
     );
   }

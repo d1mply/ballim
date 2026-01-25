@@ -3,94 +3,71 @@ import { query } from '../../../lib/db';
 
 export async function GET() {
   try {
-    // Toplam ürün sayısı
-    const productsResult = await query('SELECT COUNT(*) as count FROM products');
-    const totalProducts = parseInt(productsResult.rows[0]?.count || '0');
-
-    // Toplam sipariş sayısı
-    const ordersResult = await query('SELECT COUNT(*) as count FROM orders');
-    const totalOrders = parseInt(ordersResult.rows[0]?.count || '0');
-
-    // Toplam müşteri sayısı
-    const customersResult = await query('SELECT COUNT(*) as count FROM customers');
-    const totalCustomers = parseInt(customersResult.rows[0]?.count || '0');
-
-    // Toplam gelir
-    const revenueResult = await query('SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE status != \'İptal\'');
-    const totalRevenue = parseFloat(revenueResult.rows[0]?.total || '0');
-
-    // Bekleyen sipariş sayısı
-    const pendingResult = await query('SELECT COUNT(*) as count FROM orders WHERE status = \'Beklemede\'');
-    const pendingOrders = parseInt(pendingResult.rows[0]?.count || '0');
-
-    // Kritik stok sayısı
-    const criticalStockResult = await query(`
-      SELECT COUNT(*) as count 
-      FROM inventory i 
-      JOIN products p ON i.product_id = p.id 
-      WHERE i.quantity <= 5
+    // OPTIMIZED: Single query with multiple CTEs instead of 13 separate queries
+    const result = await query(`
+      WITH 
+        product_stats AS (SELECT COUNT(*) as total_products FROM products),
+        order_stats AS (
+          SELECT 
+            COUNT(*) as total_orders,
+            COUNT(*) FILTER (WHERE status = 'Beklemede') as pending_orders,
+            COUNT(*) FILTER (WHERE status = 'Tamamlandı') as completed_orders,
+            COALESCE(SUM(total_amount) FILTER (WHERE status != 'İptal'), 0) as total_revenue,
+            COUNT(*) FILTER (WHERE DATE(order_date) = CURRENT_DATE) as today_orders,
+            COALESCE(SUM(total_amount) FILTER (WHERE DATE(order_date) = CURRENT_DATE AND status != 'İptal'), 0) as today_revenue,
+            COALESCE(SUM(total_amount) FILTER (
+              WHERE EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+              AND EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+              AND status != 'İptal'
+            ), 0) as monthly_revenue,
+            COUNT(DISTINCT customer_id) FILTER (
+              WHERE order_date >= CURRENT_DATE - INTERVAL '30 days' 
+              AND customer_id IS NOT NULL
+            ) as active_customers
+          FROM orders
+        ),
+        customer_stats AS (
+          SELECT 
+            COUNT(*) as total_customers,
+            COUNT(*) FILTER (WHERE DATE(created_at) = CURRENT_DATE) as today_new_customers
+          FROM customers
+        ),
+        inventory_stats AS (
+          SELECT COUNT(*) as critical_stock
+          FROM inventory i 
+          JOIN products p ON i.product_id = p.id 
+          WHERE i.quantity <= 5
+        )
+      SELECT 
+        ps.total_products::int,
+        os.total_orders::int,
+        os.pending_orders::int,
+        os.completed_orders::int,
+        os.total_revenue::float,
+        os.today_orders::int,
+        os.today_revenue::float,
+        os.monthly_revenue::float,
+        os.active_customers::int,
+        cs.total_customers::int,
+        cs.today_new_customers::int,
+        inv.critical_stock::int
+      FROM product_stats ps, order_stats os, customer_stats cs, inventory_stats inv
     `);
-    const criticalStock = parseInt(criticalStockResult.rows[0]?.count || '0');
 
-    // Tamamlanan sipariş sayısı
-    const completedResult = await query('SELECT COUNT(*) as count FROM orders WHERE status = \'Tamamlandı\'');
-    const completedOrders = parseInt(completedResult.rows[0]?.count || '0');
-
-    // Aktif müşteri sayısı (son 30 günde sipariş veren)
-    const activeCustomersResult = await query(`
-      SELECT COUNT(DISTINCT customer_id) as count 
-      FROM orders 
-      WHERE order_date >= CURRENT_DATE - INTERVAL '30 days' 
-      AND customer_id IS NOT NULL
-    `);
-    const activeCustomers = parseInt(activeCustomersResult.rows[0]?.count || '0');
-
-    // Günlük istatistikler (Bugün)
-    const todayOrdersResult = await query(`
-      SELECT COUNT(*) as count 
-      FROM orders 
-      WHERE DATE(order_date) = CURRENT_DATE
-    `);
-    const todayOrders = parseInt(todayOrdersResult.rows[0]?.count || '0');
-
-    const todayRevenueResult = await query(`
-      SELECT COALESCE(SUM(total_amount), 0) as total 
-      FROM orders 
-      WHERE DATE(order_date) = CURRENT_DATE 
-      AND status != 'İptal'
-    `);
-    const todayRevenue = parseFloat(todayRevenueResult.rows[0]?.total || '0');
-
-    const todayNewCustomersResult = await query(`
-      SELECT COUNT(*) as count 
-      FROM customers 
-      WHERE DATE(created_at) = CURRENT_DATE
-    `);
-    const todayNewCustomers = parseInt(todayNewCustomersResult.rows[0]?.count || '0');
-
-    // Aylık gelir (Bu ay)
-    const monthlyRevenueResult = await query(`
-      SELECT COALESCE(SUM(total_amount), 0) as total 
-      FROM orders 
-      WHERE EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE)
-      AND EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE)
-      AND status != 'İptal'
-    `);
-    const monthlyRevenue = parseFloat(monthlyRevenueResult.rows[0]?.total || '0');
-
+    const row = result.rows[0] || {};
     const stats = {
-      totalProducts,
-      totalOrders,
-      totalCustomers,
-      totalRevenue,
-      pendingOrders,
-      criticalStock,
-      completedOrders,
-      activeCustomers,
-      todayOrders,
-      todayRevenue,
-      todayNewCustomers,
-      monthlyRevenue
+      totalProducts: row.total_products || 0,
+      totalOrders: row.total_orders || 0,
+      totalCustomers: row.total_customers || 0,
+      totalRevenue: row.total_revenue || 0,
+      pendingOrders: row.pending_orders || 0,
+      criticalStock: row.critical_stock || 0,
+      completedOrders: row.completed_orders || 0,
+      activeCustomers: row.active_customers || 0,
+      todayOrders: row.today_orders || 0,
+      todayRevenue: row.today_revenue || 0,
+      todayNewCustomers: row.today_new_customers || 0,
+      monthlyRevenue: row.monthly_revenue || 0
     };
 
     // 🚀 PERFORMANS: Cache headers (5 dakika cache - stats az değişir)

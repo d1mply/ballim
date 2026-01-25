@@ -68,11 +68,15 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
   };
 
   return (
-    <aside className={`ballim-sidebar ${isOpen ? 'open' : ''} shadow-md`}>
+    <aside 
+      className={`ballim-sidebar ${isOpen ? 'open' : ''} shadow-md`}
+      role="complementary"
+      aria-label="Ana navigasyon"
+    >
       <div className="p-4 border-b border-border bg-gradient-to-r from-primary to-accent">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 bg-white/20 rounded-full">
-            <span className="text-black font-bold text-lg">B</span>
+            <span className="text-black font-bold text-lg" aria-hidden="true">B</span>
           </div>
           <div>
             <h1 className="text-lg font-bold text-black">Ballim</h1>
@@ -80,8 +84,8 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
           </div>
         </div>
       </div>
-      <nav className="mt-2">
-        <ul className="space-y-1">
+      <nav className="mt-2" role="navigation" aria-label="Ana menü">
+        <ul className="space-y-1" role="menubar">
           {menuItems.map((item) => {
             // Ana sayfa için özel yönlendirme
             const itemPath = item.name === 'Ana Sayfa' ? homePath : item.path;
@@ -90,10 +94,12 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
                            (itemPath !== '/' && pathname.startsWith(itemPath));
             
             return (
-              <li key={item.name + item.path} className="px-1">
+              <li key={item.name + item.path} className="px-1" role="none">
                 <Link
                   href={itemPath}
                   prefetch={true}
+                  role="menuitem"
+                  aria-current={isActive ? 'page' : undefined}
                   onMouseEnter={() => {
                     // 🚀 PERFORMANS: Hover prefetch (client-side only)
                     if (typeof window !== 'undefined') {
@@ -107,12 +113,12 @@ export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: 
                       : 'hover:bg-secondary/70 text-foreground/80 hover:text-foreground'
                   }`}
                 >
-                  <span className={`w-5 h-5 ${isActive ? 'text-primary-foreground' : 'text-foreground/70'}`}>
+                  <span className={`w-5 h-5 ${isActive ? 'text-primary-foreground' : 'text-foreground/70'}`} aria-hidden="true">
                     {item.icon}
                   </span>
                   <span className="flex-1">{item.name}</span>
                   {isActive && (
-                    <div className="w-2 h-2 bg-primary-foreground rounded-full opacity-70"></div>
+                    <div className="w-2 h-2 bg-primary-foreground rounded-full opacity-70" aria-hidden="true"></div>
                   )}
                 </Link>
               </li>

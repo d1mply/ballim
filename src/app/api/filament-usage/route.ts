@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const filamentId = searchParams.get('filamentId');
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '100')));
 
-    const params: any[] = [];
+    const params: (string | number | boolean | null)[] = [];
     let whereClause = '';
     
     if (filamentId) {
@@ -43,10 +43,10 @@ export async function GET(request: NextRequest) {
     `, params);
     
     return NextResponse.json(result.rows);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Filament kullanım geçmişi hatası:', error);
     return NextResponse.json(
-      { error: 'Kullanım geçmişi getirilemedi', details: error?.message || 'Bilinmeyen hata' },
+      { error: 'Kullanım geçmişi getirilemedi', details: error instanceof Error ? error.message : 'Bilinmeyen hata' },
       { status: 500 }
     );
   }

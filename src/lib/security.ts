@@ -2,12 +2,19 @@ import crypto from 'crypto';
 
 // Güvenlik Konfigürasyonu
 export const SECURITY_CONFIG = {
-  // Admin Credentials (Production'da environment variable'dan alınmalı)
+  // Admin Credentials (Production'da environment variable ZORUNLU)
   ADMIN_USERNAME: process.env.ADMIN_USERNAME || 'admin',
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'Admin123123123.',
   
-  // JWT Settings
-  JWT_SECRET: process.env.JWT_SECRET || 'B4ll1m_2024_S3cur3_JWT_S3cr3t_K3y_V3ry_L0ng_4nd_R4nd0m_Ch4r4ct3rs',
+  // JWT Settings - Production'da JWT_SECRET environment variable ZORUNLU
+  JWT_SECRET: (() => {
+    const secret = process.env.JWT_SECRET;
+    if (!secret && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET environment variable is required in production');
+    }
+    // Development fallback only
+    return secret || 'DEV_ONLY_B4ll1m_2024_S3cur3_JWT_K3y';
+  })(),
   JWT_EXPIRES_IN: '1h',
   
   // Rate Limiting - DAHA SIKI!

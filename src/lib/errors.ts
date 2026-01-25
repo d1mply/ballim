@@ -72,13 +72,13 @@ export const handleApiError = (error: unknown) => {
 };
 
 // Validation helper'ları
-export const validateRequired = (value: any, fieldName: string): void => {
+export const validateRequired = (value: unknown, fieldName: string): void => {
   if (value === null || value === undefined || value === '') {
     throw new ValidationError(`${fieldName} gerekli`);
   }
 };
 
-export const validateNumber = (value: any, fieldName: string, min?: number, max?: number): number => {
+export const validateNumber = (value: unknown, fieldName: string, min?: number, max?: number): number => {
   const num = Number(value);
   
   if (isNaN(num)) {
@@ -96,7 +96,7 @@ export const validateNumber = (value: any, fieldName: string, min?: number, max?
   return num;
 };
 
-export const validateString = (value: any, fieldName: string, minLength?: number, maxLength?: number): string => {
+export const validateString = (value: unknown, fieldName: string, minLength?: number, maxLength?: number): string => {
   const str = String(value).trim();
   
   if (minLength !== undefined && str.length < minLength) {
@@ -110,13 +110,21 @@ export const validateString = (value: any, fieldName: string, minLength?: number
   return str;
 };
 
+// PostgreSQL error interface
+interface PostgresError {
+  code?: string;
+  message?: string;
+}
+
 // Database error handler
-export const handleDatabaseError = (error: any): AppError => {
+export const handleDatabaseError = (error: unknown): AppError => {
   console.error('Database Error:', error);
 
+  const pgError = error as PostgresError;
+  
   // PostgreSQL error codes
-  if (error.code) {
-    switch (error.code) {
+  if (pgError.code) {
+    switch (pgError.code) {
       case '23505': // Unique constraint violation
         return new DatabaseError('Bu kayıt zaten mevcut');
       case '23503': // Foreign key constraint violation
@@ -128,15 +136,25 @@ export const handleDatabaseError = (error: any): AppError => {
       case '42703': // Column doesn't exist
         return new DatabaseError('Kolon bulunamadı');
       default:
-        return new DatabaseError(error.message || 'Veritabanı işlemi başarısız');
+        return new DatabaseError(pgError.message || 'Veritabanı işlemi başarısız');
     }
   }
 
-  return new DatabaseError(error.message || 'Veritabanı bağlantı hatası');
+  const errorMessage = error instanceof Error ? error.message : 'Veritabanı bağlantı hatası';
+  return new DatabaseError(errorMessage);
 };
 
+// Filament input interface
+interface FilamentInput {
+  type?: unknown;
+  color?: unknown;
+  brand?: unknown;
+  totalWeight?: unknown;
+  remainingWeight?: unknown;
+}
+
 // Filament specific validations
-export const validateFilamentData = (data: any) => {
+export const validateFilamentData = (data: FilamentInput) => {
   validateRequired(data.type, 'Filament tipi');
   validateRequired(data.color, 'Filament rengi');
   validateRequired(data.brand, 'Filament markası');

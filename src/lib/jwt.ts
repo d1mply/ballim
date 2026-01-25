@@ -1,6 +1,24 @@
 import crypto from 'crypto';
 import { SECURITY_CONFIG } from './security';
 
+// JWT Payload interface
+export interface JWTPayload {
+  sub?: string | number;
+  id?: string | number;
+  role?: 'admin' | 'customer';
+  customerId?: number;
+  iat?: number;
+  exp?: number;
+  [key: string]: unknown;
+}
+
+// JWT Verification result
+export interface JWTVerifyResult {
+  valid: boolean;
+  payload?: JWTPayload;
+  error?: string;
+}
+
 function base64url(input: Buffer | string): string {
   return (input instanceof Buffer ? input : Buffer.from(input))
     .toString('base64')
@@ -24,7 +42,7 @@ export function signJWT(payload: Record<string, unknown>, expiresInSeconds = 60 
   return `${data}.${signaturePart}`;
 }
 
-export function verifyJWT(token: string): { valid: boolean; payload?: any; error?: string } {
+export function verifyJWT(token: string): JWTVerifyResult {
   try {
     const [headerB64, payloadB64, sigB64] = token.split('.');
     if (!headerB64 || !payloadB64 || !sigB64) return { valid: false, error: 'Malformed token' };
