@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifyJWT } from '@/lib/jwt';
-import { apiAuthMiddleware } from '@/lib/auth-middleware';
 
 // 🛡️ LAMER KORUMA SİSTEMİ - DAHA AGRESİF!
+// NOT: JWT authentication API route'larında yapılıyor (Edge Runtime crypto desteklemiyor)
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
   
@@ -200,11 +199,8 @@ export function middleware(request: NextRequest) {
   }
   
   // 🔐 API Authentication & Authorization
-  // All API endpoints now require authentication (except public ones)
-  const authResult = apiAuthMiddleware(request);
-  if (authResult) {
-    return authResult; // Return error response if not authenticated
-  }
+  // JWT authentication API route'larında yapılıyor (Edge Runtime crypto desteklemiyor)
+  // Her API route kendi içinde auth kontrolü yapıyor
   
   // Dashboard sayfaları için JWT kontrolü YOK - localStorage kontrolü frontend'de yapılıyor
   
