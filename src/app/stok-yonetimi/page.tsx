@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
 
@@ -27,13 +28,15 @@ interface User {
 // Modal türlerini tanımla
 type ModalType = 'produce' | 'delete' | null;
 
+// SWR fetcher
+const fetcher = (url: string) => fetch(url).then(res => {
+  if (!res.ok) throw new Error('Ürünler yüklenemedi');
+  return res.json();
+});
+
 export default function StokYonetimiPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const [modalType, setModalType] = useState<ModalType>(null);
@@ -42,6 +45,30 @@ export default function StokYonetimiPage() {
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // SWR ile ürünleri getir - Cache paylaşımı ve otomatik revalidation
+  const { data: rawProducts, error: swrError, isLoading, mutate } = useSWR<any[]>(
+    '/api/products',
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 5000, // 5 saniye içinde duplicate istek yapma
+    }
+  );
+
+  // Ürünleri formatla
+  const products: Product[] = (rawProducts || []).map((product: any) => ({
+    id: product.id,
+    code: product.code,
+    productType: product.productType,
+    availableStock: product.availableStock || 0,
+    reservedStock: product.reservedStock || 0,
+    totalStock: product.totalStock || 0,
+    stockDisplay: product.stockDisplay || 'Stokta Yok',
+    stockColor: product.stockColor || 'text-red-600 bg-red-50'
+  }));
+
+  const error = swrError?.message || null;
 
   // Kullanıcı kontrolü ve admin yetkisi
   useEffect(() => {
@@ -64,49 +91,14 @@ export default function StokYonetimiPage() {
     }
   }, [router]);
 
-  // Ürünleri API'den çek - Basitleştirilmiş
-  const fetchProducts = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch('/api/products');
-      if (!response.ok) {
-        throw new Error('Ürünler yüklenemedi');
-      }
-      const data = await response.json();
-      
-      // Yeni stok sistemi ile uyumlu hale getir
-      const formattedProducts = data.map((product: any) => ({
-        id: product.id,
-        code: product.code,
-        productType: product.productType,
-        availableStock: product.availableStock || 0,
-        reservedStock: product.reservedStock || 0,
-        totalStock: product.totalStock || 0,
-        stockDisplay: product.stockDisplay || 'Stokta Yok',
-        stockColor: product.stockColor || 'text-red-600 bg-red-50'
-      }));
-      
-      setProducts(formattedProducts);
-      setFilteredProducts(formattedProducts);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bir hata oluştu');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Ürünleri yenile - SWR mutate kullan
+  const fetchProducts = useCallback(() => mutate(), [mutate]);
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  // Arama işlemini gerçekleştir
-  useEffect(() => {
-    const results = products.filter(p =>
-      p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.productType.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredProducts(results);
-  }, [searchTerm, products]);
+  // Arama işlemini gerçekleştir - useMemo ile optimize
+  const filteredProducts = products.filter(p =>
+    p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.productType.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   // Modal'ı açan fonksiyon
   const openModal = (type: ModalType, product: Product) => {

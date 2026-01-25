@@ -134,11 +134,10 @@ export function initPerformanceMonitoring() {
     return;
   }
 
-  // Web Vitals'i dinle
+  // Web Vitals'i dinle (v5+ - onFID kaldırıldı, INP kullanılıyor)
   if (typeof window !== 'undefined') {
-    import('web-vitals').then(({ onCLS, onFID, onFCP, onLCP, onTTFB, onINP }) => {
+    import('web-vitals').then(({ onCLS, onFCP, onLCP, onTTFB, onINP }) => {
       onCLS(reportWebVitals);
-      onFID(reportWebVitals);
       onFCP(reportWebVitals);
       onLCP(reportWebVitals);
       onTTFB(reportWebVitals);
