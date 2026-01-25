@@ -806,7 +806,10 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('Müşteri silme hatası:', error);
     return NextResponse.json(
-      { error: 'Müşteri silinirken bir hata oluştu' },
+      { 
+        error: 'Müşteri silinemedi',
+        details: error instanceof Error ? error.message : 'Veritabanı işlemi başarısız oldu'
+      },
       { status: 500 }
     );
   }

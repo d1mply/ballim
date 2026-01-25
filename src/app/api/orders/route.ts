@@ -80,7 +80,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Siparişleri getirme hatası:', error);
     return NextResponse.json(
-      { error: 'Siparişler getirilirken bir hata oluştu' },
+      { 
+        error: 'Siparişler yüklenemedi',
+        details: error instanceof Error ? error.message : 'Veritabanı bağlantı hatası olabilir'
+      },
       { status: 500 }
     );
   }
@@ -363,7 +366,10 @@ export async function DELETE(request: NextRequest) {
     await query('ROLLBACK').catch(() => undefined);
     console.error('Sipariş silme hatası:', error);
     return NextResponse.json(
-      { error: 'Sipariş silinirken bir hata oluştu' },
+      { 
+        error: 'Sipariş silinemedi',
+        details: error instanceof Error ? error.message : 'Veritabanı işlemi başarısız oldu'
+      },
       { status: 500 }
     );
   }

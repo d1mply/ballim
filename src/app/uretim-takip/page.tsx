@@ -9,9 +9,11 @@ import { OrderItem, OrderProduct, User, ProductionFormData } from '@/types';
 import { ORDER_STATUSES } from '@/constants';
 import { apiGet, apiPut } from '@/utils/api';
 import { convertStatus } from '@/utils/helpers';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function UretimTakipPage() {
   const router = useRouter();
+  const toast = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<OrderItem[]>([]);
@@ -147,13 +149,13 @@ export default function UretimTakipPage() {
 
       if (response.success) {
         await fetchOrders();
-        alert(formData.skipProduction ? 'Stoktan kullanıldı! Sipariş hazırlanıyor...' : 'Üretim başarıyla başlatıldı!');
+        toast.success(formData.skipProduction ? 'Stoktan kullanıldı! Sipariş hazırlanıyor...' : 'Üretim başarıyla başlatıldı!');
       } else {
-        alert(response.error || 'İşlem başarısız');
+        toast.error(response.error || 'İşlem başarısız');
       }
     } catch (error) {
       console.error('Üretim başlatma hatası:', error);
-      alert('İşlem sırasında bir hata oluştu!');
+      toast.error('İşlem sırasında bir hata oluştu');
     } finally {
       // Modal'ları kapat
       setProductionModal(false);

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
+import { useToast } from '../../contexts/ToastContext';
 
 interface User {
   id: string;
@@ -46,10 +47,10 @@ const categoryIcons: Record<string, React.ReactNode> = {
 
 export default function AdminAyarlarPage() {
   const router = useRouter();
+  const toast = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [localSettings, setLocalSettings] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   
   // Ürün kategorilerini al
@@ -111,7 +112,6 @@ export default function AdminAyarlarPage() {
   // Ayarları kaydet
   const saveSettings = async () => {
     setSaving(true);
-    setSaveMessage(null);
     
     try {
       const response = await fetch('/api/settings', {
@@ -122,16 +122,18 @@ export default function AdminAyarlarPage() {
       });
       
       if (!response.ok) {
-        throw new Error('Ayarlar kaydedilemedi');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.details?.join(', ') || errorData.error || 'Ayarlar kaydedilemedi';
+        throw new Error(errorMessage);
       }
       
       await mutate();
-      setSaveMessage({ type: 'success', text: 'Ayarlar başarıyla kaydedildi!' });
+      toast.success('Ayarlar başarıyla kaydedildi!');
     } catch (error) {
-      setSaveMessage({ type: 'error', text: 'Ayarlar kaydedilemedi. Lütfen tekrar deneyin.' });
+      console.error('Ayarlar kaydetme hatası:', error);
+      toast.error(error instanceof Error ? error.message : 'Ayarlar kaydedilemedi');
     } finally {
       setSaving(false);
-      setTimeout(() => setSaveMessage(null), 3000);
     }
   };
 
@@ -198,14 +200,6 @@ export default function AdminAyarlarPage() {
             {saving ? 'Kaydediliyor...' : 'Kaydet'}
           </button>
         </div>
-
-        {saveMessage && (
-          <div className={`p-4 rounded-lg ${
-            saveMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          }`}>
-            {saveMessage.text}
-          </div>
-        )}
 
         {/* Genel Ayarlar */}
         <div className="bg-card border border-border rounded-lg p-6">

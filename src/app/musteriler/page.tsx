@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
+import { useToast } from '../../contexts/ToastContext';
 
 // Filament fiyatı tipi
 interface FilamentPrice {
@@ -31,6 +32,7 @@ interface Customer {
 }
 
 export default function MusterilerPage() {
+  const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,6 +41,8 @@ export default function MusterilerPage() {
   const [filamentTypes, setFilamentTypes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingCustomerId, setDeletingCustomerId] = useState<string | null>(null);
   
   // Yeni müşteri formu için state
   const [formData, setFormData] = useState<Partial<Customer>>({
@@ -235,6 +239,7 @@ export default function MusterilerPage() {
   const handleDeleteCustomer = async (customerId: string) => {
     const confirmDelete = window.confirm('Bu müşteriyi silmek istediğinize emin misiniz?');
     if (confirmDelete) {
+      setDeletingCustomerId(customerId);
       try {
         // API'den sil
         const response = await fetch(`/api/customers?id=${customerId}`, {
@@ -242,37 +247,40 @@ export default function MusterilerPage() {
         });
         
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `API hatası: ${response.status} ${response.statusText}`);
+          const errorData = await response.json().catch(() => ({}));
+          const errorMessage = errorData.details?.join(', ') || errorData.error || 'Müşteri silinemedi';
+          throw new Error(errorMessage);
         }
         
         // State'i güncelle
         setCustomers(prevList => prevList.filter(item => item.id !== customerId));
         
-        console.log('Müşteri silindi');
+        toast.success('Müşteri başarıyla silindi');
       } catch (error) {
         console.error('Müşteri silinirken hata:', error);
-        alert(error instanceof Error ? error.message : 'Müşteri silinirken bir hata oluştu!');
+        toast.error(error instanceof Error ? error.message : 'Müşteri silinirken bir hata oluştu');
+      } finally {
+        setDeletingCustomerId(null);
       }
     }
   };
 
   // Müşteri kaydetme
   const handleSaveCustomer = async () => {
-    if (!formData.name || !formData.phone || !formData.email || !formData.username || !formData.password) {
-      alert('Lütfen zorunlu alanları doldurun (Ad Soyad, Telefon, E-posta, Kullanıcı Adı, Şifre)');
+    if (!formData.name || !formData.username || !formData.password) {
+      toast.warning('Lütfen zorunlu alanları doldurun (Ad Soyad, Kullanıcı Adı, Şifre)');
       return;
     }
     
     // Kurumsal müşteri için vergi numarası zorunlu
     if (formData.type === 'Kurumsal' && !formData.taxNumber) {
-      alert('Kurumsal müşteriler için vergi numarası zorunludur.');
+      toast.warning('Kurumsal müşteriler için vergi numarası zorunludur');
       return;
     }
 
     // Toptancı için iskonto oranı zorunlu
     if (formData.customerCategory === 'wholesale' && (!formData.discountRate || formData.discountRate <= 0)) {
-      alert('Toptancı müşteriler için iskonto oranı girmelisiniz.');
+      toast.warning('Toptancı müşteriler için iskonto oranı girmelisiniz');
       return;
     }
 
@@ -305,6 +313,7 @@ export default function MusterilerPage() {
       filamentPrices
     };
     
+    setIsSaving(true);
     try {
       console.log("Gönderilecek müşteri verisi:", customerData);
       
@@ -323,7 +332,7 @@ export default function MusterilerPage() {
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.error || `API hatası: ${response.status} ${response.statusText}`;
+          const errorMessage = errorData.details?.join(', ') || errorData.error || 'Müşteri güncellenemedi';
           console.error('Müşteri güncelleme hatası:', errorMessage);
           throw new Error(errorMessage);
         }
@@ -337,6 +346,8 @@ export default function MusterilerPage() {
             item.id === selectedCustomer.id ? updatedCustomer : item
           )
         );
+        
+        toast.success('Müşteri başarıyla güncellendi');
       } else {
         // Yeni müşteri ekleme
         const response = await fetch('/api/customers', {
@@ -349,7 +360,7 @@ export default function MusterilerPage() {
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.error || `API hatası: ${response.status} ${response.statusText}`;
+          const errorMessage = errorData.details?.join(', ') || errorData.error || 'Müşteri eklenemedi';
           console.error('Müşteri ekleme hatası:', errorMessage);
           throw new Error(errorMessage);
         }
@@ -358,12 +369,16 @@ export default function MusterilerPage() {
         
         // State'i güncelle
         setCustomers(prevList => [...prevList, newCustomer]);
+        
+        toast.success('Müşteri başarıyla eklendi');
       }
       
       setIsModalOpen(false);
     } catch (error) {
       console.error('Müşteri kaydedilirken hata:', error);
-      alert(error instanceof Error ? error.message : 'Müşteri kaydedilirken bir hata oluştu!');
+      toast.error(error instanceof Error ? error.message : 'Müşteri kaydedilirken bir hata oluştu');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -521,6 +536,7 @@ export default function MusterilerPage() {
                             onClick={() => handleEditCustomer(customer)}
                             className="action-btn action-btn-edit"
                             title="Düzenle"
+                            disabled={deletingCustomerId === customer.id}
                           >
                             <Icons.EditIcon />
                           </button>
@@ -528,8 +544,13 @@ export default function MusterilerPage() {
                             onClick={() => handleDeleteCustomer(customer.id)}
                             className="action-btn action-btn-delete"
                             title="Sil"
+                            disabled={deletingCustomerId === customer.id}
                           >
-                            <Icons.TrashIcon />
+                            {deletingCustomerId === customer.id ? (
+                              <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <Icons.TrashIcon />
+                            )}
                           </button>
                         </div>
                       </td>
@@ -813,15 +834,24 @@ export default function MusterilerPage() {
                 type="button"
                 onClick={() => setIsModalOpen(false)}
                 className="btn-outline"
+                disabled={isSaving}
               >
                 İptal
               </button>
               <button
                 type="button"
                 onClick={handleSaveCustomer}
-                className="btn-primary"
+                className="btn-primary flex items-center gap-2"
+                disabled={isSaving}
               >
-                Kaydet
+                {isSaving ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Kaydediliyor...
+                  </>
+                ) : (
+                  'Kaydet'
+                )}
               </button>
             </div>
           </div>

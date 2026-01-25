@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
 import ShippingLabel from '../../components/ShippingLabel';
+import { useToast } from '../../contexts/ToastContext';
 
 // Sipariş tipi tanımla - Basitleştirilmiş
 interface Order {
@@ -32,6 +33,7 @@ interface User {
 
 export default function SiparisTakipPage() {
   const router = useRouter();
+  const toast = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -42,6 +44,8 @@ export default function SiparisTakipPage() {
   const [shippingLabelData, setShippingLabelData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   
   // Kullanıcı kontrolü
   useEffect(() => {
@@ -150,6 +154,7 @@ export default function SiparisTakipPage() {
   
   // Sipariş durumu güncelle - Basitleştirilmiş
   const handleStatusChange = async (orderId: string, newStatus: string) => {
+    setUpdatingOrderId(orderId);
     try {
       const response = await fetch('/api/orders/status', {
         method: 'PUT',
@@ -165,8 +170,9 @@ export default function SiparisTakipPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Durum güncellenemedi');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.details?.join(', ') || errorData.error || 'Durum güncellenemedi';
+        throw new Error(errorMessage);
       }
 
       // Siparişleri yenile
@@ -187,10 +193,12 @@ export default function SiparisTakipPage() {
         setOrders(formattedOrders);
       }
 
-      alert('Sipariş durumu başarıyla güncellendi');
+      toast.success('Sipariş durumu güncellendi');
     } catch (error) {
       console.error('Durum güncelleme hatası:', error);
-      alert('Durum güncellenirken bir hata oluştu!');
+      toast.error(error instanceof Error ? error.message : 'Durum güncellenirken bir hata oluştu');
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
@@ -205,6 +213,7 @@ export default function SiparisTakipPage() {
       : 'Bu siparişi silmek istediğinizden emin misiniz?';
     
     if (window.confirm(confirmMessage)) {
+      setDeletingOrderId(orderId);
       try {
         // Siparişi API'den sil
         const response = await fetch(`/api/orders?id=${orderId}`, {
@@ -212,7 +221,9 @@ export default function SiparisTakipPage() {
         });
         
         if (!response.ok) {
-          throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+          const errorData = await response.json().catch(() => ({}));
+          const errorMessage = errorData.details?.join(', ') || errorData.error || 'Sipariş silinemedi';
+          throw new Error(errorMessage);
         }
         
         const result = await response.json();
@@ -226,10 +237,12 @@ export default function SiparisTakipPage() {
         }
         
         // Başarı mesajını göster
-        alert(result.message || 'Sipariş başarıyla silindi');
+        toast.success(result.message || 'Sipariş başarıyla silindi');
       } catch (error) {
         console.error('Sipariş silinirken hata:', error);
-        alert('Sipariş silinirken bir hata oluştu!');
+        toast.error(error instanceof Error ? error.message : 'Sipariş silinirken bir hata oluştu');
+      } finally {
+        setDeletingOrderId(null);
       }
     }
   };
@@ -240,7 +253,9 @@ export default function SiparisTakipPage() {
       const response = await fetch(`/api/orders/${orderId}/invoice`);
       
       if (!response.ok) {
-        throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || 'Sevkiyat belgesi oluşturulamadı';
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -248,7 +263,7 @@ export default function SiparisTakipPage() {
       setIsShippingLabelOpen(true);
     } catch (error) {
       console.error('Sevkiyat belgesi verileri alınırken hata:', error);
-      alert('Sevkiyat belgesi oluşturulurken bir hata oluştu!');
+      toast.error(error instanceof Error ? error.message : 'Sevkiyat belgesi oluşturulamadı');
     }
   };
   
@@ -278,8 +293,33 @@ export default function SiparisTakipPage() {
     );
   }
 
-  if (isLoading) return <Layout><p>Yükleniyor...</p></Layout>;
-  if (error) return <Layout><p>Hata: {error}</p></Layout>;
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-4 text-muted-foreground">Siparişler yükleniyor...</p>
+        </div>
+      </Layout>
+    );
+  }
+  
+  if (error) {
+    return (
+      <Layout>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 text-center">
+          <h2 className="text-lg font-semibold text-destructive mb-2">Hata</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="btn-primary"
+          >
+            Tekrar Dene
+          </button>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -344,17 +384,22 @@ export default function SiparisTakipPage() {
                           {order.status}
                         </span>
                         {user?.type === 'admin' && (
-                          <select
-                            value={order.status}
-                            onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                            className="text-xs px-2 py-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                          >
-                            <option value="Onay Bekliyor">Onay Bekliyor</option>
-                            <option value="Üretimde">Üretimde</option>
-                            <option value="Üretildi">Üretildi</option>
-                            <option value="Hazırlanıyor">Hazırlanıyor</option>
-                            <option value="Hazırlandı">Hazırlandı</option>
-                          </select>
+                          updatingOrderId === order.id ? (
+                            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin ml-2"></div>
+                          ) : (
+                            <select
+                              value={order.status}
+                              onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                              className="text-xs px-2 py-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                              disabled={updatingOrderId !== null}
+                            >
+                              <option value="Onay Bekliyor">Onay Bekliyor</option>
+                              <option value="Üretimde">Üretimde</option>
+                              <option value="Üretildi">Üretildi</option>
+                              <option value="Hazırlanıyor">Hazırlanıyor</option>
+                              <option value="Hazırlandı">Hazırlandı</option>
+                            </select>
+                          )
                         )}
                       </div>
                     </td>
@@ -381,8 +426,13 @@ export default function SiparisTakipPage() {
                           onClick={() => handleDeleteOrder(order.id)}
                           className="action-btn action-btn-delete"
                           title="Sil"
+                          disabled={deletingOrderId === order.id}
                         >
-                          <Icons.TrashIcon />
+                          {deletingOrderId === order.id ? (
+                            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <Icons.TrashIcon />
+                          )}
                         </button>
                       </div>
                     </td>
