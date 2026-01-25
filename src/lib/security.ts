@@ -1,20 +1,31 @@
 import crypto from 'crypto';
 
 // Güvenlik Konfigürasyonu
+// JWT_SECRET lazy evaluation için getter kullanıyoruz (build time hatası önleme)
+let _jwtSecretCache: string | null = null;
+
+function getJwtSecret(): string {
+  if (_jwtSecretCache) return _jwtSecretCache;
+  
+  const secret = process.env.JWT_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable is required in production');
+  }
+  // Development fallback only
+  _jwtSecretCache = secret || 'DEV_ONLY_B4ll1m_2024_S3cur3_JWT_K3y';
+  return _jwtSecretCache;
+}
+
 export const SECURITY_CONFIG = {
   // Admin Credentials (Production'da environment variable ZORUNLU)
   ADMIN_USERNAME: process.env.ADMIN_USERNAME || 'admin',
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'Admin123123123.',
   
   // JWT Settings - Production'da JWT_SECRET environment variable ZORUNLU
-  JWT_SECRET: (() => {
-    const secret = process.env.JWT_SECRET;
-    if (!secret && process.env.NODE_ENV === 'production') {
-      throw new Error('JWT_SECRET environment variable is required in production');
-    }
-    // Development fallback only
-    return secret || 'DEV_ONLY_B4ll1m_2024_S3cur3_JWT_K3y';
-  })(),
+  // Getter kullanarak lazy evaluation (build time'da değil, runtime'da kontrol)
+  get JWT_SECRET(): string {
+    return getJwtSecret();
+  },
   JWT_EXPIRES_IN: '1h',
   
   // Rate Limiting - DAHA SIKI!
