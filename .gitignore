@@ -26,6 +26,14 @@ yarn-error.log*
 .env
 .env*.local
 
+# secrets - ASLA COMMIT ETME!
+jwt.txt
+*.secret
+*.key
+!localhost.key
+credentials.json
+secrets.json
+
 # vercel
 .vercel
 
