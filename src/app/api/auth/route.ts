@@ -14,6 +14,7 @@ import {
 import bcrypt from 'bcrypt';
 import { signJWT } from '@/lib/jwt';
 import { logAuthEvent } from '@/lib/audit';
+import { query } from '../../../lib/db';
 
 // Kullanıcı girişi
 export async function POST(request: NextRequest) {
@@ -301,6 +302,30 @@ export async function POST(request: NextRequest) {
     }
     
     if (isValid && userData) {
+      // Bakım modu kontrolü - sadece customer'lar için
+      if (userData.type === 'customer') {
+        try {
+          const settingsCheck = await query(`
+            SELECT setting_value 
+            FROM system_settings 
+            WHERE setting_key = 'maintenance_mode'
+          `);
+          
+          if (settingsCheck.rows.length > 0) {
+            const maintenanceMode = settingsCheck.rows[0].setting_value === true || settingsCheck.rows[0].setting_value === 'true';
+            if (maintenanceMode) {
+              await logAuthEvent(String(userData.id), 'LOGIN_BLOCKED_MAINTENANCE', clientIP, userAgent);
+              return NextResponse.json({ 
+                error: 'Bakım modu aktif. Lütfen daha sonra tekrar deneyin.' 
+              }, { status: 503 });
+            }
+          }
+        } catch (settingsError) {
+          // Settings kontrolü hatası - girişe izin ver (fail-open)
+          console.warn('Bakım modu kontrolü başarısız, girişe izin veriliyor:', settingsError);
+        }
+      }
+      
       // Başarılı giriş → JWT üret ve HttpOnly cookie olarak ayarla
       const token = signJWT({
         sub: String(userData.id),

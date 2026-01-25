@@ -197,42 +197,42 @@ export default function HomePage() {
     }
   };
 
-  // Bakım modunda özel ekran göster
-  if (maintenanceMode) {
-    return (
-      <Layout hideNavigation>
-        <div
-          className="fixed inset-0"
-          style={{
-            backgroundImage: `url(${isMobile ? mobileBg : desktopBg})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/70 to-black/60" />
-          
-          <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
-            <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/30 p-10 md:p-16 shadow-2xl max-w-lg text-center">
-              <div className="w-24 h-24 bg-gradient-to-br from-orange-500/40 to-red-500/40 rounded-full flex items-center justify-center mx-auto mb-8 animate-pulse">
-                <span className="text-5xl">🔧</span>
-              </div>
-              <h1 className="text-white font-bold text-3xl md:text-4xl mb-4">
-                Bakım Modu
-              </h1>
-              <p className="text-white/80 text-lg md:text-xl leading-relaxed">
-                {maintenanceMessage}
-              </p>
-              <div className="mt-8 flex items-center justify-center gap-2 text-white/60">
-                <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+  // Bakım modunda admin girişi için özel handle
+  const handleLoginWithMaintenance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success && data.user) {
+        // Admin ise bakım modunda bile giriş yapabilir
+        if (data.user.type === 'admin') {
+          localStorage.setItem('loggedUser', JSON.stringify(data.user));
+          const dashboardUrl = '/admin-dashboard';
+          window.location.href = dashboardUrl;
+        } else {
+          // Customer ise bakım modunda giriş yapamaz
+          setError('Bakım modu aktif. Lütfen daha sonra tekrar deneyin.');
+          setLoading(false);
+        }
+      } else {
+        setError(data.error || 'Giriş başarısız');
+        setLoading(false);
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Giriş yapılırken bir hata oluştu');
+      setLoading(false);
+    }
+  };
 
   return (
     <Layout hideNavigation>
@@ -245,7 +245,23 @@ export default function HomePage() {
         }}
       >
         {/* Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/55 to-black/50" />
+        <div className={`absolute inset-0 ${maintenanceMode ? 'bg-gradient-to-br from-black/80 via-black/70 to-black/60' : 'bg-gradient-to-br from-black/70 via-black/55 to-black/50'}`} />
+
+        {/* Bakım Modu Uyarısı */}
+        {maintenanceMode && (
+          <div className="relative z-20 pt-4 px-4">
+            <div className="bg-orange-500/90 backdrop-blur-lg border border-orange-400/50 rounded-xl p-4 max-w-2xl mx-auto shadow-2xl">
+              <div className="flex items-center gap-3 text-white">
+                <span className="text-2xl">🔧</span>
+                <div className="flex-1">
+                  <h3 className="font-bold text-lg mb-1">Bakım Modu Aktif</h3>
+                  <p className="text-sm text-white/90">{maintenanceMessage}</p>
+                  <p className="text-xs text-white/70 mt-2">💡 Admin kullanıcıları giriş yapabilir</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Ana içerik alanı */}
         <div className="relative z-10 flex min-h-screen p-4 md:p-6 lg:p-10 items-start justify-between pointer-events-none">
@@ -321,7 +337,7 @@ export default function HomePage() {
             <p className="text-sm text-white/80 mt-1">3D Baskı Yönetim Sistemi</p>
           </div>
           
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={maintenanceMode ? handleLoginWithMaintenance : handleLogin} className="space-y-4">
             {error && (
               <div className="p-3 bg-danger/10 border border-danger text-danger rounded-md text-sm">
                 {error}
