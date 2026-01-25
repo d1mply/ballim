@@ -20,6 +20,29 @@ export async function GET(request: NextRequest) {
       }
     }
     
+    // Tablo var mı kontrol et
+    const tableCheck = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'system_settings'
+      ) as table_exists;
+    `);
+    
+    if (!tableCheck.rows[0].table_exists) {
+      // Tablo yoksa varsayılan ayarları döndür
+      console.warn('system_settings tablosu bulunamadı, varsayılan ayarlar kullanılıyor');
+      return NextResponse.json({
+        hidden_categories: [],
+        maintenance_mode: false,
+        maintenance_message: 'Sistem bakımda',
+        min_order_amount: 0,
+        free_shipping_limit: 500,
+        order_notifications_enabled: true,
+        low_stock_threshold: 5
+      });
+    }
+    
     // Ayarları getir (public olanlar veya tümü)
     const result = await query(`
       SELECT 
@@ -107,6 +130,22 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(
         { error: 'Yetkisiz erişim' },
         { status: 403 }
+      );
+    }
+    
+    // Tablo var mı kontrol et
+    const tableCheck = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'system_settings'
+      ) as table_exists;
+    `);
+    
+    if (!tableCheck.rows[0].table_exists) {
+      return NextResponse.json(
+        { error: 'Ayarlar tablosu bulunamadı. Lütfen veritabanı kurulumunu tamamlayın.' },
+        { status: 500 }
       );
     }
     
@@ -199,6 +238,22 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json(
         { error: 'Yetkisiz erişim' },
         { status: 403 }
+      );
+    }
+    
+    // Tablo var mı kontrol et
+    const tableCheck = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'system_settings'
+      ) as table_exists;
+    `);
+    
+    if (!tableCheck.rows[0].table_exists) {
+      return NextResponse.json(
+        { error: 'Ayarlar tablosu bulunamadı. Lütfen veritabanı kurulumunu tamamlayın.' },
+        { status: 500 }
       );
     }
     

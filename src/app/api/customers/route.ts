@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
     const validation = validateAPIInput(body, {
       sanitize: true,
       validateSQL: true,
-      required: ['name', 'phone', 'email', 'username', 'password'],
+      required: ['name', 'username', 'password'], // Sadece zorunlu alanlar
       types: {
         name: 'string',
         company: 'string',
@@ -268,8 +268,8 @@ export async function POST(request: NextRequest) {
       filamentPrices = []
     } = validation.sanitizedData;
 
-    // 🛡️ Güvenlik: Email format kontrolü
-    if (!validateEmail(email)) {
+    // 🛡️ Güvenlik: Email format kontrolü (sadece doldurulmuşsa)
+    if (email && email.trim() && !validateEmail(email)) {
       logSecurityEvent('INVALID_EMAIL_FORMAT', {
         ip: clientIP,
         email: email,
@@ -282,8 +282,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 🛡️ Güvenlik: Telefon format kontrolü
-    if (!validatePhone(phone)) {
+    // 🛡️ Güvenlik: Telefon format kontrolü (sadece doldurulmuşsa)
+    if (phone && phone.trim() && !validatePhone(phone)) {
       logSecurityEvent('INVALID_PHONE_FORMAT', {
         ip: clientIP,
         phone: phone,
