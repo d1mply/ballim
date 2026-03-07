@@ -46,7 +46,7 @@ export async function GET(
 
     // Mevcut bakiye (cari hesap)
     const balanceResult = await query(
-      'SELECT COALESCE(SUM(CASE WHEN islem_turu = \'Alış\' THEN tutar ELSE -tutar END), 0) as balance FROM cari_hesap WHERE musteri_id = $1',
+      'SELECT COALESCE(SUM(CASE WHEN islem_turu = \'Borçlandırma\' THEN tutar WHEN islem_turu = \'Tahsilat\' THEN -tutar ELSE 0 END), 0) as balance FROM cari_hesap WHERE musteri_id = $1',
       [customerId]
     );
     const currentBalance = parseFloat(balanceResult.rows[0]?.balance || '0');

@@ -77,8 +77,8 @@ export async function GET(
         SELECT 
           COALESCE(SUM(
             CASE 
-              WHEN islem_turu = 'Borç' THEN tutar 
-              WHEN islem_turu = 'Alacak' THEN -tutar 
+              WHEN islem_turu = 'Borçlandırma' THEN tutar 
+              WHEN islem_turu = 'Tahsilat' THEN -tutar 
               ELSE 0 
             END
           ), 0) as balance

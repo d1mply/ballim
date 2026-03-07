@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Image from 'next/image';
 import { ProductData } from '../ProductModal';
 import { Icons } from '../../utils/Icons';

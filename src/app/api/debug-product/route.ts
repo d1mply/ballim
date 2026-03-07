@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   try {
     // Ürün ve filament ilişkilerini debug et
     const products = await query(`

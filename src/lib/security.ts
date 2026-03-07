@@ -16,10 +16,25 @@ function getJwtSecret(): string {
   return _jwtSecretCache;
 }
 
+function getAdminUsername(): string {
+  const val = process.env.ADMIN_USERNAME;
+  if (!val && process.env.NODE_ENV === 'production') {
+    throw new Error('ADMIN_USERNAME environment variable is required in production');
+  }
+  return val || 'admin';
+}
+
+function getAdminPassword(): string {
+  const val = process.env.ADMIN_PASSWORD;
+  if (!val && process.env.NODE_ENV === 'production') {
+    throw new Error('ADMIN_PASSWORD environment variable is required in production');
+  }
+  return val || 'Admin123123123.';
+}
+
 export const SECURITY_CONFIG = {
-  // Admin Credentials (Production'da environment variable ZORUNLU)
-  ADMIN_USERNAME: process.env.ADMIN_USERNAME || 'admin',
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'Admin123123123.',
+  get ADMIN_USERNAME(): string { return getAdminUsername(); },
+  get ADMIN_PASSWORD(): string { return getAdminPassword(); },
   
   // JWT Settings - Production'da JWT_SECRET environment variable ZORUNLU
   // Getter kullanarak lazy evaluation (build time'da değil, runtime'da kontrol)

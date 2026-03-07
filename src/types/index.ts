@@ -52,6 +52,8 @@ export interface Order {
   products: OrderProduct[];
 }
 
+export type OrderItem = Order;
+
 export interface OrderProduct {
   id: string;
   productId: string;
@@ -94,6 +96,47 @@ export interface FilamentBobbin {
   updatedAt: string;
 }
 
+// Odemeler page types
+export interface Odeme {
+  id: string;
+  musteri_id: string;
+  musteri_adi: string;
+  siparis_id: string | null;
+  odeme_tarihi: string;
+  tutar: number;
+  odeme_yontemi: string;
+  vade_ay: number | null;
+  durum: 'Ödendi' | 'Beklemede' | 'İptal Edildi';
+  aciklama: string | null;
+  created_at: string;
+}
+
+export interface OdemeCustomer {
+  id: string;
+  name: string;
+  company?: string;
+}
+
+export interface OdemeSiparis {
+  id: string;
+  musteri_id: string;
+  musteri_adi: string;
+  order_date: string;
+  total_amount: number;
+  status: string;
+}
+
+export interface OdemeFormData {
+  musteri_id: string;
+  siparis_id: string;
+  odeme_tarihi: string;
+  tutar: string;
+  odeme_yontemi: string;
+  vade_ay: string;
+  durum: 'Ödendi' | 'Beklemede' | 'İptal Edildi';
+  aciklama: string;
+}
+
 // API Response types
 export interface ApiResponse<T = any> {
   success?: boolean;
@@ -108,5 +151,6 @@ export interface ProductionFormData {
   productionType: 'tabla' | 'adet';
   tableCount: number;
   skipProduction: boolean;
-  selectedFilamentBobins: { [key: string]: number }[];
+  /** Slot index -> bobin id (e.g. { "0": 5, "1": 7 }). Same type, any color. */
+  selectedFilamentBobins: Record<string, number>;
 }

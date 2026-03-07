@@ -4,7 +4,7 @@ import React from 'react';
 import { useToast, Toast as ToastType } from '../contexts/ToastContext';
 import { Icons } from '../utils/Icons';
 
-const Toast: React.FC<{ toast: ToastType }> = ({ toast }) => {
+export const Toast: React.FC<{ toast: ToastType }> = ({ toast }) => {
   const { removeToast } = useToast();
 
   const getToastStyles = () => {

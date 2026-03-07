@@ -34,6 +34,11 @@ describe('validation.ts', () => {
           .toThrow('testField gerekli');
       });
 
+      it('undefined değer için hata fırlatmalı', () => {
+        expect(() => parseIntSafe(undefined as unknown as string, 'testField'))
+          .toThrow('testField gerekli');
+      });
+
       it('geçersiz string için hata fırlatmalı', () => {
         expect(() => parseIntSafe('abc', 'testField'))
           .toThrow('testField geçerli bir sayı olmalı');

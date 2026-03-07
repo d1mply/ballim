@@ -19,6 +19,9 @@ const nextConfig: NextConfig = {
   },
   // 🚀 PERFORMANS: Compression aktif
   compress: true,
+  experimental: {
+    optimizePackageImports: ['@heroicons/react', 'lodash'],
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

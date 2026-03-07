@@ -14,7 +14,9 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -37,13 +39,16 @@
     "postcss": "^8.4.31",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "resend": "^4.8.0",
     "swr": "^2.3.8",
     "tailwindcss": "^3.3.0",
     "typescript": "^5.8.3",
-    "web-vitals": "^5.1.0"
+    "web-vitals": "^5.1.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.49.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@vitest/coverage-v8": "^4.0.18",

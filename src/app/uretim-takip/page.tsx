@@ -122,12 +122,37 @@ export default function UretimTakipPage() {
       });
 
       if (response.success) {
-        await fetchOrders(); // Siparişleri yenile
+        await fetchOrders();
+        toast.success('Üretim tamamlandı!');
       } else {
-        console.error('Üretim tamamlama hatası:', response.message);
+        toast.error(response.error || 'Üretim tamamlama başarısız');
       }
     } catch (error) {
       console.error('Üretim tamamlama hatası:', error);
+      toast.error(error instanceof Error ? error.message : 'Üretim tamamlama sırasında bir hata oluştu');
+    }
+  };
+
+  // Doğrudan durum değişikliği (modal olmadan - Hazırla/Hazırlandı geçişleri)
+  const handleDirectStatusChange = async (order: OrderItem, product: OrderProduct, targetStatus: string) => {
+    try {
+      const response = await apiPut('/api/orders/product-status', {
+        orderId: order.orderCode,
+        productId: product.id,
+        status: targetStatus,
+        productionQuantity: product.quantity
+      });
+
+      if (response.success) {
+        await fetchOrders();
+        const label = targetStatus === 'hazirlaniyor' ? 'Hazırlanıyor' : 'Hazırlandı';
+        toast.success(`Ürün durumu "${label}" olarak güncellendi`);
+      } else {
+        toast.error(response.error || 'İşlem başarısız');
+      }
+    } catch (error) {
+      console.error('Durum güncelleme hatası:', error);
+      toast.error('İşlem sırasında bir hata oluştu');
     }
   };
 
@@ -250,6 +275,7 @@ export default function UretimTakipPage() {
                     order={order}
                     onProductStatusChange={handleProductStatusChange}
                     onCompleteProduction={handleCompleteProduction}
+                    onDirectStatusChange={handleDirectStatusChange}
                   />
                 ))}
               </div>

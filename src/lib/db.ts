@@ -1,12 +1,21 @@
 import { Pool } from 'pg';
 import { logSecurityEvent } from './security';
 
-// SQL Injection Pattern Detection
-const SQL_INJECTION_PATTERNS = [
+// SQL Injection Pattern Detection (only for user-supplied parameters, not query text)
+const SQL_INJECTION_PATTERNS_FOR_PARAMS = [
   /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT|TRUNCATE|GRANT|REVOKE)\b)/i,
   /(;|--|\/\*|\*\/|xp_|sp_)/i,
-  /(\bOR\b|\bAND\b)\s+\d+\s*=\s*\d+/i, // OR 1=1, AND 1=1
-  /(\bOR\b|\bAND\b)\s+['"]\w+['"]?\s*=\s*['"]\w+['"]?/i, // OR 'a'='a'
+  /(\bOR\b|\bAND\b)\s+\d+\s*=\s*\d+/i,
+  /(\bOR\b|\bAND\b)\s+['"]\w+['"]?\s*=\s*['"]\w+['"]?/i,
+  /INFORMATION_SCHEMA/i,
+  /pg_sleep|waitfor|benchmark/i,
+  /load_file|into\s+outfile/i,
+];
+
+// Patterns for detecting dangerous combinations in query text itself
+const SQL_INJECTION_PATTERNS_FOR_QUERY = [
+  /(\bOR\b|\bAND\b)\s+\d+\s*=\s*\d+/i,
+  /(\bOR\b|\bAND\b)\s+['"]\w+['"]?\s*=\s*['"]\w+['"]?/i,
   /INFORMATION_SCHEMA/i,
   /pg_sleep|waitfor|benchmark/i,
   /load_file|into\s+outfile/i,
@@ -116,8 +125,9 @@ function validateQuery(text: string, params?: (string | number | boolean | null)
       return { isValid: false, error: 'Parametreli sorgu kullanılmalıdır' };
     }
     
-    // SQL injection pattern kontrolü (tüm pattern'ler)
-    for (const pattern of SQL_INJECTION_PATTERNS) {
+    // Query text'te sadece tehlikeli kombinasyonları kontrol et
+    // (SELECT, CREATE gibi keyword'ler SQL sorgularında doğal olarak bulunur)
+    for (const pattern of SQL_INJECTION_PATTERNS_FOR_QUERY) {
       if (pattern.test(text)) {
         logSecurityEvent('SQL_INJECTION_PATTERN_DETECTED', {
           query: text.substring(0, 200),
@@ -135,7 +145,7 @@ function validateQuery(text: string, params?: (string | number | boolean | null)
     for (let i = 0; i < params.length; i++) {
       const param = params[i];
       if (typeof param === 'string' && param.length > 0) {
-        for (const pattern of SQL_INJECTION_PATTERNS) {
+        for (const pattern of SQL_INJECTION_PATTERNS_FOR_PARAMS) {
           if (pattern.test(param)) {
             logSecurityEvent('SQL_INJECTION_IN_PARAMS', {
               paramIndex: i,
@@ -765,6 +775,58 @@ export async function createTables() {
     success = false;
   }
 
+  // RBAC: Roles tablosu
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS roles (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(50) UNIQUE NOT NULL,
+        permissions JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await query(`
+      INSERT INTO roles (name, permissions) VALUES
+        ('super_admin', '["*"]'),
+        ('admin', '["products.*","orders.*","customers.*","inventory.*","filaments.*","payments.*","reports.*"]'),
+        ('sales', '["orders.read","orders.create","customers.read","products.read","quotes.create"]'),
+        ('warehouse', '["inventory.*","filaments.*","orders.read","production.*"]'),
+        ('accountant', '["payments.*","customers.read","orders.read","reports.*","cari.*"]')
+      ON CONFLICT (name) DO NOTHING
+    `);
+    console.log('Roles tablosu oluşturuldu veya zaten mevcut');
+  } catch (error) {
+    console.error('Roles tablosu oluşturulurken hata:', error);
+    success = false;
+  }
+
+  // RBAC: Users tablosu (admin tarafı kullanıcıları)
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        name VARCHAR(200) NOT NULL,
+        email VARCHAR(255),
+        role_id INTEGER REFERENCES roles(id),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
+    `);
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id)
+    `);
+    console.log('Users tablosu oluşturuldu veya zaten mevcut');
+  } catch (error) {
+    console.error('Users tablosu oluşturulurken hata:', error);
+    success = false;
+  }
+
   // Sistem müşterisi oluştur (stok üretimleri için)
   try {
     await query(`
@@ -827,6 +889,31 @@ export async function createTables() {
       CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id)
     `);
     console.log('Orders tablosu index\'leri oluşturuldu veya zaten mevcut');
+
+    // Cari hesap index'leri
+    await query(`CREATE INDEX IF NOT EXISTS idx_cari_hesap_musteri_id ON cari_hesap(musteri_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_cari_hesap_created_at ON cari_hesap(created_at DESC)`);
+
+    // Odemeler index'leri
+    await query(`CREATE INDEX IF NOT EXISTS idx_odemeler_musteri_id ON odemeler(musteri_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_odemeler_siparis_id ON odemeler(siparis_id)`);
+
+    // Customer index'leri
+    await query(`CREATE INDEX IF NOT EXISTS idx_customers_username ON customers(username)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_customers_customer_code ON customers(customer_code)`);
+
+    // Filament index'leri
+    await query(`CREATE INDEX IF NOT EXISTS idx_filaments_filament_code ON filaments(filament_code)`);
+
+    // Customer filament prices
+    await query(`CREATE INDEX IF NOT EXISTS idx_customer_filament_prices_customer ON customer_filament_prices(customer_id)`);
+
+    // Wholesale price ranges
+    await query(`CREATE INDEX IF NOT EXISTS idx_wholesale_price_ranges_active ON wholesale_price_ranges(is_active)`);
+
+    // Package items
+    await query(`CREATE INDEX IF NOT EXISTS idx_package_items_package_id ON package_items(package_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_package_items_product_id ON package_items(product_id)`);
   } catch (indexError) {
     console.error('Index\'ler oluşturulurken hata:', indexError);
     // Index hataları tablo oluşturmayı engellemez

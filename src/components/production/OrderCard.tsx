@@ -8,12 +8,14 @@ interface OrderCardProps {
   order: OrderItem;
   onProductStatusChange: (order: OrderItem, product: OrderProduct) => void;
   onCompleteProduction: (order: OrderItem, product: OrderProduct) => void;
+  onDirectStatusChange: (order: OrderItem, product: OrderProduct, targetStatus: string) => void;
 }
 
 export const OrderCard: React.FC<OrderCardProps> = ({
   order,
   onProductStatusChange,
-  onCompleteProduction
+  onCompleteProduction,
+  onDirectStatusChange
 }) => {
   return (
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
@@ -93,7 +95,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               
               {product.status === 'uretildi' && (
                 <button
-                  onClick={() => onProductStatusChange(order, product)}
+                  onClick={() => onDirectStatusChange(order, product, 'hazirlaniyor')}
                   className="px-3 py-1 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors"
                 >
                   Hazırla
@@ -102,7 +104,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               
               {product.status === 'hazirlaniyor' && (
                 <button
-                  onClick={() => onProductStatusChange(order, product)}
+                  onClick={() => onDirectStatusChange(order, product, 'hazirlandi')}
                   className="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
                 >
                   Hazırlandı

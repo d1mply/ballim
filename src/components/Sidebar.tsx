@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
@@ -17,6 +18,9 @@ import {
   PackageCheck as PackageCheckIcon,
   Settings as SettingsIcon
 } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
+import { hasPermission } from '@/lib/permissions';
+import { MENU_PERMISSIONS } from '@/lib/permissions';
 
 type SidebarProps = {
   isOpen?: boolean;
@@ -24,43 +28,57 @@ type SidebarProps = {
   onClose?: () => void;
 };
 
+const ADMIN_MENU_ITEMS = [
+  { name: 'Ana Sayfa', path: '/admin-dashboard', icon: <HomeIcon />, permission: null as string | null },
+  { name: 'Teklif Hesaplama', path: '/teklif', icon: <CalculatorIcon />, permission: MENU_PERMISSIONS.products },
+  { name: 'Ürünler', path: '/urunler', icon: <PackageIcon />, permission: MENU_PERMISSIONS.products },
+  { name: 'Stok Yönetimi', path: '/stok-yonetimi', icon: <WarehouseIcon />, permission: MENU_PERMISSIONS.inventory },
+  { name: 'Stok Üretim', path: '/stok-uretim', icon: <PackageCheckIcon />, permission: MENU_PERMISSIONS.inventory },
+  { name: 'Stok ve Sipariş', path: '/stok-siparis', icon: <ShoppingCartIcon />, permission: MENU_PERMISSIONS.inventory },
+  { name: 'Pazaryeri Siparişleri', path: '/pazaryeri-siparisleri', icon: <TruckIcon />, permission: MENU_PERMISSIONS.orders },
+  { name: 'Sipariş Takip', path: '/siparis-takip', icon: <ClipboardListIcon />, permission: MENU_PERMISSIONS.orders },
+  { name: 'Müşteriler', path: '/musteriler', icon: <UsersIcon />, permission: MENU_PERMISSIONS.customers },
+  { name: 'Cari Hesap', path: '/cari-hesap', icon: <CreditCardIcon />, permission: MENU_PERMISSIONS.payments },
+  { name: 'Filamentler', path: '/filamentler', icon: <CubeIcon />, permission: MENU_PERMISSIONS.filaments },
+  { name: 'Ödemeler', path: '/odemeler', icon: <ReceiptIcon />, permission: MENU_PERMISSIONS.payments },
+  { name: 'Üretim Takip', path: '/uretim-takip', icon: <ClipboardListIcon />, permission: MENU_PERMISSIONS.orders },
+  { name: 'Audit Log', path: '/audit-log', icon: <ClipboardListIcon />, permission: MENU_PERMISSIONS.reports },
+  { name: 'Ayarlar', path: '/admin-ayarlar', icon: <SettingsIcon />, permission: MENU_PERMISSIONS.settings },
+];
+
+const CUSTOMER_MENU_ITEMS = [
+  { name: 'Ana Sayfa', path: '/customer-dashboard', icon: <HomeIcon /> },
+  { name: 'Sipariş Takip', path: '/siparis-takip', icon: <ClipboardListIcon /> },
+  { name: 'Ürünler', path: '/urunler', icon: <PackageIcon /> },
+  { name: 'Cari Hesap', path: '/cari-hesap', icon: <CreditCardIcon /> },
+];
+
 export default function Sidebar({ isOpen = true, userType = 'admin', onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user } = usePermissions();
 
-  // Admin için menü öğeleri
-  const adminMenuItems = [
-    { name: 'Ana Sayfa', path: '/admin-dashboard', icon: <HomeIcon /> },
-    { name: 'Teklif Hesaplama', path: '/teklif', icon: <CalculatorIcon /> },
-    { name: 'Ürünler', path: '/urunler', icon: <PackageIcon /> },
-    { name: 'Stok Yönetimi', path: '/stok-yonetimi', icon: <WarehouseIcon /> },
-    { name: 'Stok Üretim', path: '/stok-uretim', icon: <PackageCheckIcon /> },
-    { name: 'Stok ve Sipariş', path: '/stok-siparis', icon: <ShoppingCartIcon /> },
-    { name: 'Pazaryeri Siparişleri', path: '/pazaryeri-siparisleri', icon: <TruckIcon /> },
-    { name: 'Sipariş Takip', path: '/siparis-takip', icon: <ClipboardListIcon /> },
-    { name: 'Müşteriler', path: '/musteriler', icon: <UsersIcon /> },
-    { name: 'Cari Hesap', path: '/cari-hesap', icon: <CreditCardIcon /> },
-    { name: 'Filamentler', path: '/filamentler', icon: <CubeIcon /> },
-    { name: 'Ödemeler', path: '/odemeler', icon: <ReceiptIcon /> },
-    { name: 'Üretim Takip', path: '/uretim-takip', icon: <ClipboardListIcon /> },
-    { name: 'Audit Log', path: '/audit-log', icon: <ClipboardListIcon /> },
-    { name: 'Ayarlar', path: '/admin-ayarlar', icon: <SettingsIcon /> },
-  ];
+  const menuItems = React.useMemo(() => {
+    const effectiveType = user?.type ?? userType;
+    if (effectiveType === 'customer') {
+      return CUSTOMER_MENU_ITEMS;
+    }
+    if (user?.permissions && !user.permissions.includes('*')) {
+      const authUser = {
+        id: user.id,
+        username: user.username ?? user.name ?? '',
+        role: user.role ?? 'admin',
+        permissions: user.permissions,
+      };
+      return ADMIN_MENU_ITEMS.filter(
+        (item) => !item.permission || hasPermission(authUser, item.permission)
+      );
+    }
+    return ADMIN_MENU_ITEMS.map(({ permission, ...rest }) => rest);
+  }, [user, userType]);
 
-  // Müşteri için menü öğeleri
-  const customerMenuItems = [
-    { name: 'Ana Sayfa', path: '/customer-dashboard', icon: <HomeIcon /> },
-    { name: 'Ürünler', path: '/urunler', icon: <PackageIcon /> },
-    { name: 'Stok ve Sipariş', path: '/stok-siparis', icon: <ShoppingCartIcon /> },
-    { name: 'Sipariş Takip', path: '/siparis-takip', icon: <ClipboardListIcon /> },
-    { name: 'Cari Hesap', path: '/cari-hesap', icon: <CreditCardIcon /> },
-  ];
-
-  // Kullanıcı tipine göre menüyü belirle
-  const menuItems = userType === 'admin' ? adminMenuItems : customerMenuItems;
-
-  // Ana sayfa yönlendirmesini kullanıcı tipine göre ayarla
-  const homePath = userType === 'admin' ? '/admin-dashboard' : '/customer-dashboard';
+  const effectiveType = user?.type ?? userType;
+  const homePath = effectiveType === 'admin' ? '/admin-dashboard' : '/customer-dashboard';
 
   const handleLinkClick = () => {
     // Mobile'da link tıklandığında sidebar'ı kapat

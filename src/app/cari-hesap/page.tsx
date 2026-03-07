@@ -28,7 +28,7 @@ interface CariHesapIslemi {
 
 export default function CariHesapPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [, setIslemler] = useState<CariHesapIslemi[]>([]);
+  const [islemler, setIslemler] = useState<CariHesapIslemi[]>([]);
   const [filteredIslemler, setFilteredIslemler] = useState<CariHesapIslemi[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +95,24 @@ export default function CariHesapPage() {
 
     fetchCariHesap();
   }, [selectedMusteriId, user]);
+
+  // Arama filtresi
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredIslemler(islemler);
+      return;
+    }
+    const term = searchTerm.toLowerCase();
+    setFilteredIslemler(
+      islemler.filter(islem =>
+        (islem.aciklama || '').toLowerCase().includes(term) ||
+        (islem.musteri_adi || '').toLowerCase().includes(term) ||
+        (islem.islem_turu || '').toLowerCase().includes(term) ||
+        (islem.odeme_yontemi || '').toLowerCase().includes(term) ||
+        String(islem.tutar).includes(term)
+      )
+    );
+  }, [searchTerm, islemler]);
 
   // Özet bilgileri hesapla
   const [summary, setSummary] = useState({

@@ -231,6 +231,25 @@ export async function POST(request: NextRequest) {
         WHERE id = $2
       `, [totalAmount, order.id]);
 
+      // Cari hesaba Borçlandırma ekle (sadece müşteri siparişleri için)
+      if (finalCustomerId && orderType !== 'stock_production' && totalAmount > 0) {
+        const lastBalanceResult = await query(
+          `SELECT bakiye FROM cari_hesap WHERE musteri_id = $1 ORDER BY id DESC LIMIT 1`,
+          [finalCustomerId]
+        );
+        const previousBalance = lastBalanceResult.rows.length > 0
+          ? parseFloat(lastBalanceResult.rows[0].bakiye)
+          : 0;
+        const newBalance = previousBalance + totalAmount;
+
+        await query(`
+          INSERT INTO cari_hesap (musteri_id, tarih, aciklama, islem_turu, tutar, odeme_yontemi, siparis_id, bakiye, created_at)
+          VALUES ($1, CURRENT_DATE, $2, 'Borçlandırma', $3, NULL, $4, $5, CURRENT_TIMESTAMP)
+        `, [finalCustomerId, `Sipariş: ${orderCode}`, totalAmount, order.id, newBalance]);
+
+        console.log(`✅ Cari hesaba Borçlandırma eklendi: ${totalAmount}₺, yeni bakiye: ${newBalance}₺`);
+      }
+
       await query('COMMIT');
       console.log('✅ Transaction tamamlandı');
 
@@ -343,6 +362,28 @@ export async function DELETE(request: NextRequest) {
              updated_at = CURRENT_TIMESTAMP`,
           [item.product_id, item.quantity]
         );
+      }
+    }
+
+    // Cari hesaptaki ilgili Borçlandırma kaydını sil ve bakiyeleri yeniden hesapla
+    const cariDeleteResult = await query(
+      `DELETE FROM cari_hesap WHERE siparis_id = $1 AND islem_turu = 'Borçlandırma' RETURNING musteri_id`,
+      [orderId]
+    );
+    if (cariDeleteResult.rows.length > 0) {
+      const musteriId = cariDeleteResult.rows[0].musteri_id;
+      const allRecords = await query(
+        `SELECT id, islem_turu, tutar FROM cari_hesap WHERE musteri_id = $1 ORDER BY id ASC`,
+        [musteriId]
+      );
+      let runningBalance = 0;
+      for (const record of allRecords.rows) {
+        if (record.islem_turu === 'Borçlandırma') {
+          runningBalance += parseFloat(record.tutar);
+        } else if (record.islem_turu === 'Tahsilat') {
+          runningBalance -= parseFloat(record.tutar);
+        }
+        await query(`UPDATE cari_hesap SET bakiye = $1 WHERE id = $2`, [runningBalance, record.id]);
       }
     }
 

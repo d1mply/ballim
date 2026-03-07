@@ -84,54 +84,68 @@ export async function PUT(request: NextRequest) {
           selectedFilamentBobins 
         });
         
-        // Ürünün filament bilgilerini al
+        // Ürünün filament bilgilerini al (capacity dahil)
         const productFilaments = await query(`
-          SELECT pf.filament_type, pf.filament_color, pf.weight, pf.filament_density as brand
+          SELECT pf.filament_type, pf.filament_color, pf.weight, pf.filament_density as brand,
+                 COALESCE(p.capacity, 1) as capacity
           FROM product_filaments pf
+          JOIN products p ON p.id = pf.product_id
           WHERE pf.product_id = $1
+          ORDER BY pf.id
         `, [productDbId]);
-        
+
+        const isSlotFormat = selectedFilamentBobins && typeof selectedFilamentBobins === 'object' && !Array.isArray(selectedFilamentBobins);
+        const hasSelection = selectedFilamentBobins && (isSlotFormat ? Object.keys(selectedFilamentBobins).length > 0 : selectedFilamentBobins.length > 0);
+
         console.log('📊 Ürün filament bilgileri:', productFilaments.rows);
-        
+
         if (productFilaments.rows.length > 0) {
-          // Gerçek üretim miktarını hesapla
           const actualQuantity = productionQuantity || itemQuantity;
-          
-          // Her filament için stok düşür
-          for (const prodFilament of productFilaments.rows) {
-            const totalWeightNeeded = prodFilament.weight * actualQuantity;
-            
-            console.log(`🎨 Filament: ${prodFilament.filament_type} ${prodFilament.filament_color}`);
-            console.log(`   - Tabla başına: ${prodFilament.weight}g`);
+
+          for (let i = 0; i < productFilaments.rows.length; i++) {
+            const prodFilament = productFilaments.rows[i];
+            const capacity = parseInt(prodFilament.capacity) || 1;
+            const weightPerPiece = prodFilament.weight / capacity;
+            const totalWeightNeeded = weightPerPiece * actualQuantity;
+
+            console.log(`🎨 Filament slot ${i}: ${prodFilament.filament_type} ${prodFilament.filament_color}`);
+            console.log(`   - Tabla başına: ${prodFilament.weight}g (capacity: ${capacity})`);
+            console.log(`   - Adet başına: ${weightPerPiece.toFixed(2)}g`);
             console.log(`   - Üretim miktarı: ${actualQuantity} adet`);
-            console.log(`   - Toplam: ${totalWeightNeeded}g`);
-            
-            // Eğer selectedFilamentBobins varsa, seçilen bobinden düş
-            if (selectedFilamentBobins && selectedFilamentBobins.length > 0) {
-              const filamentKey = `${prodFilament.filament_type}-${prodFilament.filament_color}`;
-              const selectedBobin = selectedFilamentBobins.find((b: Record<string, number>) => b[filamentKey]);
-              
-              if (selectedBobin) {
-                const bobbinId = selectedBobin[filamentKey];
-                
-                // Bobin stok kontrolü
+            console.log(`   - Toplam: ${totalWeightNeeded.toFixed(2)}g`);
+
+            if (hasSelection) {
+              const bobbinId = isSlotFormat
+                ? selectedFilamentBobins[String(i)]
+                : (() => {
+                    const filamentKey = `${prodFilament.filament_type}-${prodFilament.filament_color}`;
+                    const selectedBobin = selectedFilamentBobins.find((b: Record<string, number>) => b[filamentKey]);
+                    return selectedBobin?.[filamentKey];
+                  })();
+
+              if (bobbinId != null) {
                 const bobbinCheck = await query(`
-                  SELECT remaining_weight, filament_code
-                  FROM filaments 
+                  SELECT id, type, remaining_weight, filament_code
+                  FROM filaments
                   WHERE id = $1
                 `, [bobbinId]);
                 
                 if (bobbinCheck.rows.length === 0) {
                   throw new Error(`Bobin bulunamadı: ${bobbinId}`);
                 }
-                
+
+                const bobinType = bobbinCheck.rows[0].type;
+                if (isSlotFormat && bobinType !== prodFilament.filament_type) {
+                  throw new Error(`Bobin tipi uyuşmuyor (slot ${i}): bobin ${bobinType}, ürün ${prodFilament.filament_type}`);
+                }
+
                 const bobbinStock = parseFloat(bobbinCheck.rows[0].remaining_weight);
                 const bobbinCode = bobbinCheck.rows[0].filament_code;
-                
+
                 if (bobbinStock < totalWeightNeeded) {
-                  throw new Error(`YETERSIZ FILAMENT! ${bobbinCode} (${prodFilament.filament_type}-${prodFilament.filament_color}): Mevcut ${bobbinStock}g, Gerekli ${totalWeightNeeded}g`);
+                  throw new Error(`YETERSIZ FILAMENT! ${bobbinCode}: Mevcut ${bobbinStock}g, Gerekli ${totalWeightNeeded}g`);
                 }
-                
+
                 // Seçilen bobinden düş
                 await query(`
                   UPDATE filaments 

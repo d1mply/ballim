@@ -1,833 +1,100 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import { Icons } from '../../utils/Icons';
-import FilamentModal, { FilamentData } from '../../components/FilamentModal';
-import StockAddModal, { StockAddData } from '../../components/StockAddModal';
-import { useToast } from '../../contexts/ToastContext';
-
-
-
-// Toptancı fiyat aralığı tipi
-interface PriceRange {
-  id: number;
-  minGram: number;
-  maxGram: number;
-  price: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+import FilamentModal from '../../components/FilamentModal';
+import StockAddModal from '../../components/StockAddModal';
+import PriceRangesPanel from '../../components/filamentler/PriceRangesPanel';
+import FilamentsTable from '../../components/filamentler/FilamentsTable';
+import FilamentHistoryModal, { useFilamentHistory } from '../../components/filamentler/FilamentHistoryModal';
+import { useFilamentsData } from '../../hooks/useFilamentsData';
+import { usePriceRanges } from '../../hooks/usePriceRanges';
 
 export default function FilamentlerPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filamentsList, setFilamentsList] = useState<FilamentData[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedFilament, setSelectedFilament] = useState<FilamentData | null>(null);
-  const [typeFilter, setTypeFilter] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Stok ekleme modal state'leri
-  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
-  const [selectedFilamentForStock, setSelectedFilamentForStock] = useState<FilamentData | null>(null);
-  
-  // Toptancı fiyat aralıkları state'leri
-  const [priceRanges, setPriceRanges] = useState<PriceRange[]>([]);
-  const [showPriceRanges, setShowPriceRanges] = useState(false);
-  const [priceRangeForm, setPriceRangeForm] = useState({
-    minGram: '',
-    maxGram: '',
-    price: ''
-  });
-  const [editingPriceRange, setEditingPriceRange] = useState<PriceRange | null>(null);
-  // Geçmiş modal state'leri
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyItems, setHistoryItems] = useState<any[]>([]);
-  const [historyFor, setHistoryFor] = useState<{ id: string; code: string } | null>(null);
+  const {
+    filteredFilaments, types, isLoading, error,
+    searchTerm, setSearchTerm, typeFilter, setTypeFilter,
+    selectedFilament, isModalOpen, isStockModalOpen, selectedFilamentForStock,
+    handleAddFilament, handleEditFilament, handleSaveFilament, handleDeleteFilament,
+    handleAddStock, handleSaveStock, closeFilamentModal, closeStockModal,
+    calculateRemainingPercentage, isStockCritical, formatWeight,
+  } = useFilamentsData();
 
-  // Toast hook
-  const toast = useToast();
-  
-  // Veritabanından filament verilerini yükle
-  useEffect(() => {
-    const fetchFilaments = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        const response = await fetch('/api/filaments');
-        
-        if (!response.ok) {
-          throw new Error(`API hatası: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        
-        // Veri varsa göster, yoksa boş liste göster
-        if (Array.isArray(data)) {
-          setFilamentsList(data);
-        } else {
-          console.log('Filament verisi bulunamadı, boş liste gösteriliyor');
-          setFilamentsList([]);
-        }
-      } catch (err) {
-        console.error('Filament verilerini getirirken hata:', err);
-        setError('Filament verileri yüklenirken bir hata oluştu.');
-        // Hata durumunda boş liste göster
-        setFilamentsList([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const {
+    priceRanges, showPriceRanges, setShowPriceRanges,
+    priceRangeForm, editingPriceRange,
+    handlePriceRangeFormChange, handlePriceRangeSave,
+    handlePriceRangeEdit, handlePriceRangeDelete, resetPriceRangeForm,
+  } = usePriceRanges();
 
-    fetchFilaments();
-  }, []);
+  const {
+    isHistoryOpen, historyLoading, historyItems, historyFor,
+    handleShowHistory, closeHistory,
+  } = useFilamentHistory();
 
-  // Toptancı fiyat aralıklarını yükle
-  const fetchPriceRanges = async () => {
-    try {
-      const response = await fetch('/api/wholesale-price-ranges');
-      if (response.ok) {
-        const data = await response.json();
-        setPriceRanges(data);
-      }
-    } catch (error) {
-      console.error('Fiyat aralıkları yüklenirken hata:', error);
-    }
-  };
-
-  // Fiyat aralıkları gösterildiğinde veri yükle
-  useEffect(() => {
-    if (showPriceRanges) {
-      fetchPriceRanges();
-    }
-  }, [showPriceRanges]);
-  
-  // Filament tipleri ve ilişkilerini API'den al
-  useEffect(() => {
-    if (filamentsList.length > 0) {
-      try {
-        // Filament tiplerini topla ve benzersiz olarak belirle
-        const allTypes = filamentsList.map(f => f.type).filter(Boolean);
-        const uniqueTypes = Array.from(new Set(allTypes));
-        
-        // Marka-tip ilişkisini belirle
-        const typeToMarcaMap: Record<string, Set<string>> = {};
-        // Marka-renk ilişkisini belirle
-        const marcaToColorMap: Record<string, Set<string>> = {};
-        
-        filamentsList.forEach(f => {
-          if (f.type && f.brand) {
-            // Tip bazında markaları belirle
-            if (!typeToMarcaMap[f.type]) {
-              typeToMarcaMap[f.type] = new Set();
-            }
-            typeToMarcaMap[f.type].add(f.brand);
-            
-            // Marka bazında renkleri belirle
-            const marcaKey = `${f.type}-${f.brand}`;
-            if (!marcaToColorMap[marcaKey]) {
-              marcaToColorMap[marcaKey] = new Set();
-            }
-            if (f.color) {
-              marcaToColorMap[marcaKey].add(f.color);
-            }
-          }
-        });
-        
-        // Gerekirse bu verileri state'te saklayabilirsiniz
-        // localStorage yerine bu verileri state'te saklayın
-        
-        console.log('Filament tipleri güncellendi:', {
-          types: uniqueTypes
-        });
-      } catch (error) {
-        console.error('Filament verilerini işlerken hata:', error);
-      }
-    }
-  }, [filamentsList]);
-
-  // Fiyat aralığı form fonksiyonları
-  const handlePriceRangeFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setPriceRangeForm(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handlePriceRangeSave = async () => {
-    const { minGram, maxGram, price } = priceRangeForm;
-    
-    if (!minGram || !maxGram || !price) {
-      toast.warning('Tüm alanları doldurun');
-      return;
-    }
-
-    const minGramNum = parseFloat(minGram);
-    const maxGramNum = parseFloat(maxGram);
-    const priceNum = parseFloat(price);
-
-    if (minGramNum >= maxGramNum) {
-      toast.warning('Min gram, max gramdan küçük olmalı');
-      return;
-    }
-
-    try {
-      const method = editingPriceRange ? 'PUT' : 'POST';
-      const body = editingPriceRange 
-        ? { id: editingPriceRange.id, minGram: minGramNum, maxGram: maxGramNum, price: priceNum }
-        : { minGram: minGramNum, maxGram: maxGramNum, price: priceNum };
-
-      const response = await fetch('/api/wholesale-price-ranges', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      if (response.ok) {
-        await fetchPriceRanges();
-        setPriceRangeForm({ minGram: '', maxGram: '', price: '' });
-        setEditingPriceRange(null);
-        toast.success(editingPriceRange ? 'Fiyat aralığı güncellendi!' : 'Fiyat aralığı eklendi!');
-      } else {
-        const error = await response.json();
-        toast.error(error.error || 'Bir hata oluştu');
-      }
-    } catch (error) {
-      console.error('Fiyat aralığı kaydetme hatası:', error);
-      toast.error('Bir hata oluştu');
-    }
-  };
-
-  const handlePriceRangeEdit = (priceRange: PriceRange) => {
-    setEditingPriceRange(priceRange);
-    setPriceRangeForm({
-      minGram: priceRange.minGram.toString(),
-      maxGram: priceRange.maxGram.toString(),
-      price: priceRange.price.toString()
-    });
-  };
-
-  const handlePriceRangeDelete = async (id: number) => {
-    if (!confirm('Bu fiyat aralığını silmek istediğinizden emin misiniz?')) return;
-
-    try {
-      const response = await fetch(`/api/wholesale-price-ranges?id=${id}`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        await fetchPriceRanges();
-        toast.success('Fiyat aralığı silindi!');
-      } else {
-        const error = await response.json();
-        toast.error(error.error || 'Bir hata oluştu');
-      }
-    } catch (error) {
-      console.error('Fiyat aralığı silme hatası:', error);
-      toast.error('Bir hata oluştu');
-    }
-  };
-
-  const resetPriceRangeForm = () => {
-    setPriceRangeForm({ minGram: '', maxGram: '', price: '' });
-    setEditingPriceRange(null);
-  };
-
-  // Arama fonksiyonu
-  const filteredFilaments = filamentsList.filter((filament) => {
-    try {
-      const searchLower = searchTerm.toLowerCase();
-      const typeMatch = typeFilter === '' || filament.type === typeFilter;
-      
-      return (
-        ((filament.code && filament.code.toLowerCase().includes(searchLower)) ||
-        (filament.name && filament.name.toLowerCase().includes(searchLower)) ||
-        (filament.brand && filament.brand.toLowerCase().includes(searchLower)) ||
-        (filament.color && filament.color.toLowerCase().includes(searchLower))) &&
-        typeMatch
-      );
-    } catch (error) {
-      console.error('Filament filtreleme hatası:', error, filament);
-      return false;
-    }
-  });
-
-  // Tüm filament tiplerini oluştur
-  const types = Array.from(new Set(filamentsList.map(filament => filament.type)));
-  
-  // Yeni filament eklemek için modalı aç
-  const handleAddFilament = () => {
-    setSelectedFilament(null);
-    setIsModalOpen(true);
-  };
-
-  // Filament düzenlemek için modalı aç
-  const handleEditFilament = (filament: FilamentData) => {
-    setSelectedFilament(filament);
-    setIsModalOpen(true);
-  };
-
-  // Modal kaydetme işlemi
-  const handleSaveFilament = async (filamentData: FilamentData) => {
-    try {
-      if (selectedFilament) {
-        // Güncelleme
-        const response = await fetch('/api/filaments', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: selectedFilament.id,
-            ...filamentData
-          }),
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API hatası: ${response.status} ${response.statusText}`);
-        }
-        
-        const updatedFilament = await response.json();
-        
-        // State'i güncelle
-        setFilamentsList(prevList => 
-          prevList.map(item => 
-            item.id === selectedFilament.id ? updatedFilament : item
-          )
-        );
-        toast.success('Filament başarıyla güncellendi!');
-      } else {
-        // Yeni ekleme
-        const response = await fetch('/api/filaments', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(filamentData),
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API hatası: ${response.status} ${response.statusText}`);
-        }
-        
-        const newFilament = await response.json();
-        
-        // State'i güncelle
-        setFilamentsList(prevList => [...prevList, newFilament]);
-        toast.success('Filament başarıyla eklendi!');
-      }
-    } catch (error) {
-      console.error('Filament kaydedilirken hata:', error);
-      toast.error('Filament kaydedilirken bir hata oluştu!');
-      return;
-    }
-    
-    setIsModalOpen(false);
-  };
-
-  // Filament silme işlemi
-  const handleDeleteFilament = async (filamentId: string) => {
-    const confirmDelete = window.confirm('Bu filamenti silmek istediğinize emin misiniz?');
-    if (confirmDelete) {
-      try {
-        // API'den sil
-        const response = await fetch(`/api/filaments?id=${filamentId}`, {
-          method: 'DELETE',
-        });
-        
-        const data = await response.json().catch(() => null);
-        if (!response.ok) {
-          // Yalnızca kullanım geçmişi nedeniyle engellendiyse force silme teklifi yap
-          if (data?.resolvable && data?.productLinks === 0 && (data?.usageLogs || 0) > 0) {
-            const confirmForce = window.confirm(`Bu filamentin kullanım geçmişi var (${data.usageLogs} kayıt). Geçmişi de silerek filamentin tamamını kaldırmak ister misiniz? Bu işlem geri alınamaz.`);
-            if (confirmForce) {
-              const forceRes = await fetch(`/api/filaments?id=${filamentId}&force=true`, { method: 'DELETE' });
-              const forceData = await forceRes.json().catch(() => null);
-              if (!forceRes.ok) {
-                throw new Error(forceData?.error || `API hatası: ${forceRes.status} ${forceRes.statusText}`);
-              }
-              setFilamentsList(prevList => prevList.filter(item => String(item.id) !== String(filamentId)));
-              toast.success('Filament ve kullanım geçmişi silindi');
-              return;
-            }
-          }
-          throw new Error(data?.error || `API hatası: ${response.status} ${response.statusText}`);
-        }
-        
-        // State'i güncelle
-        setFilamentsList(prevList => prevList.filter(item => String(item.id) !== String(filamentId)));
-        
-        console.log('Filament silindi', data);
-        toast.success('Filament başarıyla silindi');
-      } catch (error) {
-        console.error('Filament silinirken hata:', error);
-        toast.error(`Filament silinirken bir hata oluştu: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-  };
-
-  // Stok ekleme modalını aç
-  const handleAddStock = (filament: FilamentData) => {
-    setSelectedFilamentForStock(filament);
-    setIsStockModalOpen(true);
-  };
-
-  // Geçmişi yükle ve modalı aç
-  const handleShowHistory = async (filament: FilamentData) => {
-    try {
-      setHistoryFor({ id: String(filament.id), code: filament.code });
-      setIsHistoryOpen(true);
-      setHistoryLoading(true);
-      const res = await fetch(`/api/filament-usage?filamentId=${filament.id}&limit=100`);
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e?.error || `API hatası: ${res.status}`);
-      }
-      const rows = await res.json();
-      setHistoryItems(Array.isArray(rows) ? rows : []);
-    } catch (err) {
-      console.error('Geçmiş yüklenirken hata:', err);
-      toast.error('Geçmiş yüklenirken bir hata oluştu');
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
-
-  // Stok ekleme işlemi
-  const handleSaveStock = async (stockData: StockAddData) => {
-    try {
-      const response = await fetch('/api/filaments/add-stock', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(stockData),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API hatası: ${response.status} ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      
-      // State'i güncelle
-      setFilamentsList(prevList => 
-        prevList.map(item => 
-          item.id === stockData.filamentId ? result.filament : item
-        )
-      );
-      
-      // Modal'ı kapat
-      setIsStockModalOpen(false);
-      setSelectedFilamentForStock(null);
-      
-      toast.success(result.message || 'Stok başarıyla eklendi!');
-    } catch (error) {
-      console.error('Stok eklenirken hata:', error);
-      toast.error('Stok eklenirken bir hata oluştu!');
-    }
-  };
-
-  // Kalan ağırlık yüzdesini hesapla
-  const calculateRemainingPercentage = (filament: FilamentData) => {
-    return (filament.remainingWeight / filament.totalWeight) * 100;
-  };
-  
-  // Kritik stok durumunu kontrol et
-  const isStockCritical = (filament: FilamentData) => {
-    return filament.remainingWeight <= filament.criticalStock;
-  };
-  
-  // Ağırlık formatı (>= 1000g için hem g hem kg göster)
-  const formatWeight = (grams: number) => {
-    const roundedG = Math.round(grams || 0);
-    if (roundedG >= 1000) {
-      const kg = roundedG / 1000;
-      const kgStr = (Math.trunc(kg * 1000) / 1000).toFixed(3).replace(/\.0+$/, '').replace(/\.$/, '');
-      return `${roundedG}g (${kgStr}kg)`;
-    }
-    return `${roundedG}g`;
-  };
-  
   return (
     <Layout>
       <div className="space-y-5">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold">Filament Yönetimi</h1>
-          <button 
-            onClick={handleAddFilament}
-            className="btn-primary flex items-center gap-2"
-          >
+          <button onClick={handleAddFilament} className="btn-primary flex items-center gap-2">
             <Icons.PlusIcon /> Yeni Filament
           </button>
         </div>
 
-        {/* Toptancı Fiyat Aralıkları Bölümü */}
-        <div className="border-b pb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Toptancı Fiyat Aralıkları</h2>
-            <button
-              onClick={() => setShowPriceRanges(!showPriceRanges)}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-            >
-              {showPriceRanges ? 'Gizle' : 'Göster'}
-            </button>
-          </div>
+        <PriceRangesPanel
+          priceRanges={priceRanges}
+          showPriceRanges={showPriceRanges}
+          setShowPriceRanges={setShowPriceRanges}
+          priceRangeForm={priceRangeForm}
+          editingPriceRange={editingPriceRange}
+          handlePriceRangeFormChange={handlePriceRangeFormChange}
+          handlePriceRangeSave={handlePriceRangeSave}
+          handlePriceRangeEdit={handlePriceRangeEdit}
+          handlePriceRangeDelete={handlePriceRangeDelete}
+          resetPriceRangeForm={resetPriceRangeForm}
+        />
 
-          {showPriceRanges && (
-            <div className="space-y-6">
-              {/* Fiyat Aralığı Ekleme Formu */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-medium mb-3">
-                  {editingPriceRange ? 'Fiyat Aralığını Düzenle' : 'Yeni Fiyat Aralığı Ekle'}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Min Gram</label>
-                    <input
-                      type="number"
-                      name="minGram"
-                      value={priceRangeForm.minGram}
-                      onChange={handlePriceRangeFormChange}
-                      placeholder="0"
-                      className="w-full border border-border rounded-md py-2 px-3"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Max Gram</label>
-                    <input
-                      type="number"
-                      name="maxGram"
-                      value={priceRangeForm.maxGram}
-                      onChange={handlePriceRangeFormChange}
-                      placeholder="15"
-                      className="w-full border border-border rounded-md py-2 px-3"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Fiyat (₺)</label>
-                    <input
-                      type="number"
-                      name="price"
-                      value={priceRangeForm.price}
-                      onChange={handlePriceRangeFormChange}
-                      placeholder="25"
-                      step="0.01"
-                      className="w-full border border-border rounded-md py-2 px-3"
-                    />
-                  </div>
-                  <div className="flex items-end gap-2">
-                    <button
-                      onClick={handlePriceRangeSave}
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                    >
-                      {editingPriceRange ? 'Güncelle' : 'Ekle'}
-                    </button>
-                    {editingPriceRange && (
-                      <button
-                        onClick={resetPriceRangeForm}
-                        className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
-                      >
-                        İptal
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Fiyat Aralıkları Tablosu */}
-              <div className="bg-white border rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Gram Aralığı</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Fiyat</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Durum</th>
-                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">İşlemler</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {priceRanges.length > 0 ? (
-                        priceRanges.map((range) => (
-                          <tr key={range.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm">
-                              {range.minGram}gr - {range.maxGram}gr
-                            </td>
-                            <td className="px-4 py-3 text-sm font-medium">
-                              {range.price}₺
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                range.isActive 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-red-100 text-red-800'
-                              }`}>
-                                {range.isActive ? 'Aktif' : 'Pasif'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex gap-2 justify-end">
-                                <button
-                                  onClick={() => handlePriceRangeEdit(range)}
-                                  className="text-blue-600 hover:text-blue-800 text-sm"
-                                  title="Düzenle"
-                                >
-                                  <Icons.EditIcon className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handlePriceRangeDelete(range.id)}
-                                  className="text-red-600 hover:text-red-800 text-sm"
-                                  title="Sil"
-                                >
-                                  <Icons.TrashIcon className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                            Henüz fiyat aralığı tanımlanmamış
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex flex-col sm:flex-row gap-4 items-center mb-6">
-          <div className="search-container flex-grow">
-            <Icons.SearchIcon className="search-icon" />
-            <input
-              type="text"
-              placeholder="Filament ara..."
-              className="w-full"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <select 
-            className="sm:w-auto"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-          >
-            <option value="">Tüm Türler</option>
-            {types.map((type, index) => (
-              <option key={index} value={type}>{type}</option>
-            ))}
-          </select>
-        </div>
-        
-        {isLoading ? (
-          <div className="py-10 text-center">
-            <div className="spinner mb-4"></div>
-            <p>Filament verileri yükleniyor...</p>
-          </div>
-        ) : error ? (
-          <div className="py-10 text-center text-danger">
-            <p>{error}</p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="btn-primary mt-4"
-            >
-              Yeniden Dene
-            </button>
-          </div>
-        ) : (
-          <div className="w-full overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Filament</th>
-                  <th>Marka</th>
-                  <th>Tür / Renk</th>
-                  <th>Konum</th>
-                  <th>Kalan Miktar</th>
-                  <th>Adet</th>
-                  <th>Son Kullanım</th>
-                  <th>Satın Alım Fiyatı</th>
-                  <th>İşlemler</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredFilaments.length > 0 ? (
-                  filteredFilaments.map((filament) => (
-                    <tr key={filament.id}>
-                      <td>
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full" style={{ backgroundColor: filament.color.toLowerCase() }}>
-                          </div>
-                          <div>
-                            <div className="font-medium">{filament.code}</div>
-                            <div className="text-sm text-muted-foreground">{filament.name}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{filament.brand}</td>
-                      <td>
-                        <div>{filament.type}</div>
-                        <div className="text-sm text-muted-foreground">{filament.color}</div>
-                      </td>
-                      <td>{filament.location}</td>
-                      <td>
-                        <div className="w-full">
-                          <div className="flex justify-between mb-1">
-                            <span className="text-sm">
-                              {formatWeight(filament.remainingWeight)} / {formatWeight(filament.totalWeight)}
-                            </span>
-                            <span className="text-sm">
-                              {Math.round(calculateRemainingPercentage(filament))}%
-                            </span>
-                          </div>
-                          <div className="progress-bar">
-                            <div 
-                              className="progress-bar-value" 
-                              style={{ 
-                                width: `${calculateRemainingPercentage(filament)}%`,
-                                backgroundColor: isStockCritical(filament) ? 'var(--danger)' : 'var(--success)'
-                              }}
-                            ></div>
-                          </div>
-                          {isStockCritical(filament) && (
-                            <div className="text-xs text-danger mt-1">Kritik seviye!</div>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        {filament.quantity} adet
-                      </td>
-                      <td>
-                        {new Date().toLocaleDateString('tr-TR')}
-                      </td>
-                      <td>
-                        {filament.pricePerGram}₺
-                      </td>
-                      <td>
-                        <div className="flex gap-2 justify-end">
-                          <button 
-                            onClick={() => handleAddStock(filament)}
-                            className="action-btn action-btn-success"
-                            title="Stok Ekle"
-                          >
-                            ➕
-                          </button>
-                          <button 
-                            onClick={() => handleShowHistory(filament)}
-                            className="action-btn"
-                            title="Geçmiş"
-                          >
-                            🕘
-                          </button>
-                          <button 
-                            onClick={() => handleEditFilament(filament)}
-                            className="action-btn action-btn-edit"
-                            title="Düzenle"
-                          >
-                            <Icons.EditIcon />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteFilament(filament.id || '')}
-                            className="action-btn action-btn-delete"
-                            title="Sil"
-                          >
-                            <Icons.TrashIcon />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={9} className="py-8 text-center text-muted-foreground">
-                      Filament bulunamadı.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-
+        <FilamentsTable
+          filaments={filteredFilaments}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          typeFilter={typeFilter}
+          setTypeFilter={setTypeFilter}
+          types={types}
+          isLoading={isLoading}
+          error={error}
+          onAddStock={handleAddStock}
+          onShowHistory={handleShowHistory}
+          onEdit={handleEditFilament}
+          onDelete={handleDeleteFilament}
+          calculateRemainingPercentage={calculateRemainingPercentage}
+          isStockCritical={isStockCritical}
+          formatWeight={formatWeight}
+        />
       </div>
 
-      {/* Filament Ekle/Düzenle Modalı */}
-      <FilamentModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)}
+      <FilamentModal
+        isOpen={isModalOpen}
+        onClose={closeFilamentModal}
         onSave={handleSaveFilament}
         filament={selectedFilament}
       />
 
-      {/* Stok Ekleme Modalı */}
-      <StockAddModal 
+      <StockAddModal
         isOpen={isStockModalOpen}
-        onClose={() => setIsStockModalOpen(false)}
+        onClose={closeStockModal}
         onSave={handleSaveStock}
         filament={selectedFilamentForStock}
       />
 
-      {/* Geçmiş Modalı */}
-      {isHistoryOpen && (
-        <div className="modal">
-          <div className="modal-content max-w-3xl">
-            <div className="modal-header">
-              <h2 className="text-lg font-semibold">Kullanım Geçmişi {historyFor ? `- ${historyFor.code}` : ''}</h2>
-              <button onClick={() => setIsHistoryOpen(false)} className="text-muted-foreground hover:text-foreground">&times;</button>
-            </div>
-            <div className="modal-body">
-              {historyLoading ? (
-                <div className="py-8 text-center">Yükleniyor...</div>
-              ) : (
-                <div className="overflow-x-auto border rounded-md">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-3 py-2 text-left text-sm">Tarih</th>
-                        <th className="px-3 py-2 text-left text-sm">Kullanılan (g)</th>
-                        <th className="px-3 py-2 text-left text-sm">Önce/ Sonra (g)</th>
-                        <th className="px-3 py-2 text-left text-sm">Ürün</th>
-                        <th className="px-3 py-2 text-left text-sm">Sipariş</th>
-                        <th className="px-3 py-2 text-left text-sm">Açıklama</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {historyItems.length === 0 ? (
-                        <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Kayıt yok</td></tr>
-                      ) : (
-                        historyItems.map((it, idx) => (
-                          <tr key={idx} className="border-t">
-                            <td className="px-3 py-2 text-sm">{new Date(it.usage_date || it.created_at).toLocaleString('tr-TR')}</td>
-                            <td className="px-3 py-2 text-sm">{it.amount}</td>
-                            <td className="px-3 py-2 text-sm">{it.before_weight ?? '-'} / {it.after_weight ?? '-'}</td>
-                            <td className="px-3 py-2 text-sm">{it.product_code || '-'}</td>
-                            <td className="px-3 py-2 text-sm">{it.order_code || '-'}</td>
-                            <td className="px-3 py-2 text-sm">{it.description || '-'}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            <div className="modal-footer mt-4">
-              <button onClick={() => setIsHistoryOpen(false)} className="btn-primary">Kapat</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <FilamentHistoryModal
+        isOpen={isHistoryOpen}
+        historyFor={historyFor}
+        historyLoading={historyLoading}
+        historyItems={historyItems}
+        onClose={closeHistory}
+      />
     </Layout>
   );
-} 
+}

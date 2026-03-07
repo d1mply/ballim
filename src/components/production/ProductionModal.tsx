@@ -25,7 +25,7 @@ export const ProductionModal: React.FC<ProductionModalProps> = ({
     productionType: 'tabla',
     tableCount: 1,
     skipProduction: false,
-    selectedFilamentBobins: []
+    selectedFilamentBobins: {}
   });
   
   const [filamentBobins, setFilamentBobins] = useState<FilamentBobbin[]>([]);
@@ -40,7 +40,7 @@ export const ProductionModal: React.FC<ProductionModalProps> = ({
         productionType: 'tabla',
         tableCount: 1,
         skipProduction: false,
-        selectedFilamentBobins: []
+        selectedFilamentBobins: {}
       });
       setShowFilamentSelection(false);
     }
@@ -79,38 +79,29 @@ export const ProductionModal: React.FC<ProductionModalProps> = ({
     }
   }, [formData.productionType, formData.tableCount, selectedProduct]);
 
-  // Filament bobin seçimi
-  const handleBobinSelect = (filamentKey: string, bobinId: number) => {
-    setFormData(prev => {
-      const existing = prev.selectedFilamentBobins.find(item => item[filamentKey]);
-      if (existing) {
-        // Aynı filament tipi için bobin değiştir
-        return {
-          ...prev,
-          selectedFilamentBobins: prev.selectedFilamentBobins.map(item => 
-            item[filamentKey] ? { ...item, [filamentKey]: bobinId } : item
-          )
-        };
-      } else {
-        // Yeni filament tipi ekle
-        return {
-          ...prev,
-          selectedFilamentBobins: [...prev.selectedFilamentBobins, { [filamentKey]: bobinId }]
-        };
-      }
-    });
+  // Filament bobin seçimi (slot index -> bobin id; aynı tip, renk serbest)
+  const handleBobinSelect = (slotIndex: string, bobinId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedFilamentBobins: { ...prev.selectedFilamentBobins, [slotIndex]: bobinId }
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Eğer üretim yapılacaksa ve filament seçimi yapılmamışsa
-    if (!formData.skipProduction && formData.selectedFilamentBobins.length === 0) {
+
+    const filaments = selectedProduct?.filaments ?? [];
+    const requiredSlots = filaments.length;
+    const hasAllSelections = requiredSlots === 0 || filaments.every((_, i) =>
+      formData.selectedFilamentBobins[String(i)] != null
+    );
+
+    if (!formData.skipProduction && requiredSlots > 0 && !hasAllSelections) {
       setShowFilamentSelection(true);
       loadFilamentBobins();
       return;
     }
-    
+
     onConfirm(formData);
   };
 
@@ -327,42 +318,47 @@ export const ProductionModal: React.FC<ProductionModalProps> = ({
               ) : (
                 <div className="space-y-4">
                   {selectedProduct.filaments?.map((filament, index) => {
-                    const filamentKey = `${filament.type}-${filament.color}`;
-                    const availableBobins = filamentBobins.filter(
-                      bobin => bobin.type === filament.type && bobin.color === filament.color
-                    );
-                    
+                    const slotKey = String(index);
+                    const sameTypeBobins = filamentBobins.filter(b => b.type === filament.type);
+                    const availableBobins = [...sameTypeBobins].sort((a, b) => {
+                      const aOrig = a.color === filament.color ? 1 : 0;
+                      const bOrig = b.color === filament.color ? 1 : 0;
+                      if (bOrig !== aOrig) return bOrig - aOrig;
+                      return safeParseFloat(b.remainingWeight) - safeParseFloat(a.remainingWeight);
+                    });
+                    const weightG = typeof filament.weight === 'number' ? filament.weight : 0;
+
                     return (
                       <div key={index} className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
                         <h4 className="font-bold text-lg text-gray-900 mb-4 flex items-center">
                           <span className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: filament.color === 'Sarı' ? '#fbbf24' : filament.color === 'Açık Kırmızı' ? '#f87171' : '#6b7280' }}></span>
-                          {filament.type} - {filament.color}
+                          {filament.type} – {weightG}g (üründe: {filament.color})
                         </h4>
-                        
+
                         {availableBobins.length === 0 ? (
                           <div className="text-center py-6 bg-red-50 rounded-lg border border-red-200">
-                            <p className="text-red-600 font-medium">❌ Bu filament tipi için bobin bulunamadı!</p>
+                            <p className="text-red-600 font-medium">Bu filament tipi için bobin bulunamadı!</p>
                           </div>
                         ) : (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {availableBobins.map((bobin) => {
-                              const isSelected = formData.selectedFilamentBobins.some(item => item[filamentKey] === bobin.id);
+                              const isSelected = formData.selectedFilamentBobins[slotKey] === bobin.id;
                               const remainingWeight = safeParseFloat(bobin.remainingWeight);
                               const totalWeight = safeParseFloat(bobin.totalWeight);
                               const usagePercent = totalWeight > 0 ? ((totalWeight - remainingWeight) / totalWeight) * 100 : 0;
                               const isFullyUsed = remainingWeight <= 0;
-                              
+
                               return (
                                 <div
                                   key={bobin.id}
                                   className={`border-2 rounded-xl p-4 cursor-pointer transition-all transform hover:scale-105 ${
                                     isFullyUsed
                                       ? 'border-red-500 bg-red-50 opacity-60 cursor-not-allowed'
-                                      : isSelected 
-                                        ? 'border-blue-500 bg-blue-50 shadow-md' 
+                                      : isSelected
+                                        ? 'border-blue-500 bg-blue-50 shadow-md'
                                         : 'border-gray-200 hover:border-blue-300 hover:shadow-sm'
                                   }`}
-                                  onClick={() => !isFullyUsed && handleBobinSelect(filamentKey, bobin.id)}
+                                  onClick={() => !isFullyUsed && handleBobinSelect(slotKey, bobin.id)}
                                 >
                                   <div className="flex items-center justify-between mb-3">
                                     <div>

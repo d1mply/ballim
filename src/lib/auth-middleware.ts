@@ -6,9 +6,6 @@ import { checkRateLimit, logSecurityEvent, getClientIP, validateCSRFToken } from
 const PUBLIC_ENDPOINTS = [
   '/api/auth',
   '/api/csrf-token',
-  '/api/db-setup',
-  '/api/db-diagnostics',
-  '/api/debug',
 ];
 
 // Endpoints that require admin role
@@ -16,6 +13,7 @@ const ADMIN_ONLY_ENDPOINTS = [
   '/api/audit-logs',
   '/api/customers/system',
   '/api/fix-tables',
+  '/api/users',
   '/api/fix-order-items-status',
   '/api/reset-filament',
   '/api/setup-tables',
@@ -173,9 +171,10 @@ export function apiAuthMiddleware(request: NextRequest): NextResponse | null {
         method: request.method,
       }, 'HIGH');
 
-      // For now, log but don't block (gradual rollout)
-      // TODO: Enable blocking after frontend CSRF implementation
-      console.warn(`[CSRF WARNING] ${pathname} - Token validation failed`);
+      return NextResponse.json(
+        { error: 'CSRF token validation failed' },
+        { status: 403 }
+      );
     }
   }
 

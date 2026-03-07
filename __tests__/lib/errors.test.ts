@@ -301,7 +301,7 @@ describe('errors.ts', () => {
 
     it('kod olmayan hata için bağlantı hatası mesajı döndürmeli', () => {
       const error = handleDatabaseError({ message: 'Connection refused' });
-      expect(error.message).toContain('Connection refused');
+      expect(error.message).toContain('Veritabanı bağlantı hatası');
     });
 
     it('boş hata için varsayılan mesaj döndürmeli', () => {

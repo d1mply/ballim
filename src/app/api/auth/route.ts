@@ -140,35 +140,51 @@ export async function POST(request: NextRequest) {
     let userData = null;
     
     if (cleanType === 'admin') {
-      // Admin giriş kontrolü
-      isValid = cleanUsername === SECURITY_CONFIG.ADMIN_USERNAME && 
-                cleanPassword === SECURITY_CONFIG.ADMIN_PASSWORD;
-      
-      if (isValid) {
-        userData = {
-          id: 'admin',
-          username: SECURITY_CONFIG.ADMIN_USERNAME,
-          type: 'admin'
-        };
-        
-        // Başarılı admin girişi
-        resetFailedAttempts(clientIP);
-        logSecurityEvent('ADMIN_LOGIN_SUCCESS', { 
-          ip: clientIP,
-          userAgent,
-          username: cleanUsername,
-          timestamp: new Date().toISOString(),
-          responseTime: Date.now() - startTime
-        }, 'MEDIUM');
-      } else {
-        // Başarısız admin girişi - KRİTİK!
-        recordFailedAttempt(clientIP);
-        logSecurityEvent('ADMIN_LOGIN_FAILED', { 
-          ip: clientIP,
-          userAgent,
-          attemptedUsername: cleanUsername,
-          timestamp: new Date().toISOString()
-        }, 'CRITICAL');
+      // 1) Try users table (RBAC)
+      try {
+        const userResult = await query(
+          `SELECT u.*, r.name as role_name, r.permissions
+           FROM users u LEFT JOIN roles r ON u.role_id = r.id
+           WHERE u.username = $1 AND u.is_active = true`,
+          [cleanUsername]
+        );
+
+        if (userResult.rows.length > 0) {
+          const dbUser = userResult.rows[0];
+          let passwordValid = false;
+          if (dbUser.password_hash.startsWith('$2')) {
+            passwordValid = await bcrypt.compare(cleanPassword, dbUser.password_hash);
+          }
+          if (passwordValid) {
+            isValid = true;
+            const perms = dbUser.permissions || [];
+            userData = {
+              id: dbUser.id,
+              username: dbUser.username,
+              name: dbUser.name,
+              type: 'admin',
+              role: dbUser.role_name || 'admin',
+              permissions: typeof perms === 'string' ? JSON.parse(perms) : perms,
+            };
+            resetFailedAttempts(clientIP);
+            logSecurityEvent('USER_LOGIN_SUCCESS', { ip: clientIP, userAgent, username: cleanUsername, role: dbUser.role_name || 'admin', timestamp: new Date().toISOString(), responseTime: Date.now() - startTime }, 'MEDIUM');
+          }
+        }
+      } catch (dbErr) {
+        console.warn('Users table lookup failed (falling back to env admin):', dbErr instanceof Error ? dbErr.message : dbErr);
+      }
+
+      // 2) Fallback: env-based admin
+      if (!isValid) {
+        isValid = cleanUsername === SECURITY_CONFIG.ADMIN_USERNAME && cleanPassword === SECURITY_CONFIG.ADMIN_PASSWORD;
+        if (isValid) {
+          userData = { id: 'admin', username: SECURITY_CONFIG.ADMIN_USERNAME, type: 'admin', role: 'super_admin', permissions: ['*'] };
+          resetFailedAttempts(clientIP);
+          logSecurityEvent('ADMIN_LOGIN_SUCCESS', { ip: clientIP, userAgent, username: cleanUsername, timestamp: new Date().toISOString(), responseTime: Date.now() - startTime }, 'MEDIUM');
+        } else {
+          recordFailedAttempt(clientIP);
+          logSecurityEvent('ADMIN_LOGIN_FAILED', { ip: clientIP, userAgent, attemptedUsername: cleanUsername, timestamp: new Date().toISOString() }, 'CRITICAL');
+        }
       }
     } else {
       // Customer giriş kontrolü (veritabanından)
@@ -326,11 +342,13 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      // Başarılı giriş → JWT üret ve HttpOnly cookie olarak ayarla
       const token = signJWT({
         sub: String(userData.id),
         username: userData.username,
         role: userData.type,
+        ...(userData.type === 'customer' ? { customerId: userData.id } : {}),
+        ...(userData.role ? { rbacRole: userData.role } : {}),
+        ...(userData.permissions ? { permissions: userData.permissions } : {}),
       }, Math.floor(SECURITY_CONFIG.SESSION_MAX_AGE / 1000));
 
       const response = NextResponse.json({ 

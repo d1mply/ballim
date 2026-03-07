@@ -53,6 +53,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@test-mocks': path.resolve(__dirname, './__tests__/mocks'),
     },
   },
 });

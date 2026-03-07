@@ -384,12 +384,12 @@ export default function SiparisTakipPage() {
                           {order.status}
                         </span>
                         {user?.type === 'admin' && (
-                          updatingOrderId === order.id ? (
+                          updatingOrderId === order.orderCode ? (
                             <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin ml-2"></div>
                           ) : (
                             <select
                               value={order.status}
-                              onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                              onChange={(e) => handleStatusChange(order.orderCode, e.target.value)}
                               className="text-xs px-2 py-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
                               disabled={updatingOrderId !== null}
                             >
@@ -415,7 +415,7 @@ export default function SiparisTakipPage() {
                         {/* Yazdır butonu sadece admin için */}
                         {user?.type === 'admin' && (
                           <button 
-                            onClick={() => handlePrintShippingLabel(order.id)}
+                            onClick={() => handlePrintShippingLabel(order.orderCode)}
                             className="action-btn action-btn-primary"
                             title="Sevkiyat Belgesi Yazdır"
                           >
