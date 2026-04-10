@@ -114,7 +114,7 @@ export default function ProductListSection({
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         {item.image ? (
-                          <img src={item.image} alt={item.productType} className="w-12 h-12 rounded-md object-cover bg-muted" />
+                          <img src={item.image} alt={item.productType} className="w-12 h-12 rounded-md object-cover bg-muted" loading="lazy" />
                         ) : (
                           <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center">
                             <Icons.PackageIcon className="w-6 h-6 text-muted-foreground" />
@@ -171,7 +171,7 @@ export default function ProductListSection({
               <div key={item.id} className="bg-card rounded-lg border border-border p-4">
                 <div className="flex items-start gap-3 mb-3">
                   {item.image ? (
-                    <img src={item.image} alt={item.productType} className="w-16 h-16 rounded-md object-cover bg-muted flex-shrink-0" />
+                    <img src={item.image} alt={item.productType} className="w-16 h-16 rounded-md object-cover bg-muted flex-shrink-0" loading="lazy" />
                   ) : (
                     <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
                       <Icons.PackageIcon className="w-8 h-8 text-muted-foreground" />

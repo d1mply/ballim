@@ -226,17 +226,32 @@ export default function ProductModal({
     }));
   };
 
+  const compressImage = (dataUrl: string, maxPx = 800, quality = 0.75): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(dataUrl); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/webp', quality));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setImagePreview(result);
-        setFormData(prev => ({
-          ...prev,
-          image: result
-        }));
+      reader.onloadend = async () => {
+        const raw = reader.result as string;
+        const compressed = await compressImage(raw);
+        setImagePreview(compressed);
+        setFormData(prev => ({ ...prev, image: compressed }));
       };
       reader.readAsDataURL(file);
     }

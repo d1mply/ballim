@@ -41,6 +41,19 @@ const GRID_PAGE_SIZE = 24;
 const TABLE_PAGE_SIZE = 50;
 const BLUR_DATA_URL = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q==";
 
+function buildProductsUrl(category: string) {
+  return category
+    ? `/api/products?category=${encodeURIComponent(category)}&all=true`
+    : '/api/products?all=true';
+}
+
+async function fetchProducts(url: string): Promise<ProductData[]> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Ürünler yüklenemedi: ${res.statusText}`);
+  const d = await res.json();
+  return Array.isArray(d) ? d : [];
+}
+
 const defaultFilters: Filters = {
   searchTerm: '', category: '', printTimeMin: '', printTimeMax: '',
   filamentType: '', filamentColor: '', stockStatus: '',
@@ -64,10 +77,18 @@ export default function ProductsPage() {
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [sortBy, setSortBy] = useState<'alphabetical-asc' | 'alphabetical-desc' | 'newest' | 'oldest' | 'stock-high' | 'stock-low'>('alphabetical-asc');
 
+  const productsUrl = buildProductsUrl(filters.category);
   const { data: productsData, error: productsError, isLoading: productsLoading, mutate: mutateProducts } = useSWR<ProductData[]>(
-    '/api/products',
-    async (url: string) => { const res = await fetch(url); if (!res.ok) throw new Error(`Ürünler yüklenemedi: ${res.statusText}`); const d = await res.json(); return Array.isArray(d) ? d : []; },
+    productsUrl,
+    fetchProducts,
     { revalidateOnFocus: false, dedupingInterval: 2000, refreshInterval: 0 }
+  );
+
+  // Tüm kategorileri ayrıca tutuyoruz - kategori dropdown'u için boşaltılmaz
+  const { data: allProductsForCategories } = useSWR<ProductData[]>(
+    '/api/products?all=true',
+    fetchProducts,
+    { revalidateOnFocus: false, dedupingInterval: 30000, refreshInterval: 0 }
   );
 
   const { data: packagesData, error: packagesError, isLoading: packagesLoading, mutate: mutatePackages } = useSWR<PackageData[]>(
@@ -88,6 +109,10 @@ export default function ProductsPage() {
   const isLoading = productsLoading || packagesLoading;
   const error = productsError || packagesError ? (productsError?.message || packagesError?.message || 'Veri yükleme hatası') : null;
 
+  const mutateAllProducts = () => {
+    mutateProducts();
+  };
+
   const pkgCreation = usePackageCreation(productsList, mutatePackages);
 
   useEffect(() => {
@@ -97,8 +122,8 @@ export default function ProductsPage() {
 
   const filteredProducts = useMemo(() => {
     const s = filters.searchTerm.trim().toLowerCase();
+    // Kategori filtresi artık sunucu tarafında uygulanıyor
     const filtered = productsList.filter((p) => {
-      if (filters.category && !p.productType?.toLowerCase().includes(filters.category.toLowerCase())) return false;
       const pt = p.printTime || 0;
       if (filters.printTimeMin !== '' && pt < filters.printTimeMin) return false;
       if (filters.printTimeMax !== '' && pt > filters.printTimeMax) return false;
@@ -140,14 +165,16 @@ export default function ProductsPage() {
   const currentPage = Math.min(page, totalPages);
   const paginatedProducts = filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+  const allProductsList = allProductsForCategories || productsList;
+
   const categories = useMemo(() => {
-    const all = Array.from(new Set(productsList.map(p => p.productType).filter(Boolean)));
+    const all = Array.from(new Set(allProductsList.map(p => p.productType).filter(Boolean)));
     return user?.type === 'admin' ? all : all.filter(c => !hiddenCategories.includes(c));
-  }, [productsList, hiddenCategories, user?.type]);
+  }, [allProductsList, hiddenCategories, user?.type]);
 
   const filamentTypes = useMemo(() => Array.from(new Set(productsList.flatMap(p => p.filaments?.map(f => f.type).filter(Boolean) || []))), [productsList]);
   const filamentColors = useMemo(() => Array.from(new Set(productsList.flatMap(p => p.filaments?.map(f => f.color).filter(Boolean) || []))), [productsList]);
-  const productTypes = useMemo(() => Array.from(new Set(productsList.map(p => p.productType).filter(Boolean))), [productsList]);
+  const productTypes = useMemo(() => Array.from(new Set(allProductsList.map(p => p.productType).filter(Boolean))), [allProductsList]);
 
   const handleEditProduct = (product: ProductData) => { setSelectedProduct({ ...product }); setIsModalOpen(true); };
   const handleShowDetails = (product: ProductData) => { setSelectedProduct(product); setIsDetailOpen(true); };

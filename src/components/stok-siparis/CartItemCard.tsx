@@ -30,7 +30,7 @@ export default function CartItemCard({
       <div className="flex items-start gap-4">
         <div className="flex-shrink-0">
           {item.image ? (
-            <img src={item.image} alt={item.productType} className="w-16 h-16 rounded-lg object-cover" />
+            <img src={item.image} alt={item.productType} className="w-16 h-16 rounded-lg object-cover" loading="lazy" />
           ) : (
             <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
               <Icons.PackageIcon className="w-8 h-8 text-gray-400" />

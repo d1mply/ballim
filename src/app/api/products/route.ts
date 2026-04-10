@@ -2,16 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
 import { createAuditLog, getUserFromRequest } from '../../../lib/audit-log';
 import { STOCK_COLORS } from '../../../lib/stock';
-import { validateAPIInput, validateProductCode } from '../../../lib/api-validation';
+import { validateAPIInput, validateProductCode, validateID } from '../../../lib/api-validation';
 import { getClientIP, logSecurityEvent } from '../../../lib/security';
 
-// Tüm ürünleri getir - CTE ile optimize edilmiş tek sorgu
-export async function GET() {
+// Ürünleri getir - sayfalama ve kategori filtresi destekli
+export async function GET(request: NextRequest) {
   try {
-    // 🚀 PERFORMANS OPTİMİZASYONU v2:
-    // - CTE (Common Table Expression) ile rezerve stok tek seferde hesaplanıyor
-    // - Correlated subquery yerine LEFT JOIN kullanılıyor
-    // - Tahmini %60-80 performans artışı
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '0', 10)));
+    const category = searchParams.get('category') || '';
+    const all = searchParams.get('all') === 'true' || limit === 0;
+
+    const categoryFilter = category ? `AND LOWER(p.product_type) LIKE LOWER($1)` : '';
+    const categoryParam = category ? [`%${category}%`] : [];
+
+    const countResult = await query(
+      `SELECT COUNT(*) FROM products p WHERE 1=1 ${categoryFilter}`,
+      categoryParam
+    );
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+
+    const effectiveLimit = all ? totalCount || 1000 : limit || 50;
+    const offset = all ? 0 : (page - 1) * effectiveLimit;
+
+    const queryParams = category
+      ? [`%${category}%`, effectiveLimit, offset]
+      : [effectiveLimit, offset];
+
+    const limitPlaceholder = category ? '$2' : '$1';
+    const offsetPlaceholder = category ? '$3' : '$2';
+
     const result = await query(`
       WITH reserved_stock AS (
         SELECT 
@@ -23,7 +44,6 @@ export async function GET() {
       )
       SELECT 
         p.*,
-        -- Filamentler: json_agg ile optimize (index'li product_id üzerinden)
         COALESCE(
           (SELECT json_agg(json_build_object(
             'id', pf.id,
@@ -36,15 +56,15 @@ export async function GET() {
           WHERE pf.product_id = p.id),
           '[]'::json
         ) as filaments,
-        -- Stok bilgileri: LEFT JOIN ile
         COALESCE(i.quantity, 0) as inventory_quantity,
-        -- Rezerve stok: CTE ile tek seferde hesaplandı
         COALESCE(rs.total_reserved, 0) as total_ordered
       FROM products p
       LEFT JOIN inventory i ON i.product_id = p.id
       LEFT JOIN reserved_stock rs ON rs.product_id = p.id
+      WHERE 1=1 ${categoryFilter}
       ORDER BY p.product_code ASC, p.product_type ASC
-    `);
+      LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}
+    `, queryParams);
     
     // Stok hesaplama mantığını uygula ve frontend ile uyumlu hale getir
     const products = result.rows.map((product) => {
@@ -136,8 +156,23 @@ export async function GET() {
       };
     });
     
-    // 🚀 PERFORMANS: Cache headers (60 saniye cache, 300 saniye stale-while-revalidate)
-    return NextResponse.json(products, {
+    const totalPages = all ? 1 : Math.ceil(totalCount / effectiveLimit);
+
+    const responseBody = all
+      ? products
+      : {
+          data: products,
+          pagination: {
+            page,
+            limit: effectiveLimit,
+            total: totalCount,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+          },
+        };
+
+    return NextResponse.json(responseBody, {
       headers: {
         'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
         'CDN-Cache-Control': 'public, s-maxage=60',
@@ -147,10 +182,9 @@ export async function GET() {
   } catch (error) {
     console.error('Ürünleri getirme hatası:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Ürünler getirilirken bir hata oluştu',
         details: error instanceof Error ? error.message : 'Bilinmeyen hata',
-        stack: error instanceof Error ? error.stack : undefined
       },
       { status: 500 }
     );

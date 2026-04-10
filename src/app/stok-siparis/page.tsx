@@ -38,13 +38,6 @@ export default function StokSiparisPage() {
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchProducts();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
     if (activeTab === 'packages') {
       fetchPackages();
     }
@@ -52,7 +45,7 @@ export default function StokSiparisPage() {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products');
+      const response = await fetch('/api/products?all=true');
       if (!response.ok) {
         throw new Error(`API hatası: ${response.status} ${response.statusText}`);
       }
@@ -140,7 +133,7 @@ export default function StokSiparisPage() {
               <button
                 onClick={() => {
                   if (activeTab === 'products') {
-                    window.location.reload();
+                    fetchProducts();
                   } else {
                     fetchPackages();
                   }
