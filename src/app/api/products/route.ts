@@ -5,33 +5,29 @@ import { STOCK_COLORS } from '../../../lib/stock';
 import { validateAPIInput, validateProductCode, validateID } from '../../../lib/api-validation';
 import { getClientIP, logSecurityEvent } from '../../../lib/security';
 
-// Ürünleri getir - sayfalama ve kategori filtresi destekli
+// Ürünleri getir - kategori filtresi ve opsiyonel sayfalama destekli
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
-    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '0', 10)));
     const category = searchParams.get('category') || '';
-    const all = searchParams.get('all') === 'true' || limit === 0;
+    const pageParam = searchParams.get('page');
+    const limitParam = searchParams.get('limit');
 
-    const categoryFilter = category ? `AND LOWER(p.product_type) LIKE LOWER($1)` : '';
-    const categoryParam = category ? [`%${category}%`] : [];
+    // Sayfalama sadece page veya limit parametresi varsa aktif
+    const usePagination = !!(pageParam || limitParam);
+    const page = Math.max(1, parseInt(pageParam || '1', 10));
+    const limit = Math.min(200, Math.max(1, parseInt(limitParam || '50', 10)));
 
-    const countResult = await query(
-      `SELECT COUNT(*) FROM products p WHERE 1=1 ${categoryFilter}`,
-      categoryParam
-    );
-    const totalCount = parseInt(countResult.rows[0].count, 10);
-
-    const effectiveLimit = all ? totalCount || 1000 : limit || 50;
-    const offset = all ? 0 : (page - 1) * effectiveLimit;
+    const categoryFilter = category ? `AND LOWER(p.product_type) = LOWER($1)` : '';
+    const categoryParam = category ? [category] : [];
 
     const queryParams = category
-      ? [`%${category}%`, effectiveLimit, offset]
-      : [effectiveLimit, offset];
+      ? usePagination ? [category, limit, (page - 1) * limit] : [category]
+      : usePagination ? [limit, (page - 1) * limit] : [];
 
-    const limitPlaceholder = category ? '$2' : '$1';
-    const offsetPlaceholder = category ? '$3' : '$2';
+    const limitClause = usePagination
+      ? category ? `LIMIT $2 OFFSET $3` : `LIMIT $1 OFFSET $2`
+      : '';
 
     const result = await query(`
       WITH reserved_stock AS (
@@ -63,7 +59,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN reserved_stock rs ON rs.product_id = p.id
       WHERE 1=1 ${categoryFilter}
       ORDER BY p.product_code ASC, p.product_type ASC
-      LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}
+      ${limitClause}
     `, queryParams);
     
     // Stok hesaplama mantığını uygula ve frontend ile uyumlu hale getir
@@ -156,23 +152,8 @@ export async function GET(request: NextRequest) {
       };
     });
     
-    const totalPages = all ? 1 : Math.ceil(totalCount / effectiveLimit);
-
-    const responseBody = all
-      ? products
-      : {
-          data: products,
-          pagination: {
-            page,
-            limit: effectiveLimit,
-            total: totalCount,
-            totalPages,
-            hasNextPage: page < totalPages,
-            hasPrevPage: page > 1,
-          },
-        };
-
-    return NextResponse.json(responseBody, {
+    // Her zaman array döner - geriye uyumlu
+    return NextResponse.json(products, {
       headers: {
         'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
         'CDN-Cache-Control': 'public, s-maxage=60',

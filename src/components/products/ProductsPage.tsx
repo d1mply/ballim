@@ -43,8 +43,8 @@ const BLUR_DATA_URL = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA
 
 function buildProductsUrl(category: string) {
   return category
-    ? `/api/products?category=${encodeURIComponent(category)}&all=true`
-    : '/api/products?all=true';
+    ? `/api/products?category=${encodeURIComponent(category)}`
+    : '/api/products';
 }
 
 async function fetchProducts(url: string): Promise<ProductData[]> {
@@ -86,7 +86,7 @@ export default function ProductsPage() {
 
   // Tüm kategorileri ayrıca tutuyoruz - kategori dropdown'u için boşaltılmaz
   const { data: allProductsForCategories } = useSWR<ProductData[]>(
-    '/api/products?all=true',
+    '/api/products',
     fetchProducts,
     { revalidateOnFocus: false, dedupingInterval: 30000, refreshInterval: 0 }
   );

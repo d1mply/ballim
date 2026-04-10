@@ -45,7 +45,7 @@ export default function StokSiparisPage() {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products?all=true');
+      const response = await fetch('/api/products');
       if (!response.ok) {
         throw new Error(`API hatası: ${response.status} ${response.statusText}`);
       }
