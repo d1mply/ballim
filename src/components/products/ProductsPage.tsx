@@ -226,12 +226,7 @@ export default function ProductsPage() {
         filaments: productData.filaments || [],
       } : rd;
 
-      if (selectedProduct) {
-        mutateProducts(prev => prev ? prev.map(i => i.id === selectedProduct.id ? fp : i) : [], false);
-      } else {
-        mutateProducts(prev => prev ? [...prev, fp] : [fp], false);
-      }
-      mutateProducts();
+      await mutateProducts();
       toast.success(selectedProduct ? 'Ürün başarıyla güncellendi!' : 'Ürün başarıyla eklendi!');
     } catch (e) { toast.error(`Ürün kaydedilirken hata: ${e instanceof Error ? e.message : String(e)}`); }
     finally { setIsModalOpen(false); setSelectedProduct(null); }
