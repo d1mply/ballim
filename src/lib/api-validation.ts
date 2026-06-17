@@ -1,5 +1,9 @@
 import { sanitizeInput, validateSQLInput, logSecurityEvent, validateCSRFToken } from './security';
 
+function isBase64Image(value: string): boolean {
+  return /^data:image\/(jpeg|jpg|png|gif|webp|svg\+xml);base64,/.test(value);
+}
+
 // Validation Error Class
 export class ValidationError extends Error {
   constructor(message: string, public field?: string) {
@@ -72,30 +76,35 @@ export function validateAPIInput(
 
       // 4. String validation
       if (typeof value === 'string') {
-        // Sanitization
-        if (sanitize) {
-          sanitizedData[key] = sanitizeInput(value);
-        } else {
+        // Base64 resim verisi: sanitize ve SQL kontrolü atla (binary veri, injection mümkün değil)
+        if (isBase64Image(value)) {
           sanitizedData[key] = value;
-        }
+        } else {
+          // Sanitization
+          if (sanitize) {
+            sanitizedData[key] = sanitizeInput(value);
+          } else {
+            sanitizedData[key] = value;
+          }
 
-        // SQL Injection kontrolü
-        if (validateSQL && !validateSQLInput(value)) {
-          logSecurityEvent('SQL_INJECTION_ATTEMPT', {
-            field: key,
-            value: value.substring(0, 100), // İlk 100 karakteri logla
-            timestamp: new Date().toISOString(),
-          }, 'CRITICAL');
-          errors.push(`${key} alanında geçersiz karakterler tespit edildi`);
-          continue;
-        }
+          // SQL Injection kontrolü
+          if (validateSQL && !validateSQLInput(value)) {
+            logSecurityEvent('SQL_INJECTION_ATTEMPT', {
+              field: key,
+              value: value.substring(0, 100),
+              timestamp: new Date().toISOString(),
+            }, 'CRITICAL');
+            errors.push(`${key} alanında geçersiz karakterler tespit edildi`);
+            continue;
+          }
 
-        // Length kontrolleri
-        if (minLengths[key] && value.length < minLengths[key]!) {
-          errors.push(`${key} alanı en az ${minLengths[key]} karakter olmalı`);
-        }
-        if (maxLengths[key] && value.length > maxLengths[key]!) {
-          errors.push(`${key} alanı en fazla ${maxLengths[key]} karakter olmalı`);
+          // Length kontrolleri
+          if (minLengths[key] && value.length < minLengths[key]!) {
+            errors.push(`${key} alanı en az ${minLengths[key]} karakter olmalı`);
+          }
+          if (maxLengths[key] && value.length > maxLengths[key]!) {
+            errors.push(`${key} alanı en fazla ${maxLengths[key]} karakter olmalı`);
+          }
         }
       }
       // 5. Number validation
