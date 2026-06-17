@@ -4,6 +4,7 @@ import { createAuditLog, getUserFromRequest } from '../../../lib/audit-log';
 import { STOCK_COLORS } from '../../../lib/stock';
 import { validateAPIInput, validateProductCode, validateID } from '../../../lib/api-validation';
 import { getClientIP, logSecurityEvent } from '../../../lib/security';
+import { persistProductImage } from '../../../lib/image-storage';
 
 // Ürünleri getir - kategori filtresi ve opsiyonel sayfalama destekli
 export async function GET(request: NextRequest) {
@@ -273,6 +274,11 @@ export async function POST(request: NextRequest) {
     await query('BEGIN');
 
     try {
+      const storedImagePath = await persistProductImage(
+        typeof imagePath === 'string' ? imagePath : null,
+        productCode
+      );
+
       // Ürünü oluştur
       const productResult = await query(`
         INSERT INTO products (
@@ -282,7 +288,7 @@ export async function POST(request: NextRequest) {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING *
       `, [
-        productCode, productType, imagePath || null, barcode || null, capacity || 0,
+        productCode, productType, storedImagePath, barcode || null, capacity || 0,
         dimensionX || 0, dimensionY || 0, dimensionZ || 0, printTime || 0, totalGram || 0,
         pieceGram || 0, filePath || null, notes || null
       ]);
@@ -535,6 +541,12 @@ export async function PUT(request: NextRequest) {
     await query('BEGIN');
 
     try {
+      const codeForImage = (productCode as string) || `product_${id}`;
+      const storedImagePath =
+        imagePath !== undefined
+          ? await persistProductImage(typeof imagePath === 'string' ? imagePath : null, codeForImage)
+          : undefined;
+
       // Ürünü güncelle
       const updateFields = [];
       const updateValues = [];
@@ -548,9 +560,9 @@ export async function PUT(request: NextRequest) {
         updateFields.push(`product_type = $${paramIndex++}`);
         updateValues.push(productType);
       }
-      if (imagePath !== undefined) {
+      if (storedImagePath !== undefined) {
         updateFields.push(`image_path = $${paramIndex++}`);
-        updateValues.push(imagePath || null);
+        updateValues.push(storedImagePath || null);
       }
       if (barcode !== undefined) {
         updateFields.push(`barcode = $${paramIndex++}`);

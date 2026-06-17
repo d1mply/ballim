@@ -19,6 +19,7 @@ export default function StokSiparisPage() {
   const [activeTab, setActiveTab] = useState<'products' | 'packages'>('products');
   const [packages, setPackages] = useState<any[]>([]);
   const [isLoadingPackages, setIsLoadingPackages] = useState(false);
+  const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
 
   const { cartItems, setCartItems, addToCart, removeFromCart, updateQuantity, addPackageToCart, clearCart } =
     useCart({ currentUser });
@@ -36,6 +37,26 @@ export default function StokSiparisPage() {
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const s = await res.json();
+          setHiddenCategories(Array.isArray(s?.hidden_categories) ? s.hidden_categories : []);
+        }
+      } catch {
+        setHiddenCategories([]);
+      }
+    })();
+  }, []);
+
+  // Admin olmayan kullanıcılar gizlenmiş kategorileri görmemeli
+  const visibleProducts =
+    currentUser?.type === 'admin'
+      ? products
+      : products.filter((p) => !hiddenCategories.includes(((p as { productType?: string }).productType) || ''));
 
   useEffect(() => {
     if (activeTab === 'packages') {
@@ -148,7 +169,7 @@ export default function StokSiparisPage() {
 
           {activeTab === 'products' ? (
             <ProductListSection
-              products={products}
+              products={visibleProducts}
               currentUser={currentUser}
               onAddToCart={addToCart}
             />

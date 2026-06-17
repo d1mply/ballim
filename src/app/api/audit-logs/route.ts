@@ -58,6 +58,17 @@ export async function GET(request: NextRequest) {
       await query(`
         CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id)
       `);
+
+      await query(`
+        CREATE TABLE IF NOT EXISTS auth_audit (
+          id SERIAL PRIMARY KEY,
+          user_id TEXT,
+          event TEXT NOT NULL,
+          ip TEXT,
+          ua TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
     } catch (tableError) {
       // Tablo zaten varsa hata vermez, devam et
       console.log('Audit logs tablosu kontrol edildi:', tableError);
@@ -119,11 +130,44 @@ export async function GET(request: NextRequest) {
       ? `WHERE ${whereConditions.join(' AND ')}`
       : '';
 
+    const combinedLogsCte = `
+      WITH combined_logs AS (
+        SELECT
+          id::text AS id,
+          user_id,
+          user_name,
+          action,
+          entity_type,
+          entity_id,
+          entity_name,
+          details,
+          ip_address,
+          user_agent,
+          created_at
+        FROM audit_logs
+        UNION ALL
+        SELECT
+          ('auth-' || id::text) AS id,
+          user_id,
+          NULL AS user_name,
+          event AS action,
+          'auth' AS entity_type,
+          NULL AS entity_id,
+          event AS entity_name,
+          NULL::jsonb AS details,
+          ip AS ip_address,
+          ua AS user_agent,
+          created_at
+        FROM auth_audit
+      )
+    `;
+
     // Toplam kayıt sayısı (COUNT için ayrı params kullan)
-    const countParams = [...params]; // Mevcut filtre parametrelerini kopyala
+    const countParams = [...params];
     const countResult = await query(`
+      ${combinedLogsCte}
       SELECT COUNT(*) as total 
-      FROM audit_logs 
+      FROM combined_logs 
       ${whereClause}
     `, countParams);
     const total = parseInt(countResult.rows[0]?.total || '0');
@@ -133,6 +177,7 @@ export async function GET(request: NextRequest) {
     const offsetParamIndex = paramIndex;
     params.push(limit, offset);
     const result = await query(`
+      ${combinedLogsCte}
       SELECT 
         id,
         user_id,
@@ -145,7 +190,7 @@ export async function GET(request: NextRequest) {
         ip_address,
         user_agent,
         created_at
-      FROM audit_logs
+      FROM combined_logs
       ${whereClause}
       ORDER BY created_at DESC
       LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}

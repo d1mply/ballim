@@ -38,46 +38,6 @@ export default function MusterilerPage() {
           <h1 className="text-xl font-bold">Müşteriler</h1>
           <div className="flex gap-2">
             <button
-              onClick={async () => {
-                try {
-                  const response = await fetch('/api/db-diagnostics');
-                  const data = await response.json();
-                  alert(
-                    `Diagnostik Sonuçları:\n\n${data.diagnostics.join('\n')}\n\nHatalar:\n${data.errors.length > 0 ? data.errors.join('\n') : 'Hata Yok'}`,
-                  );
-                } catch (err) {
-                  alert(`Diagnostik hatası: ${err instanceof Error ? err.message : String(err)}`);
-                }
-              }}
-              className="btn-outline"
-              title="Detaylı veritabanı tanılama"
-            >
-              Detaylı Test
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  const response = await fetch('/api/test-db');
-                  const data = await response.json();
-                  if (data.status === 'ok') {
-                    alert(
-                      `Veritabanı bağlantısı başarılı!\nSunucu saati: ${data.time}\nBağlantı havuzu: ${JSON.stringify(data.poolStatus)}`,
-                    );
-                  } else {
-                    alert(`Bağlantı hatası: ${data.error || 'Bilinmeyen hata'}`);
-                  }
-                } catch (err) {
-                  alert(
-                    `Test isteği gönderilirken hata: ${err instanceof Error ? err.message : String(err)}`,
-                  );
-                }
-              }}
-              className="btn-outline"
-              title="Veritabanı bağlantısını test et"
-            >
-              DB Test
-            </button>
-            <button
               onClick={handleAddCustomer}
               className="btn-primary flex items-center gap-2"
             >

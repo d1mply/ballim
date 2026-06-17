@@ -64,12 +64,20 @@ export async function logStockEvent(
   );
 }
 
+// Audit metadata için güvenli temizlik: UA/IP gibi değerler ';' veya '--' içerebilir
+// (örn. "Windows NT 10.0; Win64") ve parametreli olsa da SQL injection kontrolünü
+// yanlış tetikler. Sadece saklanan metadata'yı sadeleştiriyoruz.
+function sanitizeAuditMeta(value?: string): string | null {
+  if (!value) return null;
+  return value.replace(/;|--|\/\*|\*\//g, ' ').slice(0, 255);
+}
+
 export async function logAuthEvent(userId: string | null, event: string, ip?: string, ua?: string) {
   try {
     await ensureTables();
     await query(
       `INSERT INTO auth_audit (user_id, event, ip, ua) VALUES ($1, $2, $3, $4)`,
-      [userId, event, ip ?? null, ua ?? null]
+      [userId, event, sanitizeAuditMeta(ip), sanitizeAuditMeta(ua)]
     );
   } catch (error) {
     // Audit log hatası kritik değil, ana işlemi engelleme

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import bcrypt from 'bcrypt';
 import { query } from '../../../lib/db';
 import { validateAPIInput, validateEmail, validatePhone } from '../../../lib/api-validation';
 import { getClientIP, logSecurityEvent } from '../../../lib/security';
+
+const BCRYPT_ROUNDS = 10;
 
 // Tüm müşterileri getir
 export async function GET() {
@@ -262,7 +265,6 @@ export async function POST(request: NextRequest) {
       type = 'Bireysel',
       taxNumber,
       username,
-      password,
       customerCategory = 'normal',
       discountRate = 0,
       filamentPrices = []
@@ -343,6 +345,10 @@ export async function POST(request: NextRequest) {
       customerCode = `MUS-${timestamp}`;
     }
     
+    // Şifreyi bcrypt ile hash'le. Login raw şifreyle karşılaştırdığı için
+    // sanitize edilmemiş orijinal (body.password) hash'lenir.
+    const hashedPassword = await bcrypt.hash(String(body.password), BCRYPT_ROUNDS);
+
     const result = await query(`
       INSERT INTO customers (
         customer_code, name, company, phone, 
@@ -354,7 +360,7 @@ export async function POST(request: NextRequest) {
     `, [
       customerCode, name, company, phone,
       email, address, notes, type,
-      taxNumber, username, password, customerCategory, discountRate
+      taxNumber, username, hashedPassword, customerCategory, discountRate
     ]).catch(error => {
       // Duplicate key hatası için özel mesaj
       if (error.code === '23505' && error.constraint === 'customers_customer_code_key') {
@@ -447,7 +453,59 @@ export async function PUT(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // V1: Güncelleme alanları POST ile aynı kurallardan geçer (hepsi opsiyonel)
+    const validation = validateAPIInput(updateData, {
+      sanitize: true,
+      validateSQL: true,
+      types: {
+        name: 'string', company: 'string', phone: 'string', email: 'string',
+        address: 'string', notes: 'string', type: 'string', taxNumber: 'string',
+        username: 'string', password: 'string', customerCategory: 'string',
+        discountRate: 'number',
+      },
+      maxLengths: {
+        name: 100, company: 100, phone: 20, email: 100, address: 500,
+        notes: 1000, taxNumber: 20, username: 50, password: 255,
+      },
+    });
+    if (!validation.isValid || !validation.sanitizedData) {
+      return NextResponse.json(
+        { error: 'Validation hatası', details: validation.errors },
+        { status: 400 }
+      );
+    }
+    Object.assign(updateData, validation.sanitizedData);
+
+    // Format kontrolleri (sadece ilgili alan gönderildiyse)
+    if (updateData.email && String(updateData.email).trim() && !validateEmail(String(updateData.email))) {
+      return NextResponse.json({ error: 'Geçersiz email formatı' }, { status: 400 });
+    }
+    if (updateData.phone && String(updateData.phone).trim() && !validatePhone(String(updateData.phone))) {
+      return NextResponse.json(
+        { error: 'Geçersiz telefon formatı. Türkiye telefon formatı kullanın (örn: 05551234567)' },
+        { status: 400 }
+      );
+    }
+    if (updateData.username !== undefined) {
+      const usernameRegex = /^[A-Za-z0-9_-]+$/;
+      const u = String(updateData.username);
+      if (!usernameRegex.test(u) || u.length < 3 || u.length > 50) {
+        return NextResponse.json(
+          { error: 'Kullanıcı adı formatı geçersiz. Sadece harf, rakam, tire ve alt çizgi kullanılabilir (3-50 karakter)' },
+          { status: 400 }
+        );
+      }
+    }
     
+    // Şifre güncellendiyse bcrypt ile hash'le (raw şifre — body.password)
+    if (body.password !== undefined && body.password !== null && String(body.password).length > 0) {
+      updateData.password = await bcrypt.hash(String(body.password), BCRYPT_ROUNDS);
+    } else {
+      // Boş şifre gönderildiyse güncelleme dışında tut
+      delete updateData.password;
+    }
+
     // Müşterinin var olduğunu kontrol et
     const checkCustomer = await query(`
       SELECT * FROM customers WHERE id = $1

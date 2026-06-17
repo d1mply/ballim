@@ -6,7 +6,7 @@ import { Icons } from '../../utils/Icons';
 import { useToast } from '../../contexts/ToastContext';
 
 interface AuditLog {
-  id: number;
+  id: string | number;
   userId: string | null;
   userName: string | null;
   action: string;
@@ -120,6 +120,7 @@ export default function AuditLogPage() {
                 <option value="PAYMENT">Ödeme</option>
                 <option value="PACKAGE">Paket</option>
                 <option value="STOCK">Stok</option>
+                <option value="auth">Giriş / Oturum</option>
               </select>
             </div>
 

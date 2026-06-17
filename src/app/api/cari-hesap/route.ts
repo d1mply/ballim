@@ -151,7 +151,29 @@ export async function POST(request: NextRequest) {
           yeniBakiye
         ]
       );
-      
+
+      // Manuel tahsilat yapıldığında Ödemeler tablosuna da yaz (senkron)
+      if (islem_turu === 'Tahsilat' && parseFloat(tutar) > 0) {
+        const processedSiparisId = siparis_id
+          ? String(siparis_id).replace('SIP-', '')
+          : null;
+        await client.query(
+          `INSERT INTO odemeler (
+            musteri_id, siparis_id, odeme_tarihi, tutar,
+            odeme_yontemi, durum, aciklama, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+          [
+            musteri_id,
+            processedSiparisId,
+            tarih,
+            tutar,
+            odeme_yontemi || 'Nakit',
+            'Ödendi',
+            aciklama || 'Cari hesap tahsilatı',
+          ]
+        );
+      }
+
       await client.query('COMMIT');
       
       return NextResponse.json(result.rows[0]);

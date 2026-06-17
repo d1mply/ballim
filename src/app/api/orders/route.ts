@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
+import { withTransaction } from '@/lib/transaction';
 import { parseIntSafe } from '@/lib/validation';
+import { validateAPIInput } from '@/lib/api-validation';
 import { logOrderEvent } from '@/lib/audit';
 import { createAuditLog, getUserFromRequest } from '../../../lib/audit-log';
 
@@ -33,6 +35,7 @@ export async function GET(request: NextRequest) {
         o.status,
         o.total_amount,
         o.order_date,
+        o.notes,
         c.name as customer_name,
         COALESCE(
           json_agg(
@@ -56,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
     listParams.push(limit);
     listParams.push(offset);
-    listQuery += ` GROUP BY o.id, o.order_code, o.customer_id, o.status, o.total_amount, o.order_date, c.name
+    listQuery += ` GROUP BY o.id, o.order_code, o.customer_id, o.status, o.total_amount, o.order_date, o.notes, c.name
                    ORDER BY o.created_at DESC LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`;
 
     const result = await query(listQuery, listParams);
@@ -105,6 +108,43 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // 🛡️ Güvenlik: Skaler alanları sanitize/SQL kontrolünden geçir
+    const validation = validateAPIInput(
+      {
+        customerName: customerName ?? '',
+        orderType,
+        notes: body.notes ?? '',
+      },
+      {
+        sanitize: true,
+        validateSQL: true,
+        types: { customerName: 'string', orderType: 'string', notes: 'string' },
+        maxLengths: { customerName: 100, orderType: 30, notes: 1000 },
+      }
+    );
+    if (!validation.isValid || !validation.sanitizedData) {
+      return NextResponse.json(
+        { error: 'Geçersiz veri', details: validation.errors },
+        { status: 400 }
+      );
+    }
+    body.notes = validation.sanitizedData.notes as string;
+
+    // Ürün kalemleri: miktar ve fiyat sayısal ve geçerli olmalı
+    for (const p of products) {
+      const qty = Number(p?.quantity);
+      const price = Number(p?.unitPrice ?? 0);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        return NextResponse.json({ error: 'Ürün miktarı 0\'dan büyük bir sayı olmalı' }, { status: 400 });
+      }
+      if (!Number.isFinite(price) || price < 0) {
+        return NextResponse.json({ error: 'Ürün fiyatı geçersiz' }, { status: 400 });
+      }
+      if (!p?.productId && !p?.packageId) {
+        return NextResponse.json({ error: 'Her kalem için ürün veya paket ID gerekli' }, { status: 400 });
+      }
+    }
     
     // customerId yoksa NULL kullan (stok üretimi için)
     const finalCustomerId = customerId || null;
@@ -127,14 +167,12 @@ export async function POST(request: NextRequest) {
       orderCode = `${prefix}-${String(Date.now()).slice(-6)}`;
     }
 
-    // Transaction başlat
-    await query('BEGIN');
+    // Transaction: sipariş + kalemler + cari hesap tek connection'da atomik
     console.log('🔄 Transaction başlatıldı');
-
-    try {
+    const { order, totalAmount } = await withTransaction(async (tx) => {
       // Siparişi oluştur
       console.log('📦 Sipariş oluşturuluyor...');
-      const orderResult = await query(`
+      const orderResult = await tx(`
         INSERT INTO orders (order_code, customer_id, status, total_amount, order_date, payment_status, notes, created_at, updated_at)
         VALUES ($1, $2, 'Onay Bekliyor', 0, CURRENT_TIMESTAMP, 'Ödeme Bekliyor', $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING *
@@ -144,25 +182,24 @@ export async function POST(request: NextRequest) {
         throw new Error('Sipariş oluşturulamadı');
       }
 
-      const order = orderResult.rows[0];
-      console.log('✅ Sipariş oluşturuldu:', order.id);
-      
-      let totalAmount = 0;
+      const createdOrder = orderResult.rows[0];
+      console.log('✅ Sipariş oluşturuldu:', createdOrder.id);
+
+      let computedTotal = 0;
 
       // Sipariş ürünlerini ekle (paket ve normal ürün desteği)
       console.log('🛍️ Sipariş ürünleri ekleniyor...');
       for (const product of products) {
         const { productId, packageId, quantity, unitPrice, isPackage } = product;
         console.log(`📦 Ürün işleniyor: ${isPackage ? 'PAKET' : 'ÜRÜN'}, ID: ${packageId || productId}, Miktar: ${quantity}, Fiyat: ${unitPrice}`);
-        
+
         const finalUnitPrice = unitPrice || 0;
         const itemTotal = quantity * finalUnitPrice;
-        totalAmount += itemTotal;
+        computedTotal += itemTotal;
 
         // Paket ise
         if (isPackage && packageId) {
-          // Paket bilgilerini al
-          const packageResult = await query(`
+          const packageResult = await tx(`
             SELECT package_code, name
             FROM product_packages 
             WHERE id = $1
@@ -173,124 +210,116 @@ export async function POST(request: NextRequest) {
           }
 
           const packageInfo = packageResult.rows[0];
-          
-          // Order item ekle (paket)
-          await query(`
+
+          await tx(`
             INSERT INTO order_items (
               order_id, product_id, package_id, product_code, product_name, 
               quantity, unit_price, status, created_at
             ) VALUES ($1, NULL, $2, $3, $4, $5, $6, 'onay_bekliyor', CURRENT_TIMESTAMP)
           `, [
-            order.id,
+            createdOrder.id,
             packageId,
             packageInfo.package_code,
             packageInfo.name,
             quantity,
             finalUnitPrice
           ]);
-          
+
           console.log(`✅ Paket eklendi: ${packageInfo.package_code}`);
         } else {
-          // Normal ürün ise
-        const productResult = await query(`
-          SELECT product_code, product_type
-          FROM products 
-          WHERE id = $1
-        `, [productId]);
+          const productResult = await tx(`
+            SELECT product_code, product_type
+            FROM products 
+            WHERE id = $1
+          `, [productId]);
 
-        if (productResult.rows.length === 0) {
-          throw new Error(`Ürün bulunamadı: ${productId}`);
-        }
+          if (productResult.rows.length === 0) {
+            throw new Error(`Ürün bulunamadı: ${productId}`);
+          }
 
-        const productInfo = productResult.rows[0];
+          const productInfo = productResult.rows[0];
 
-          // Order item ekle (normal ürün)
-        await query(`
-          INSERT INTO order_items (
+          await tx(`
+            INSERT INTO order_items (
               order_id, product_id, package_id, product_code, product_name, 
-            quantity, unit_price, status, created_at
+              quantity, unit_price, status, created_at
             ) VALUES ($1, $2, NULL, $3, $4, $5, $6, 'onay_bekliyor', CURRENT_TIMESTAMP)
-        `, [
-          order.id,
-          productId,
-          productInfo.product_code,
-          productInfo.product_type,
-          quantity,
-          finalUnitPrice
-        ]);
-        
-        console.log(`✅ Ürün eklendi: ${productInfo.product_code}`);
+          `, [
+            createdOrder.id,
+            productId,
+            productInfo.product_code,
+            productInfo.product_type,
+            quantity,
+            finalUnitPrice
+          ]);
+
+          console.log(`✅ Ürün eklendi: ${productInfo.product_code}`);
         }
       }
 
       // Toplam tutarı güncelle
-      console.log('💰 Toplam tutar güncelleniyor:', totalAmount);
-      await query(`
+      console.log('💰 Toplam tutar güncelleniyor:', computedTotal);
+      await tx(`
         UPDATE orders 
         SET total_amount = $1, updated_at = CURRENT_TIMESTAMP
         WHERE id = $2
-      `, [totalAmount, order.id]);
+      `, [computedTotal, createdOrder.id]);
 
       // Cari hesaba Borçlandırma ekle (sadece müşteri siparişleri için)
-      if (finalCustomerId && orderType !== 'stock_production' && totalAmount > 0) {
-        const lastBalanceResult = await query(
+      if (finalCustomerId && orderType !== 'stock_production' && computedTotal > 0) {
+        const lastBalanceResult = await tx(
           `SELECT bakiye FROM cari_hesap WHERE musteri_id = $1 ORDER BY id DESC LIMIT 1`,
           [finalCustomerId]
         );
         const previousBalance = lastBalanceResult.rows.length > 0
           ? parseFloat(lastBalanceResult.rows[0].bakiye)
           : 0;
-        const newBalance = previousBalance + totalAmount;
+        const newBalance = previousBalance + computedTotal;
 
-        await query(`
+        await tx(`
           INSERT INTO cari_hesap (musteri_id, tarih, aciklama, islem_turu, tutar, odeme_yontemi, siparis_id, bakiye, created_at)
           VALUES ($1, CURRENT_DATE, $2, 'Borçlandırma', $3, NULL, $4, $5, CURRENT_TIMESTAMP)
-        `, [finalCustomerId, `Sipariş: ${orderCode}`, totalAmount, order.id, newBalance]);
+        `, [finalCustomerId, `Sipariş: ${orderCode}`, computedTotal, createdOrder.id, newBalance]);
 
-        console.log(`✅ Cari hesaba Borçlandırma eklendi: ${totalAmount}₺, yeni bakiye: ${newBalance}₺`);
+        console.log(`✅ Cari hesaba Borçlandırma eklendi: ${computedTotal}₺, yeni bakiye: ${newBalance}₺`);
       }
 
-      await query('COMMIT');
-      console.log('✅ Transaction tamamlandı');
+      return { order: createdOrder, totalAmount: computedTotal };
+    });
+    console.log('✅ Transaction tamamlandı');
 
-      // Audit log
-      const userInfo = await getUserFromRequest(request);
-      await createAuditLog({
-        ...userInfo,
-        action: 'CREATE',
-        entityType: 'ORDER',
-        entityId: String(order.id),
-        entityName: orderCode,
-        details: { 
-          orderId: order.id, 
-          orderCode, 
-          orderType, 
-          totalAmount, 
-          itemCount: products.length 
-        }
-      });
+    // Audit log (transaction dışında)
+    const userInfo = await getUserFromRequest(request);
+    await createAuditLog({
+      ...userInfo,
+      action: 'CREATE',
+      entityType: 'ORDER',
+      entityId: String(order.id),
+      entityName: orderCode,
+      details: {
+        orderId: order.id,
+        orderCode,
+        orderType,
+        totalAmount,
+        itemCount: products.length
+      }
+    });
 
-      return NextResponse.json({
-        success: true,
-        message: 'Sipariş başarıyla oluşturuldu',
-        order: {
-          ...order,
-          totalAmount
-        }
-      });
-
-    } catch (transactionError) {
-      await query('ROLLBACK');
-      console.error('❌ Transaction hatası:', transactionError);
-      throw transactionError;
-    }
+    return NextResponse.json({
+      success: true,
+      message: 'Sipariş başarıyla oluşturuldu',
+      order: {
+        ...order,
+        totalAmount
+      }
+    });
 
   } catch (error) {
     console.error('❌ Sipariş oluşturma hatası:', error);
     return NextResponse.json(
       { 
         error: 'Sipariş oluşturulurken bir hata oluştu',
-        details: error.message 
+        details: error instanceof Error ? error.message : 'Bilinmeyen hata'
       },
       { status: 500 }
     );
@@ -346,54 +375,53 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Transaction
-    await query('BEGIN');
-
-    // Senaryo1 ve Senaryo2: Rezerveyi sıfırla, hazırlandı olanların stoklarını geri ekle
-    // Not: Filament asla geri alınmaz
-    for (const item of items) {
-      const status = (item.status || '').toLowerCase();
-      if (status === 'hazirlandi') {
-        await query(
-          `INSERT INTO inventory (product_id, quantity, updated_at)
-           VALUES ($1, $2, CURRENT_TIMESTAMP)
-           ON CONFLICT (product_id) DO UPDATE SET
-             quantity = inventory.quantity + EXCLUDED.quantity,
-             updated_at = CURRENT_TIMESTAMP`,
-          [item.product_id, item.quantity]
-        );
-      }
-    }
-
-    // Cari hesaptaki ilgili Borçlandırma kaydını sil ve bakiyeleri yeniden hesapla
-    const cariDeleteResult = await query(
-      `DELETE FROM cari_hesap WHERE siparis_id = $1 AND islem_turu = 'Borçlandırma' RETURNING musteri_id`,
-      [orderId]
-    );
-    if (cariDeleteResult.rows.length > 0) {
-      const musteriId = cariDeleteResult.rows[0].musteri_id;
-      const allRecords = await query(
-        `SELECT id, islem_turu, tutar FROM cari_hesap WHERE musteri_id = $1 ORDER BY id ASC`,
-        [musteriId]
-      );
-      let runningBalance = 0;
-      for (const record of allRecords.rows) {
-        if (record.islem_turu === 'Borçlandırma') {
-          runningBalance += parseFloat(record.tutar);
-        } else if (record.islem_turu === 'Tahsilat') {
-          runningBalance -= parseFloat(record.tutar);
+    // Transaction: stok iadesi + cari düzeltme + silme tek connection'da atomik
+    await withTransaction(async (tx) => {
+      // Senaryo1 ve Senaryo2: Rezerveyi sıfırla, hazırlandı olanların stoklarını geri ekle
+      // Not: Filament asla geri alınmaz
+      for (const item of items) {
+        const status = (item.status || '').toLowerCase();
+        if (status === 'hazirlandi') {
+          await tx(
+            `INSERT INTO inventory (product_id, quantity, updated_at)
+             VALUES ($1, $2, CURRENT_TIMESTAMP)
+             ON CONFLICT (product_id) DO UPDATE SET
+               quantity = inventory.quantity + EXCLUDED.quantity,
+               updated_at = CURRENT_TIMESTAMP`,
+            [item.product_id, item.quantity]
+          );
         }
-        await query(`UPDATE cari_hesap SET bakiye = $1 WHERE id = $2`, [runningBalance, record.id]);
       }
-    }
 
-    // order_items sil (Senaryo2: rezerve otomatik 0'a düşer)
-    await query('DELETE FROM order_items WHERE order_id = $1', [orderId]);
-    
-    // Siparişi sil
-    await query('DELETE FROM orders WHERE id = $1', [orderId]);
+      // Cari hesaptaki ilgili Borçlandırma kaydını sil ve bakiyeleri yeniden hesapla
+      const cariDeleteResult = await tx(
+        `DELETE FROM cari_hesap WHERE siparis_id = $1 AND islem_turu = 'Borçlandırma' RETURNING musteri_id`,
+        [orderId]
+      );
+      if (cariDeleteResult.rows.length > 0) {
+        const musteriId = cariDeleteResult.rows[0].musteri_id;
+        const allRecords = await tx(
+          `SELECT id, islem_turu, tutar FROM cari_hesap WHERE musteri_id = $1 ORDER BY id ASC`,
+          [musteriId]
+        );
+        let runningBalance = 0;
+        for (const record of allRecords.rows) {
+          if (record.islem_turu === 'Borçlandırma') {
+            runningBalance += parseFloat(record.tutar);
+          } else if (record.islem_turu === 'Tahsilat') {
+            runningBalance -= parseFloat(record.tutar);
+          }
+          await tx(`UPDATE cari_hesap SET bakiye = $1 WHERE id = $2`, [runningBalance, record.id]);
+        }
+      }
 
-    await query('COMMIT');
+      // order_items sil (Senaryo2: rezerve otomatik 0'a düşer)
+      await tx('DELETE FROM order_items WHERE order_id = $1', [orderId]);
+
+      // Siparişi sil
+      await tx('DELETE FROM orders WHERE id = $1', [orderId]);
+    });
+
     await logOrderEvent(orderId, 'ORDER_DELETED', {
       restoredStockForReadyItems: items.filter((r) => (r.status || '').toLowerCase() === 'hazirlandi').length
     });
@@ -404,7 +432,6 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    await query('ROLLBACK').catch(() => undefined);
     console.error('Sipariş silme hatası:', error);
     return NextResponse.json(
       { 

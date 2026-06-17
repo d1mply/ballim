@@ -1,5 +1,6 @@
-import { Pool } from 'pg';
+﻿import { Pool } from 'pg';
 import { logSecurityEvent } from './security';
+import { createTables as runCreateTables } from './db/create-tables';
 
 // SQL Injection Pattern Detection (only for user-supplied parameters, not query text)
 const SQL_INJECTION_PATTERNS_FOR_PARAMS = [
@@ -21,7 +22,7 @@ const SQL_INJECTION_PATTERNS_FOR_QUERY = [
   /load_file|into\s+outfile/i,
 ];
 
-// Base64 resim verisi kontrolü — SQL injection taramasından muaf tutulur
+// Base64 resim verisi kontrolÃ¼ â€” SQL injection taramasÄ±ndan muaf tutulur
 function isBase64Image(value: string): boolean {
   return /^data:image\/(jpeg|jpg|png|gif|webp|svg\+xml);base64,/.test(value);
 }
@@ -33,10 +34,10 @@ const DYNAMIC_QUERY_PATTERNS = [
   /`[^`]*\$\{[^}]+\}[^`]*`/, // Template strings
 ];
 
-// Veritabanı bağlantı bilgileri
+// VeritabanÄ± baÄŸlantÄ± bilgileri
 export const pool = new Pool(
   // Render'da DATABASE_URL varsa onu kullan, yoksa individual env variables kullan
-  // DATABASE_URL'in direkt kullanılmasını sağlıyorum, fazladan SSL parametresi eklenmesini engelliyorum.
+  // DATABASE_URL'in direkt kullanÄ±lmasÄ±nÄ± saÄŸlÄ±yorum, fazladan SSL parametresi eklenmesini engelliyorum.
   // process.env.DATABASE_URL.includes('?') ? '&sslmode=require' : '?sslmode=require'
   process.env.DATABASE_URL ? {
     connectionString: process.env.DATABASE_URL,
@@ -65,18 +66,18 @@ export const pool = new Pool(
 export async function testConnection() {
   try {
     await pool.query('SELECT NOW()');
-    console.log('Veritabanı bağlantısı başarılı');
+    console.log('VeritabanÄ± baÄŸlantÄ±sÄ± baÅŸarÄ±lÄ±');
     return true;
   } catch (error) {
-    console.error('Veritabanı bağlantı hatası:', error);
+    console.error('VeritabanÄ± baÄŸlantÄ± hatasÄ±:', error);
     return false;
   }
 }
 
-// SQL Injection ve Dynamic Query Kontrolü
-// PERFORMANS: GET request'lerde hafifletilmiş validation (sadece kritik kontroller)
-function validateQuery(text: string, params?: (string | number | boolean | null)[], isReadOnly: boolean = false): { isValid: boolean; error?: string } {
-  // 🛡️ Güvenlik 1: Dynamic query pattern kontrolü (her zaman aktif)
+// SQL Injection ve Dynamic Query KontrolÃ¼
+// PERFORMANS: GET request'lerde hafifletilmiÅŸ validation (sadece kritik kontroller)
+export function validateQuery(text: string, params?: (string | number | boolean | null)[], isReadOnly: boolean = false): { isValid: boolean; error?: string } {
+  // ğŸ›¡ï¸ GÃ¼venlik 1: Dynamic query pattern kontrolÃ¼ (her zaman aktif)
   if (DYNAMIC_QUERY_PATTERNS.some(pattern => pattern.test(text))) {
     logSecurityEvent('DYNAMIC_QUERY_DETECTED', {
       query: text.substring(0, 200),
@@ -84,18 +85,18 @@ function validateQuery(text: string, params?: (string | number | boolean | null)
       timestamp: new Date().toISOString(),
     }, 'CRITICAL');
     
-    return { isValid: false, error: 'Dynamic query kullanımı güvenlik nedeniyle engellenmiştir. Parametreli sorgu kullanın.' };
+    return { isValid: false, error: 'Dynamic query kullanÄ±mÄ± gÃ¼venlik nedeniyle engellenmiÅŸtir. Parametreli sorgu kullanÄ±n.' };
   }
 
-  // 🛡️ Güvenlik 2: GET request'lerde (read-only) hafifletilmiş validation
+  // ğŸ›¡ï¸ GÃ¼venlik 2: GET request'lerde (read-only) hafifletilmiÅŸ validation
   if (isReadOnly) {
     // Sadece kritik kontroller:
-    // - Dynamic query kontrolü (yukarıda yapıldı)
-    // - Parametrelerde SQL injection kontrolü (sadece string parametrelerde)
+    // - Dynamic query kontrolÃ¼ (yukarÄ±da yapÄ±ldÄ±)
+    // - Parametrelerde SQL injection kontrolÃ¼ (sadece string parametrelerde)
     if (params && params.length > 0) {
       for (let i = 0; i < params.length; i++) {
         const param = params[i];
-        // Sadece string parametrelerde kontrol et (number, boolean güvenli)
+        // Sadece string parametrelerde kontrol et (number, boolean gÃ¼venli)
         if (typeof param === 'string' && param.length > 0 && !isBase64Image(param)) {
           // Kritik SQL injection pattern'leri (sadece en tehlikeli olanlar)
           const criticalPatterns = [
@@ -113,7 +114,7 @@ function validateQuery(text: string, params?: (string | number | boolean | null)
                 timestamp: new Date().toISOString(),
               }, 'CRITICAL');
               
-              return { isValid: false, error: `Parametre ${i + 1} içinde SQL injection pattern tespit edildi` };
+              return { isValid: false, error: `Parametre ${i + 1} iÃ§inde SQL injection pattern tespit edildi` };
             }
           }
         }
@@ -123,15 +124,15 @@ function validateQuery(text: string, params?: (string | number | boolean | null)
     return { isValid: true };
   }
 
-  // 🛡️ Güvenlik 3: POST/PUT/DELETE için tam validation
-  // Parametreli sorgu kontrolü
+  // ğŸ›¡ï¸ GÃ¼venlik 3: POST/PUT/DELETE iÃ§in tam validation
+  // Parametreli sorgu kontrolÃ¼
   if (!params || params.length === 0) {
     if (text.match(/\$[0-9]+/)) {
-      return { isValid: false, error: 'Parametreli sorgu kullanılmalıdır' };
+      return { isValid: false, error: 'Parametreli sorgu kullanÄ±lmalÄ±dÄ±r' };
     }
     
-    // Query text'te sadece tehlikeli kombinasyonları kontrol et
-    // (SELECT, CREATE gibi keyword'ler SQL sorgularında doğal olarak bulunur)
+    // Query text'te sadece tehlikeli kombinasyonlarÄ± kontrol et
+    // (SELECT, CREATE gibi keyword'ler SQL sorgularÄ±nda doÄŸal olarak bulunur)
     for (const pattern of SQL_INJECTION_PATTERNS_FOR_QUERY) {
       if (pattern.test(text)) {
         logSecurityEvent('SQL_INJECTION_PATTERN_DETECTED', {
@@ -145,7 +146,7 @@ function validateQuery(text: string, params?: (string | number | boolean | null)
     }
   }
 
-  // 🛡️ Güvenlik 4: Parametrelerde SQL injection kontrolü (tam kontrol)
+  // ğŸ›¡ï¸ GÃ¼venlik 4: Parametrelerde SQL injection kontrolÃ¼ (tam kontrol)
   if (params && params.length > 0) {
     for (let i = 0; i < params.length; i++) {
       const param = params[i];
@@ -159,7 +160,7 @@ function validateQuery(text: string, params?: (string | number | boolean | null)
               timestamp: new Date().toISOString(),
             }, 'CRITICAL');
             
-            return { isValid: false, error: `Parametre ${i + 1} içinde SQL injection pattern tespit edildi` };
+            return { isValid: false, error: `Parametre ${i + 1} iÃ§inde SQL injection pattern tespit edildi` };
           }
         }
       }
@@ -169,17 +170,17 @@ function validateQuery(text: string, params?: (string | number | boolean | null)
   return { isValid: true };
 }
 
-// Sorgu çalıştırma yardımcı fonksiyonu - Güvenlik Geliştirmeleri + Performans Optimizasyonu
+// Sorgu Ã§alÄ±ÅŸtÄ±rma yardÄ±mcÄ± fonksiyonu - GÃ¼venlik GeliÅŸtirmeleri + Performans Optimizasyonu
 export async function query(text: string, params?: (string | number | boolean | null)[]) {
   const start = Date.now();
   
   try {
-    // 🚀 PERFORMANS: GET request'lerde (SELECT) hafifletilmiş validation
-    // POST/PUT/DELETE için tam validation
+    // ğŸš€ PERFORMANS: GET request'lerde (SELECT) hafifletilmiÅŸ validation
+    // POST/PUT/DELETE iÃ§in tam validation
     const isReadOnly = text.trim().toUpperCase().startsWith('SELECT') || 
                       text.trim().toUpperCase().startsWith('WITH');
     
-    // 🛡️ Güvenlik: Query validation (isReadOnly'ye göre)
+    // ğŸ›¡ï¸ GÃ¼venlik: Query validation (isReadOnly'ye gÃ¶re)
     const validation = validateQuery(text, params, isReadOnly);
     if (!validation.isValid) {
       throw new Error(validation.error || 'Query validation failed');
@@ -187,8 +188,8 @@ export async function query(text: string, params?: (string | number | boolean | 
 
     // Production'da log seviyesini azalt
     if (process.env.NODE_ENV !== 'production') {
-      console.log('Sorgu başlatılıyor:', { text, params });
-      console.log('Veritabanı bilgileri:', {
+      console.log('Sorgu baÅŸlatÄ±lÄ±yor:', { text, params });
+      console.log('VeritabanÄ± bilgileri:', {
         user: process.env.DB_USER,
         host: process.env.DB_HOST,
         database: process.env.DB_NAME,
@@ -197,24 +198,24 @@ export async function query(text: string, params?: (string | number | boolean | 
       });
     }
     
-    // Parametreli sorgu ile çalıştır (pg otomatik olarak prepared statement kullanır)
+    // Parametreli sorgu ile Ã§alÄ±ÅŸtÄ±r (pg otomatik olarak prepared statement kullanÄ±r)
     const res = await pool.query(text, params);
     const duration = Date.now() - start;
     
     if (process.env.NODE_ENV !== 'production') {
-      console.log('Sorgu çalıştırıldı', { text, duration, rows: res.rowCount });
+      console.log('Sorgu Ã§alÄ±ÅŸtÄ±rÄ±ldÄ±', { text, duration, rows: res.rowCount });
     }
     
     return res;
   } catch (error) {
-    console.error('Sorgu hatası:', {
+    console.error('Sorgu hatasÄ±:', {
       error: error instanceof Error ? error.message : 'Bilinmeyen hata',
-      query: text.substring(0, 200), // İlk 200 karakteri logla
+      query: text.substring(0, 200), // Ä°lk 200 karakteri logla
       params: params ? params.map(p => typeof p === 'string' ? p.substring(0, 50) : p) : undefined,
       timestamp: new Date().toISOString()
     });
     
-    // Güvenlik hatalarını ayrı logla
+    // GÃ¼venlik hatalarÄ±nÄ± ayrÄ± logla
     if (error instanceof Error && error.message.includes('validation')) {
       logSecurityEvent('QUERY_VALIDATION_FAILED', {
         query: text.substring(0, 200),
@@ -229,720 +230,19 @@ export async function query(text: string, params?: (string | number | boolean | 
 
 // Veritabanı şemalarını oluşturma
 export async function createTables() {
-  let success = true;
-  
-  // Müşteriler tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS customers (
-        id SERIAL PRIMARY KEY,
-        customer_code VARCHAR(50) UNIQUE NOT NULL,
-        name VARCHAR(100) NOT NULL,
-        company VARCHAR(100),
-        tax_number VARCHAR(20),
-        phone VARCHAR(20) NOT NULL,
-        email VARCHAR(100),
-        address TEXT,
-        customer_type VARCHAR(20) NOT NULL DEFAULT 'Bireysel',
-        username VARCHAR(50) UNIQUE,
-        password VARCHAR(100),
-        orders_count INTEGER DEFAULT 0,
-        total_spent FLOAT DEFAULT 0,
-        last_order_date DATE,
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Customers tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Customers tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Ürünler tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS products (
-        id SERIAL PRIMARY KEY,
-        product_code VARCHAR(50) UNIQUE NOT NULL,
-        product_type VARCHAR(50) NOT NULL,
-        image_path TEXT,
-        barcode VARCHAR(50),
-        capacity INTEGER NOT NULL,
-        dimension_x FLOAT,
-        dimension_y FLOAT,
-        dimension_z FLOAT,
-        print_time INTEGER,
-        total_gram FLOAT NOT NULL,
-        piece_gram FLOAT NOT NULL,
-        file_path TEXT,
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Products tablosu oluşturuldu veya zaten mevcut');
-
-    // Var olan tabloya yeni kolonları ekle
-    await query(`
-      ALTER TABLE products
-      ADD COLUMN IF NOT EXISTS barcode VARCHAR(50)
-    `);
-  } catch (error) {
-    console.error('Products tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Filamentler tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS filaments (
-        id SERIAL PRIMARY KEY,
-        filament_code VARCHAR(20) UNIQUE NOT NULL,
-        name VARCHAR(100) NOT NULL,
-        type VARCHAR(20) NOT NULL,
-        brand VARCHAR(50) NOT NULL,
-        color VARCHAR(50) NOT NULL,
-        location VARCHAR(100),
-        total_weight FLOAT NOT NULL,
-        remaining_weight FLOAT NOT NULL,
-        quantity INTEGER NOT NULL DEFAULT 1,
-        critical_stock FLOAT NOT NULL DEFAULT 200,
-        temp_range VARCHAR(20),
-        cap VARCHAR(10),
-        price_per_gram FLOAT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Filaments tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Filaments tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Ürün Filamentleri tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS product_filaments (
-        id SERIAL PRIMARY KEY,
-        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
-        filament_type VARCHAR(20) NOT NULL,
-        filament_color VARCHAR(50) NOT NULL,
-        filament_density VARCHAR(50),
-        weight FLOAT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Product Filaments tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Product Filaments tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Siparişler tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS orders (
-        id SERIAL PRIMARY KEY,
-        order_code VARCHAR(50) UNIQUE NOT NULL,
-        customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
-        order_date DATE NOT NULL,
-        total_amount FLOAT NOT NULL,
-        status VARCHAR(20) NOT NULL,
-        payment_status VARCHAR(20) NOT NULL,
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Orders tablosu oluşturuldu veya zaten mevcut');
-    
-    // Sipariş numarası için sequence'ler oluştur
-    try {
-      // Normal sipariş sequence
-      await query(`
-        CREATE SEQUENCE IF NOT EXISTS order_number_seq START WITH 1000 INCREMENT BY 1
-      `);
-      console.log('Sipariş numarası sequence oluşturuldu');
-      
-      // Stok üretim sequence
-      await query(`
-        CREATE SEQUENCE IF NOT EXISTS stock_order_number_seq START WITH 1000 INCREMENT BY 1
-      `);
-      console.log('Stok üretim numarası sequence oluşturuldu');
-    } catch (seqError) {
-      console.log('Sequence zaten mevcut veya oluşturuldu');
-    }
-  } catch (error) {
-    console.error('Orders tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Sipariş Ürünleri tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS order_items (
-        id SERIAL PRIMARY KEY,
-        order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
-        product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
-        package_id INTEGER REFERENCES product_packages(id) ON DELETE SET NULL,
-        product_code VARCHAR(20),
-        product_name VARCHAR(100),
-        quantity INTEGER NOT NULL,
-        unit_price FLOAT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Order Items tablosu oluşturuldu veya zaten mevcut');
-    
-    // Mevcut tabloyu güncelle - product_code, product_name, status ve package_id alanlarını ekle
-    await query(`
-      ALTER TABLE order_items 
-      ADD COLUMN IF NOT EXISTS product_code VARCHAR(20),
-      ADD COLUMN IF NOT EXISTS product_name VARCHAR(100),
-      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'onay_bekliyor',
-      ADD COLUMN IF NOT EXISTS package_id INTEGER REFERENCES product_packages(id) ON DELETE SET NULL
-    `);
-    console.log('Order Items tablosu güncellenmiş alanlar eklendi');
-    
-    // Mevcut kayıtların boş product_code ve product_name alanlarını doldur
-    await query(`
-      UPDATE order_items oi
-      SET 
-        product_code = p.product_code,
-        product_name = p.product_type
-      FROM products p
-      WHERE oi.product_id = p.id 
-        AND (oi.product_code IS NULL OR oi.product_code = '')
-    `);
-    console.log('Mevcut order_items kayıtları ürün bilgileriyle güncellendi');
-    
-    // Mevcut kayıtların status alanını güncelle (eğer NULL ise)
-    await query(`
-      UPDATE order_items 
-      SET status = 'onay_bekliyor'
-      WHERE status IS NULL
-    `);
-    console.log('Order Items status alanları güncellendi');
-    
-    // Silinmiş ürünlerin bilgilerini de güncelle (product_id NULL olanlar için varsayılan değerler)
-    await query(`
-      UPDATE order_items 
-      SET 
-        product_code = COALESCE(product_code, 'ÜRÜN-' || id),
-        product_name = COALESCE(product_name, 'Sipariş Ürünü #' || id)
-      WHERE (product_code IS NULL OR product_code = '') 
-        AND product_id IS NULL
-    `);
-    console.log('Silinmiş ürün kayıtları için varsayılan bilgiler eklendi');
-  } catch (error) {
-    console.error('Order Items tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Stok tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS inventory (
-        id SERIAL PRIMARY KEY,
-        product_id INTEGER UNIQUE REFERENCES products(id) ON DELETE CASCADE,
-        quantity INTEGER NOT NULL DEFAULT 0,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Inventory tablosu oluşturuldu veya zaten mevcut');
-    
-    // Unique constraint ekle (tablo zaten mevcutsa)
-    try {
-      await query(`
-        ALTER TABLE inventory 
-        ADD CONSTRAINT inventory_product_id_key UNIQUE (product_id)
-      `);
-      console.log('Inventory tablosuna unique constraint eklendi');
-    } catch (constraintError) {
-      // Constraint zaten varsa hata almayı görmezden gel
-      console.log('Inventory unique constraint zaten mevcut veya eklendi');
-    }
-    
-    // created_at kolonunu ekle (var olan tablolar için)
-    try {
-      await query(`
-        ALTER TABLE inventory 
-        ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      `);
-      console.log('Inventory tablosuna created_at kolonu eklendi');
-    } catch (columnError) {
-      console.log('Inventory created_at kolonu zaten mevcut');
-    }
-  } catch (error) {
-    console.error('Inventory tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Stok Düşme Logları tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS stock_reductions (
-        id SERIAL PRIMARY KEY,
-        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
-        quantity INTEGER NOT NULL,
-        reason VARCHAR(100) NOT NULL,
-        notes TEXT,
-        reduction_date DATE NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Stock Reductions tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Stock Reductions tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Filament Kullanım Geçmişi tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS filament_usage (
-        id SERIAL PRIMARY KEY,
-        filament_id INTEGER REFERENCES filaments(id) ON DELETE CASCADE,
-        product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
-        order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-        usage_date DATE NOT NULL,
-        amount FLOAT NOT NULL,
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Filament Usage tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Filament Usage tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Müşteri Filament Fiyatları tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS customer_filament_prices (
-        id SERIAL PRIMARY KEY,
-        customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
-        filament_type VARCHAR(50) NOT NULL,
-        price_per_gram FLOAT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Customer Filament Prices tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Customer Filament Prices tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Filament Alımları tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS filament_purchases (
-        id SERIAL PRIMARY KEY,
-        filament_id INTEGER REFERENCES filaments(id) ON DELETE CASCADE,
-        purchase_date DATE NOT NULL,
-        amount_gram FLOAT NOT NULL,
-        purchase_price FLOAT NOT NULL,
-        price_per_gram FLOAT NOT NULL,
-        supplier VARCHAR(100),
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Filament Purchases tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Filament Purchases tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Cari Hesap tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS cari_hesap (
-        id SERIAL PRIMARY KEY,
-        musteri_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
-        tarih DATE NOT NULL,
-        aciklama TEXT NOT NULL,
-        islem_turu VARCHAR(20) NOT NULL,
-        tutar FLOAT NOT NULL,
-        odeme_yontemi VARCHAR(30),
-        siparis_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-        bakiye FLOAT DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Cari Hesap tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Cari Hesap tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-  
-  // Ödemeler tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS odemeler (
-        id SERIAL PRIMARY KEY,
-        musteri_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
-        siparis_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-        odeme_tarihi DATE NOT NULL,
-        tutar FLOAT NOT NULL,
-        odeme_yontemi VARCHAR(30) NOT NULL,
-        vade_ay INTEGER,
-        durum VARCHAR(20) NOT NULL DEFAULT 'Ödendi',
-        aciklama TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Ödemeler tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Ödemeler tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Toptancı Gram Aralığı Fiyatları tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS wholesale_price_ranges (
-        id SERIAL PRIMARY KEY,
-        min_gram FLOAT NOT NULL,
-        max_gram FLOAT NOT NULL,
-        price FLOAT NOT NULL,
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(min_gram, max_gram)
-      )
-    `);
-    console.log('Wholesale Price Ranges tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Wholesale Price Ranges tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Customers tablosuna toptancı alanları ekle (güvenli şekilde)
-  try {
-    // customer_category sütunu kontrol et ve ekle
-    const checkCategoryColumn = await query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'customers' 
-      AND column_name = 'customer_category'
-    `);
-
-    if (checkCategoryColumn.rowCount === 0) {
-      await query(`
-        ALTER TABLE customers 
-        ADD COLUMN customer_category VARCHAR(20) DEFAULT 'normal'
-      `);
-      console.log('customers tablosuna customer_category sütunu eklendi');
-    }
-
-    // discount_rate sütunu kontrol et ve ekle
-    const checkDiscountColumn = await query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'customers' 
-      AND column_name = 'discount_rate'
-    `);
-
-    if (checkDiscountColumn.rowCount === 0) {
-      await query(`
-        ALTER TABLE customers 
-        ADD COLUMN discount_rate FLOAT DEFAULT 0
-      `);
-      console.log('customers tablosuna discount_rate sütunu eklendi');
-    }
-
-  } catch (error) {
-    console.error('Customers tablosu toptancı alanları eklenirken hata:', error);
-    success = false;
-  }
-
-  // Varsayılan gram aralığı fiyatlarını ekle
-  try {
-    const checkPriceRanges = await query(`
-      SELECT COUNT(*) FROM wholesale_price_ranges
-    `);
-
-    if (parseInt(checkPriceRanges.rows[0].count) === 0) {
-      // Başlangıç gram aralığı fiyatlarını ekle
-      const defaultRanges = [
-        { min: 0, max: 15, price: 25 },
-        { min: 15, max: 30, price: 40 },
-        { min: 30, max: 50, price: 60 }
-      ];
-
-      for (const range of defaultRanges) {
-        await query(`
-          INSERT INTO wholesale_price_ranges (min_gram, max_gram, price)
-          VALUES ($1, $2, $3)
-        `, [range.min, range.max, range.price]);
-      }
-      
-      console.log('Varsayılan gram aralığı fiyatları eklendi');
-    }
-  } catch (error) {
-    console.error('Varsayılan gram aralığı fiyatları eklenirken hata:', error);
-    success = false;
-  }
-
-  // Paketler tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS product_packages (
-        id SERIAL PRIMARY KEY,
-        package_code VARCHAR(50) UNIQUE NOT NULL,
-        name VARCHAR(100) NOT NULL,
-        description TEXT,
-        price FLOAT NOT NULL,
-        image_path TEXT,
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Product Packages tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Product Packages tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Paket içindeki ürünler tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS package_items (
-        id SERIAL PRIMARY KEY,
-        package_id INTEGER REFERENCES product_packages(id) ON DELETE CASCADE,
-        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
-        quantity INTEGER NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Package Items tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Package Items tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Audit Log tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS audit_logs (
-        id SERIAL PRIMARY KEY,
-        user_id TEXT,
-        user_name TEXT,
-        action VARCHAR(50) NOT NULL,
-        entity_type VARCHAR(50) NOT NULL,
-        entity_id TEXT,
-        entity_name TEXT,
-        details JSONB,
-        ip_address TEXT,
-        user_agent TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC)
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id)
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id)
-    `);
-    console.log('Audit Logs tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Audit Logs tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Favori ürünler tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS favorite_products (
-        id SERIAL PRIMARY KEY,
-        customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
-        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(customer_id, product_id)
-      )
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_favorite_products_customer ON favorite_products(customer_id)
-    `);
-    console.log('Favorite Products tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Favorite Products tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // RBAC: Roles tablosu
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS roles (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(50) UNIQUE NOT NULL,
-        permissions JSONB DEFAULT '[]',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await query(`
-      INSERT INTO roles (name, permissions) VALUES
-        ('super_admin', '["*"]'),
-        ('admin', '["products.*","orders.*","customers.*","inventory.*","filaments.*","payments.*","reports.*"]'),
-        ('sales', '["orders.read","orders.create","customers.read","products.read","quotes.create"]'),
-        ('warehouse', '["inventory.*","filaments.*","orders.read","production.*"]'),
-        ('accountant', '["payments.*","customers.read","orders.read","reports.*","cari.*"]')
-      ON CONFLICT (name) DO NOTHING
-    `);
-    console.log('Roles tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Roles tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // RBAC: Users tablosu (admin tarafı kullanıcıları)
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(100) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        name VARCHAR(200) NOT NULL,
-        email VARCHAR(255),
-        role_id INTEGER REFERENCES roles(id),
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id)
-    `);
-    console.log('Users tablosu oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Users tablosu oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // Sistem müşterisi oluştur (stok üretimleri için)
-  try {
-    await query(`
-      INSERT INTO customers (customer_code, name, phone, email, customer_type, customer_category, username, password) 
-      VALUES ('STOK-001', 'STOK', '0000000000', 'stok@ballim.com', 'Kurumsal', 'normal', 'stok', 'stok123')
-      ON CONFLICT (username) DO NOTHING
-    `);
-    console.log('Sistem müşterisi (STOK) oluşturuldu veya zaten mevcut');
-  } catch (error) {
-    console.error('Sistem müşterisi oluşturulurken hata:', error);
-    success = false;
-  }
-
-  // 🚀 PERFORMANS: Database Index'leri Ekleme (Query performansı için kritik)
-  try {
-    // Products tablosu index'leri
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC)
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_products_product_code ON products(product_code)
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_products_product_type ON products(product_type)
-    `);
-    console.log('Products tablosu index\'leri oluşturuldu veya zaten mevcut');
-
-    // Product Filaments tablosu index'leri
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_product_filaments_product_id ON product_filaments(product_id)
-    `);
-    console.log('Product Filaments tablosu index\'leri oluşturuldu veya zaten mevcut');
-
-    // Inventory tablosu index'leri
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_inventory_product_id ON inventory(product_id)
-    `);
-    console.log('Inventory tablosu index\'leri oluşturuldu veya zaten mevcut');
-
-    // Order Items tablosu index'leri (stok hesaplama için kritik)
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id)
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_order_items_status ON order_items(status)
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_order_items_product_status ON order_items(product_id, status)
-    `);
-    console.log('Order Items tablosu index\'leri oluşturuldu veya zaten mevcut');
-
-    // Orders tablosu index'leri
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)
-    `);
-    await query(`
-      CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id)
-    `);
-    console.log('Orders tablosu index\'leri oluşturuldu veya zaten mevcut');
-
-    // Cari hesap index'leri
-    await query(`CREATE INDEX IF NOT EXISTS idx_cari_hesap_musteri_id ON cari_hesap(musteri_id)`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_cari_hesap_created_at ON cari_hesap(created_at DESC)`);
-
-    // Odemeler index'leri
-    await query(`CREATE INDEX IF NOT EXISTS idx_odemeler_musteri_id ON odemeler(musteri_id)`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_odemeler_siparis_id ON odemeler(siparis_id)`);
-
-    // Customer index'leri
-    await query(`CREATE INDEX IF NOT EXISTS idx_customers_username ON customers(username)`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_customers_customer_code ON customers(customer_code)`);
-
-    // Filament index'leri
-    await query(`CREATE INDEX IF NOT EXISTS idx_filaments_filament_code ON filaments(filament_code)`);
-
-    // Customer filament prices
-    await query(`CREATE INDEX IF NOT EXISTS idx_customer_filament_prices_customer ON customer_filament_prices(customer_id)`);
-
-    // Wholesale price ranges
-    await query(`CREATE INDEX IF NOT EXISTS idx_wholesale_price_ranges_active ON wholesale_price_ranges(is_active)`);
-
-    // Package items
-    await query(`CREATE INDEX IF NOT EXISTS idx_package_items_package_id ON package_items(package_id)`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_package_items_product_id ON package_items(product_id)`);
-  } catch (indexError) {
-    console.error('Index\'ler oluşturulurken hata:', indexError);
-    // Index hataları tablo oluşturmayı engellemez
-  }
-
-  if (success) {
-    console.log('Tüm tablolar başarıyla oluşturuldu veya zaten mevcuttu');
-  } else {
-    console.warn('Bazı tablolar oluşturulurken hatalar oluştu, lütfen logları kontrol edin');
-  }
-  
-  return success;
+  return runCreateTables(query);
 }
 
-// Tabloları sadece bir kez oluştur - development modunda
+// TablolarÄ± sadece bir kez oluÅŸtur - development modunda
 if (process.env.NODE_ENV === 'development') {
   createTables()
     .then(() => {
-      console.log('Tablolar başarıyla oluşturuldu veya zaten mevcuttu');
+      console.log('Tablolar baÅŸarÄ±yla oluÅŸturuldu veya zaten mevcuttu');
     })
     .catch(console.error);
 }
 
-// db objesi - eski kodlar için uyumluluk
+// db objesi - eski kodlar iÃ§in uyumluluk
 export const db = {
   query
 }; 

@@ -15,7 +15,7 @@ import {
   Truck as TruckIcon,
   Calculator as CalculatorIcon,
   Warehouse as WarehouseIcon,
-  PackageCheck as PackageCheckIcon,
+  BarChart3 as BarChartIcon,
   Settings as SettingsIcon
 } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -33,7 +33,6 @@ const ADMIN_MENU_ITEMS = [
   { name: 'Teklif Hesaplama', path: '/teklif', icon: <CalculatorIcon />, permission: MENU_PERMISSIONS.products },
   { name: 'Ürünler', path: '/urunler', icon: <PackageIcon />, permission: MENU_PERMISSIONS.products },
   { name: 'Stok Yönetimi', path: '/stok-yonetimi', icon: <WarehouseIcon />, permission: MENU_PERMISSIONS.inventory },
-  { name: 'Stok Üretim', path: '/stok-uretim', icon: <PackageCheckIcon />, permission: MENU_PERMISSIONS.inventory },
   { name: 'Stok ve Sipariş', path: '/stok-siparis', icon: <ShoppingCartIcon />, permission: MENU_PERMISSIONS.inventory },
   { name: 'Pazaryeri Siparişleri', path: '/pazaryeri-siparisleri', icon: <TruckIcon />, permission: MENU_PERMISSIONS.orders },
   { name: 'Sipariş Takip', path: '/siparis-takip', icon: <ClipboardListIcon />, permission: MENU_PERMISSIONS.orders },
@@ -42,6 +41,7 @@ const ADMIN_MENU_ITEMS = [
   { name: 'Filamentler', path: '/filamentler', icon: <CubeIcon />, permission: MENU_PERMISSIONS.filaments },
   { name: 'Ödemeler', path: '/odemeler', icon: <ReceiptIcon />, permission: MENU_PERMISSIONS.payments },
   { name: 'Üretim Takip', path: '/uretim-takip', icon: <ClipboardListIcon />, permission: MENU_PERMISSIONS.orders },
+  { name: 'Raporlar', path: '/raporlar', icon: <BarChartIcon />, permission: MENU_PERMISSIONS.reports },
   { name: 'Audit Log', path: '/audit-log', icon: <ClipboardListIcon />, permission: MENU_PERMISSIONS.reports },
   { name: 'Ayarlar', path: '/admin-ayarlar', icon: <SettingsIcon />, permission: MENU_PERMISSIONS.settings },
 ];

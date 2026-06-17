@@ -69,7 +69,9 @@ export default function CustomerFormModal({
                 <textarea name="address" placeholder="Adres" rows={2} value={formData.address || ''}
                   onChange={onFormChange} className="w-full" />
               </div>
-              <FormInput label="Kullanıcı Adı*" name="username" value={formData.username} onChange={onFormChange} />
+              <FormInput label="Kullanıcı Adı*" name="username" value={formData.username} onChange={onFormChange}
+                pattern="[A-Za-z0-9_-]{3,50}" maxLength={50}
+                title="Sadece harf, rakam, tire ve alt çizgi (3-50 karakter). Türkçe karakter ve boşluk kullanılamaz." />
               <FormInput label="Şifre*" name="password" type="password" value={formData.password} onChange={onFormChange} />
             </div>
 
@@ -100,14 +102,16 @@ export default function CustomerFormModal({
   );
 }
 
-function FormInput({ label, name, type = 'text', value, onChange }: {
+function FormInput({ label, name, type = 'text', value, onChange, pattern, title, maxLength }: {
   label: string; name: string; type?: string; value?: string; onChange: FormChangeHandler;
+  pattern?: string; title?: string; maxLength?: number;
 }) {
   return (
     <div>
       <label className="block text-sm font-medium mb-1">{label}</label>
       <input type={type} name={name} placeholder={label.replace('*', '')} value={value || ''}
-        onChange={onChange} className="w-full" required={label.includes('*')} />
+        onChange={onChange} className="w-full" required={label.includes('*')}
+        pattern={pattern} title={title} maxLength={maxLength} />
     </div>
   );
 }

@@ -94,7 +94,12 @@ export function useProductFilters(
         !filters.category ||
         product.productType?.toLowerCase().includes(filters.category.toLowerCase());
 
-      const printTime = product.printTime || 0;
+      // printTime virgüllü ("1,3") veya noktalı ("1.3") gelebilir; ondalığı destekle
+      const rawPrintTime = product.printTime;
+      const printTime =
+        typeof rawPrintTime === 'number'
+          ? rawPrintTime
+          : parseFloat(String(rawPrintTime ?? '').replace(',', '.')) || 0;
       const printTimeMatch =
         (filters.printTimeMin === '' || printTime >= filters.printTimeMin) &&
         (filters.printTimeMax === '' || printTime <= filters.printTimeMax);

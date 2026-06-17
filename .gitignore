@@ -16,6 +16,8 @@
 # misc
 .DS_Store
 *.pem
+public/uploads/*
+!public/uploads/.gitkeep
 
 # debug
 npm-debug.log*
@@ -30,7 +32,8 @@ yarn-error.log*
 jwt.txt
 *.secret
 *.key
-!localhost.key
+*.crt
+*.cert
 credentials.json
 secrets.json
 

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/db';
+import { withTransaction } from '@/lib/transaction';
 import { parseIntSafe } from '@/lib/validation';
+import { validateAPIInput } from '../../../lib/api-validation';
 import { handleApiError, handleDatabaseError, validateFilamentData } from '../../../lib/errors';
 import { createAuditLog, getUserFromRequest } from '../../../lib/audit-log';
 
@@ -56,10 +58,9 @@ export async function POST(request: NextRequest) {
     
     // Validation
     const validatedData = validateFilamentData(body);
-    const { type, color, brand, totalWeight, remainingWeight } = validatedData;
+    const { type, color, brand, location, totalWeight, remainingWeight } = validatedData;
     
     const {
-      location = '',
       quantity = 1,
       criticalStock = 0,
       tempRange = '',
@@ -159,6 +160,34 @@ export async function PUT(request: NextRequest) {
         { error: 'Filament ID gerekli' },
         { status: 400 }
       );
+    }
+
+    // V2: Güncelleme alanlarını doğrula (string alanlarda sanitize + SQL + uzunluk)
+    const validation = validateAPIInput(updateData, {
+      sanitize: true,
+      validateSQL: true,
+      types: {
+        name: 'string', type: 'string', brand: 'string',
+        color: 'string', location: 'string', tempRange: 'string',
+      },
+      maxLengths: {
+        name: 100, type: 50, brand: 50, color: 50, location: 100, tempRange: 50,
+      },
+    });
+    if (!validation.isValid || !validation.sanitizedData) {
+      return NextResponse.json(
+        { error: 'Validation hatası', details: validation.errors },
+        { status: 400 }
+      );
+    }
+    Object.assign(updateData, validation.sanitizedData);
+
+    // Sayısal mantık kontrolleri (sadece ilgili alan gönderildiyse)
+    if (updateData.totalWeight !== undefined && Number(updateData.totalWeight) < 1) {
+      return NextResponse.json({ error: 'Toplam ağırlık en az 1 gram olmalı' }, { status: 400 });
+    }
+    if (updateData.pricePerGram !== undefined && Number(updateData.pricePerGram) < 0) {
+      return NextResponse.json({ error: 'Gram fiyatı negatif olamaz' }, { status: 400 });
     }
     
     // Güncellenecek alanları doğru kolona eşle
@@ -283,32 +312,27 @@ export async function DELETE(request: NextRequest) {
     if (productLinks > 0 || usageLogs > 0) {
       // Force yalnızca ürün ilişkisi yoksa ve sadece kullanım geçmişi varsa izinli
       if (force && productLinks === 0 && usageLogs > 0) {
-        await query('BEGIN');
-        try {
-          await query('DELETE FROM filament_usage WHERE filament_id = $1', [id]);
-          const delRes = await query('DELETE FROM filaments WHERE id = $1 RETURNING *', [id]);
-          await query('COMMIT');
-          if (delRes.rowCount === 0) {
-            return NextResponse.json({ error: 'Filament bulunamadı' }, { status: 404 });
-          }
-          
-          // Audit log
-          const userInfo = await getUserFromRequest(request);
-          const deletedFilament = delRes.rows[0];
-          await createAuditLog({
-            ...userInfo,
-            action: 'DELETE',
-            entityType: 'FILAMENT',
-            entityId: String(id),
-            entityName: `${deletedFilament.filament_code} - ${deletedFilament.name}`,
-            details: { filamentId: id, force: true, usageHistoryDeleted: true }
-          });
-          
-          return NextResponse.json({ message: 'Filament ve kullanım geçmişi silindi', deletedId: id });
-        } catch (e) {
-          await query('ROLLBACK');
-          throw e;
+        const delRes = await withTransaction(async (tx) => {
+          await tx('DELETE FROM filament_usage WHERE filament_id = $1', [id]);
+          return tx('DELETE FROM filaments WHERE id = $1 RETURNING *', [id]);
+        });
+        if (delRes.rowCount === 0) {
+          return NextResponse.json({ error: 'Filament bulunamadı' }, { status: 404 });
         }
+
+        // Audit log
+        const userInfo = await getUserFromRequest(request);
+        const deletedFilament = delRes.rows[0];
+        await createAuditLog({
+          ...userInfo,
+          action: 'DELETE',
+          entityType: 'FILAMENT',
+          entityId: String(id),
+          entityName: `${deletedFilament.filament_code} - ${deletedFilament.name}`,
+          details: { filamentId: id, force: true, usageHistoryDeleted: true }
+        });
+
+        return NextResponse.json({ message: 'Filament ve kullanım geçmişi silindi', deletedId: id });
       }
 
       return NextResponse.json(

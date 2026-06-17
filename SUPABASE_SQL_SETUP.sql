@@ -240,5 +240,60 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, category,
 ('low_stock_threshold', '5', 'number', 'notifications', 'Düşük stok uyarı eşiği', false)
 ON CONFLICT (setting_key) DO NOTHING;
 
+-- 23. Ürün paketleri tablosu (db.ts createTables ile senkron — şema kayması Y2 düzeltmesi)
+CREATE TABLE IF NOT EXISTS product_packages (
+  id SERIAL PRIMARY KEY,
+  package_code VARCHAR(50) UNIQUE NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  price FLOAT NOT NULL,
+  image_path TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 24. Paket içindeki ürünler tablosu
+CREATE TABLE IF NOT EXISTS package_items (
+  id SERIAL PRIMARY KEY,
+  package_id INTEGER REFERENCES product_packages(id) ON DELETE CASCADE,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  quantity INTEGER NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_package_items_package_id ON package_items(package_id);
+CREATE INDEX IF NOT EXISTS idx_package_items_product_id ON package_items(product_id);
+
+-- 25. Favori ürünler tablosu
+CREATE TABLE IF NOT EXISTS favorite_products (
+  id SERIAL PRIMARY KEY,
+  customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(customer_id, product_id)
+);
+CREATE INDEX IF NOT EXISTS idx_favorite_products_customer ON favorite_products(customer_id);
+
+-- 26. Supabase Storage: ürün görselleri bucket'ı
+-- Supabase SQL Editor'da çalıştırın (storage şeması gerekir)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'product-images',
+  'product-images',
+  true,
+  5242880,
+  ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS "Public read product images" ON storage.objects;
+CREATE POLICY "Public read product images"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'product-images');
+
 -- Başarı mesajı
 SELECT 'Tüm tablolar başarıyla oluşturuldu ve örnek veriler eklendi!' as message;

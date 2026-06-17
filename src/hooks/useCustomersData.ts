@@ -33,6 +33,15 @@ const DEFAULT_FORM: Partial<Customer> = {
   orders: 0, totalSpent: 0, customerCategory: 'normal', discountRate: 0,
 };
 
+// API orderCount/lastOrderDate döndürüyor; UI orders/lastOrder bekliyor — eşle
+function normalizeCustomer(raw: Record<string, unknown>): Customer {
+  return {
+    ...(raw as unknown as Customer),
+    orders: Number(raw.orderCount ?? raw.orders ?? 0),
+    lastOrder: (raw.lastOrderDate as string) ?? (raw.lastOrder as string) ?? '-',
+  };
+}
+
 export function useCustomersData() {
   const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,7 +75,7 @@ export function useCustomersData() {
         const res = await fetch('/api/customers');
         if (!res.ok) throw new Error(`API hatası: ${res.status} ${res.statusText}`);
         const data = await res.json();
-        setCustomers(Array.isArray(data) ? data : []);
+        setCustomers(Array.isArray(data) ? data.map(normalizeCustomer) : []);
       } catch (err) {
         setError('Müşteri verileri yüklenirken bir hata oluştu: ' +
           (err instanceof Error ? err.message : 'Bilinmeyen hata'));
@@ -234,7 +243,7 @@ export function useCustomersData() {
           const ed = await response.json().catch(() => ({}));
           throw new Error(ed.details?.join(', ') || ed.error || 'Müşteri güncellenemedi');
         }
-        const updated = await response.json();
+        const updated = normalizeCustomer(await response.json());
         setCustomers((prev) => prev.map((c) => (c.id === selectedCustomer.id ? updated : c)));
         toast.success('Müşteri başarıyla güncellendi');
       } else {
@@ -247,7 +256,7 @@ export function useCustomersData() {
           const ed = await response.json().catch(() => ({}));
           throw new Error(ed.details?.join(', ') || ed.error || 'Müşteri eklenemedi');
         }
-        const newCustomer = await response.json();
+        const newCustomer = normalizeCustomer(await response.json());
         setCustomers((prev) => [...prev, newCustomer]);
         toast.success('Müşteri başarıyla eklendi');
       }

@@ -235,18 +235,6 @@ export default function FilamentModal({
                   onChange={handleChange}
                 />
               </div>
-              <div>
-                <label htmlFor="cap" className="block text-sm font-medium mb-1">
-                  Çap (mm)
-                </label>
-                <input
-                  id="cap"
-                  name="cap"
-                  type="text"
-                  value={formData.cap}
-                  onChange={handleChange}
-                />
-              </div>
             </div>
             
             <div>

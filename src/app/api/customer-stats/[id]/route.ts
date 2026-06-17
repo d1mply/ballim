@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { getAuthUser, canAccessCustomerData } from '@/lib/auth-middleware';
 
 export async function GET(
   request: NextRequest,
@@ -13,6 +14,21 @@ export async function GET(
       return NextResponse.json(
         { error: 'Geçersiz müşteri ID' },
         { status: 400 }
+      );
+    }
+
+    // IDOR koruması: giriş zorunlu + müşteri yalnızca kendi verisine erişebilir
+    const authUser = getAuthUser(request);
+    if (!authUser) {
+      return NextResponse.json(
+        { error: 'Kimlik doğrulaması gerekli' },
+        { status: 401 }
+      );
+    }
+    if (!canAccessCustomerData(authUser, customerId)) {
+      return NextResponse.json(
+        { error: 'Bu veriye erişim yetkiniz yok' },
+        { status: 403 }
       );
     }
 
@@ -61,13 +77,31 @@ export async function GET(
     );
     const favoriteProducts = parseInt(favoriteProductsResult.rows[0]?.count || '0');
 
+    // Son 6 ayın aylık harcaması (grafik için)
+    const monthlyResult = await query(
+      `SELECT to_char(date_trunc('month', order_date), 'YYYY-MM') as month,
+              COALESCE(SUM(total_amount), 0) as amount
+       FROM orders
+       WHERE customer_id = $1
+         AND status != 'İptal'
+         AND order_date >= (CURRENT_DATE - INTERVAL '6 months')
+       GROUP BY 1
+       ORDER BY 1`,
+      [customerId]
+    );
+    const monthlySpending = monthlyResult.rows.map((r) => ({
+      month: r.month,
+      amount: parseFloat(r.amount) || 0,
+    }));
+
     const stats = {
       totalOrders,
       totalSpent,
       pendingOrders,
       completedOrders,
       currentBalance,
-      favoriteProducts
+      favoriteProducts,
+      monthlySpending
     };
 
     return NextResponse.json(stats);

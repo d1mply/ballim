@@ -52,7 +52,12 @@ export default function Layout({ children, hideNavigation = false }: LayoutProps
     };
   }, [hideNavigation]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch {
+      // Cookie temizleme başarısız olsa bile yerel oturumu kapat
+    }
     localStorage.removeItem('loggedUser');
     setCurrentUser(null);
     router.push('/');

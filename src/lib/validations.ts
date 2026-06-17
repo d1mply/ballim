@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+/**
+ * Zod schemas for client-side / form validation.
+ * API route validation: use @/lib/api-validation
+ * SQL query validation: use @/lib/db/validation
+ */
 // Customer form
 export const customerSchema = z.object({
   name: z.string().min(2, 'İsim en az 2 karakter olmalı'),
@@ -35,21 +40,6 @@ export const productSchema = z.object({
 });
 export type ProductFormData = z.infer<typeof productSchema>;
 
-// Order form
-export const orderSchema = z.object({
-  customer_id: z.number().positive('Müşteri seçiniz'),
-  items: z
-    .array(
-      z.object({
-        product_id: z.number().positive(),
-        quantity: z.number().positive("Miktar 0'dan büyük olmalı"),
-      })
-    )
-    .min(1, 'En az bir ürün ekleyin'),
-  notes: z.string().optional(),
-});
-export type OrderFormData = z.infer<typeof orderSchema>;
-
 // Payment form
 export const paymentSchema = z.object({
   musteri_id: z.number().positive('Müşteri seçiniz'),
@@ -70,16 +60,6 @@ export const loginSchema = z.object({
   type: z.enum(['admin', 'customer']),
 });
 export type LoginFormData = z.infer<typeof loginSchema>;
-
-// User (RBAC) form
-export const userSchema = z.object({
-  username: z.string().min(3, 'Kullanıcı adı en az 3 karakter'),
-  password: z.string().min(8, 'Şifre en az 8 karakter'),
-  name: z.string().min(2, 'İsim en az 2 karakter'),
-  email: z.string().email('Geçersiz e-posta').optional().or(z.literal('')),
-  role_id: z.number().positive('Rol seçiniz'),
-});
-export type UserFormData = z.infer<typeof userSchema>;
 
 export function getFirstError(result: z.SafeParseReturnType<unknown, unknown>): string | null {
   if (result.success) return null;

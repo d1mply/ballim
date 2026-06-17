@@ -12,11 +12,7 @@ const PUBLIC_ENDPOINTS = [
 const ADMIN_ONLY_ENDPOINTS = [
   '/api/audit-logs',
   '/api/customers/system',
-  '/api/fix-tables',
   '/api/users',
-  '/api/fix-order-items-status',
-  '/api/reset-filament',
-  '/api/setup-tables',
 ];
 
 // Auth result interface

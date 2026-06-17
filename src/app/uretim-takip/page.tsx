@@ -118,7 +118,7 @@ export default function UretimTakipPage() {
       const response = await apiPut('/api/orders/product-status', {
         orderId: order.orderCode,
         productId: product.id,
-        status: 'hazirlandi'
+        status: 'uretildi'
       });
 
       if (response.success) {
@@ -161,7 +161,7 @@ export default function UretimTakipPage() {
     if (!selectedOrderItem || !selectedProduct) return;
 
     try {
-      const targetStatus = formData.skipProduction ? 'Hazırlandı' : 'Üretimde';
+      const targetStatus = formData.skipProduction ? 'hazirlaniyor' : 'Üretimde';
       
       const response = await apiPut('/api/orders/product-status', {
         orderId: selectedOrderItem.orderCode,

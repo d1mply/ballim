@@ -7,14 +7,24 @@ import { ORDER_STATUSES, ORDER_STATUS_LABELS, STATUS_COLORS } from '@/constants'
  */
 export const convertStatus = (status: string): string => {
   const statusMap: { [key: string]: string } = {
+    // Enum (snake_case) anahtarlar
     'onay_bekliyor': ORDER_STATUSES.PENDING,
     'uretiliyor': ORDER_STATUSES.PRODUCING,
     'uretildi': ORDER_STATUSES.PRODUCED,
     'hazirlaniyor': ORDER_STATUSES.PREPARING,
-    'hazirlandi': ORDER_STATUSES.READY
+    'hazirlandi': ORDER_STATUSES.READY,
+    // Türkçe görünen değerler (API orders.status bunları döndürüyor)
+    'onay bekliyor': ORDER_STATUSES.PENDING,
+    'üretimde': ORDER_STATUSES.PRODUCING,
+    'uretimde': ORDER_STATUSES.PRODUCING,
+    'üretildi': ORDER_STATUSES.PRODUCED,
+    'hazırlanıyor': ORDER_STATUSES.PREPARING,
+    'hazırlandı': ORDER_STATUSES.READY
   };
-  
-  return statusMap[status] || ORDER_STATUSES.PENDING;
+
+  if (!status) return ORDER_STATUSES.PENDING;
+  const normalized = status.trim().toLowerCase();
+  return statusMap[normalized] || ORDER_STATUSES.PENDING;
 };
 
 /**

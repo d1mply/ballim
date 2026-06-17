@@ -127,12 +127,42 @@ export default function PazaryeriSiparisleriPage() {
 
   const fetchPazaryeriSiparisleri = async () => {
     try {
-      const response = await fetch('/api/orders?type=pazaryeri');
+      // Pazaryeri siparişleri normal orders içinde saklanıyor; notes alanı "Pazaryeri:" ile başlar
+      const response = await fetch('/api/orders?limit=100');
       if (!response.ok) throw new Error('Siparişler yüklenemedi');
       
       const data = await response.json();
       const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-      setSiparisler(list);
+
+      const mapped: PazaryeriSiparis[] = list
+        .filter((o: { notes?: string }) => typeof o.notes === 'string' && o.notes.includes('Pazaryeri:'))
+        .map((o: {
+          id: number; order_code: string; status: string; total_amount: string | number;
+          order_date: string; notes: string;
+          products?: Array<{ code?: string; name?: string; quantity?: number }>;
+        }) => {
+          const firstItem = Array.isArray(o.products) && o.products.length > 0 ? o.products[0] : null;
+          const qty = firstItem?.quantity || 0;
+          const total = parseFloat(String(o.total_amount)) || 0;
+          const match = o.notes.match(/Pazaryeri:\s*([^|]+)/);
+          const pazaryeri = match ? match[1].trim() : 'Diğer';
+
+          return {
+            id: String(o.id),
+            orderCode: o.order_code,
+            pazaryeri,
+            productId: '',
+            productCode: firstItem?.code || '',
+            productType: firstItem?.name || '',
+            quantity: qty,
+            salePrice: qty > 0 ? total / qty : 0,
+            orderDate: o.order_date ? new Date(o.order_date).toLocaleDateString('tr-TR') : '',
+            status: o.status,
+            notes: o.notes,
+          };
+        });
+
+      setSiparisler(mapped);
     } catch (error) {
       console.error('Pazaryeri siparişleri yüklenirken hata:', error);
       // Hata durumunda boş array
@@ -197,7 +227,7 @@ export default function PazaryeriSiparisleriPage() {
         }${formData.notes ? ` | ${formData.notes}` : ''}`,
         orderType: 'pazaryeri',
         pazaryeri: formData.pazaryeri,
-        items: [{
+        products: [{
           productId: formData.productId,
           quantity: formData.quantity,
           unitPrice: formData.salePrice
@@ -218,8 +248,9 @@ export default function PazaryeriSiparisleriPage() {
       }
 
       const result = await response.json();
+      const newOrderCode = result?.order?.order_code || result?.orderCode || '';
       
-      toast.success(`Pazaryeri siparişi oluşturuldu! Sipariş No: ${result.orderCode} - Toplam: ${orderData.totalAmount}₺`);
+      toast.success(`Pazaryeri siparişi oluşturuldu! Sipariş No: ${newOrderCode} - Toplam: ${orderData.totalAmount}₺`);
       
       // Formu temizle
       setFormData({

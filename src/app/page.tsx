@@ -204,11 +204,13 @@ export default function HomePage() {
     setLoading(true);
 
     try {
+      const userType = username === 'admin' ? 'admin' : 'customer';
+
       const response = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, type: userType, honeypot: '' }),
       });
 
       const data = await response.json();
@@ -355,6 +357,9 @@ export default function HomePage() {
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full"
                 required
+                pattern="[A-Za-z0-9_-]{3,50}"
+                maxLength={50}
+                title="Sadece harf, rakam, tire ve alt çizgi (3-50 karakter)."
               />
             </div>
             

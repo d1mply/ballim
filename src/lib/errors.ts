@@ -149,6 +149,7 @@ interface FilamentInput {
   type?: unknown;
   color?: unknown;
   brand?: unknown;
+  location?: unknown;
   totalWeight?: unknown;
   remainingWeight?: unknown;
 }
@@ -158,14 +159,16 @@ export const validateFilamentData = (data: FilamentInput) => {
   validateRequired(data.type, 'Filament tipi');
   validateRequired(data.color, 'Filament rengi');
   validateRequired(data.brand, 'Filament markası');
-  
+  validateRequired(data.location, 'Konum');
+
   const totalWeight = validateNumber(data.totalWeight, 'Toplam ağırlık', 1);
   const remainingWeight = validateNumber(data.remainingWeight, 'Kalan ağırlık', 0, totalWeight);
-  
+
   return {
     type: validateString(data.type, 'Tip', 1, 50),
     color: validateString(data.color, 'Renk', 1, 50),
     brand: validateString(data.brand, 'Marka', 1, 50),
+    location: validateString(data.location, 'Konum', 1, 100),
     totalWeight,
     remainingWeight
   };
