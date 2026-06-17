@@ -21,6 +21,11 @@ const SQL_INJECTION_PATTERNS_FOR_QUERY = [
   /load_file|into\s+outfile/i,
 ];
 
+// Base64 resim verisi kontrolü — SQL injection taramasından muaf tutulur
+function isBase64Image(value: string): boolean {
+  return /^data:image\/(jpeg|jpg|png|gif|webp|svg\+xml);base64,/.test(value);
+}
+
 // Dynamic Query Detection
 const DYNAMIC_QUERY_PATTERNS = [
   /\$\{[^}]+\}/, // Template literals
@@ -91,7 +96,7 @@ function validateQuery(text: string, params?: (string | number | boolean | null)
       for (let i = 0; i < params.length; i++) {
         const param = params[i];
         // Sadece string parametrelerde kontrol et (number, boolean güvenli)
-        if (typeof param === 'string' && param.length > 0) {
+        if (typeof param === 'string' && param.length > 0 && !isBase64Image(param)) {
           // Kritik SQL injection pattern'leri (sadece en tehlikeli olanlar)
           const criticalPatterns = [
             /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC)\b.*\b(WHERE|FROM|INTO|TABLE)\b)/i,
@@ -144,7 +149,7 @@ function validateQuery(text: string, params?: (string | number | boolean | null)
   if (params && params.length > 0) {
     for (let i = 0; i < params.length; i++) {
       const param = params[i];
-      if (typeof param === 'string' && param.length > 0) {
+      if (typeof param === 'string' && param.length > 0 && !isBase64Image(param)) {
         for (const pattern of SQL_INJECTION_PATTERNS_FOR_PARAMS) {
           if (pattern.test(param)) {
             logSecurityEvent('SQL_INJECTION_IN_PARAMS', {
